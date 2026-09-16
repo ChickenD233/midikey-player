@@ -27,6 +27,9 @@ public partial class OverlayWindow : Window
     private bool _positioned;
     private double _pxPerSec = 1.0;   // SetNotes 时按窗口宽度算好，ShowProgress 滚动用
 
+    /// <summary>卷帘内容层的平移变换（XAML 里声明的那一个）。</summary>
+    private TranslateTransform RollShift => (TranslateTransform)RollContent.RenderTransform!;
+
     public OverlayWindow()
     {
         InitializeComponent();
@@ -91,7 +94,8 @@ public partial class OverlayWindow : Window
         Bar.Value = Math.Clamp(elapsed, 0, Bar.Maximum);
         // 屏幕 x = 音符时间×比例 + 偏移；偏移 = 播放头位置 − 已演奏时间×比例。
         // 开头处音符正好落在播放头上，左侧留白表示「还没开始」。
-        Canvas.SetLeft(RollContent, RollCanvas.Width * PlayheadFrac - elapsed * _pxPerSec);
+        // 用 RenderTransform 平移内容层：不碰布局，几百个音符矩形不用重排。
+        RollShift.X = RollCanvas.Width * PlayheadFrac - elapsed * _pxPerSec;
         TxtTime.Text = $"{elapsed:F1} / {total:F1} s";
 
         string state = "";

@@ -64,9 +64,10 @@ public sealed class KeymapProfile
     /// <summary>
     /// 默认方案名。内置四套都用直白名字（自然音 / 半音 / 第五人格键位 / 8 键半音），
     /// 不再由几何量拼出来 ——「36 键 4 排 3 个八度」这类名字会把用户绕晕，实际只有三排。
-    /// 默认方案：Z X C V B N M / A S D F G H J / Q W E R T Y U 三排自然音，一排一个八度，60..95。
+    /// 默认方案（v1.0.17 起）：Z X C V B N M , 一排 do..高音 do，
+    /// 鼠标左键降八度、右键升八度、中键升半音，能弹 48..85。
     /// </summary>
-    public const string DefaultName = "21 键自然音";
+    public const string DefaultName = "8 键半音";
 
     /// <summary>当前格式版本。读到更大的版本号就是不认识的格式。</summary>
     public const int CurrentVersion = 1;
@@ -151,14 +152,15 @@ public sealed class KeymapProfile
     /// </summary>
     public static IReadOnlyList<KeymapProfile> Presets => _presets ??= BuildPresets();
 
-    /// <summary>默认方案（第 1 套）。每次取都是新副本，改它不影响内置预设。</summary>
-    public static KeymapProfile Default => BuildDefault();
+    /// <summary>默认方案（第 1 套，v1.0.17 起是「8 键半音」）。每次取都是新副本，改它不影响内置预设。</summary>
+    public static KeymapProfile Default => BuildChromatic8();
 
     /// <summary>
-    /// 第 1 套（默认）：21 键自然音，三行七列，一行一个八度。
+    /// 21 键自然音（v1.0.17 之前的默认方案）：三行七列，一行一个八度。
     /// 下排 Z X C V B N M = 中音 do..si；中排 A S D F G H J = 高八度；上排 Q W E R T Y U = 再高一个八度。
     /// 60..95。预设不带修饰键：功能键总开关关掉。
     /// </summary>
+    /// <summary>21 键自然音的构建入口（v1.0.17 前的默认方案，现在只是预设之一）。</summary>
     private static KeymapProfile BuildDefault() => BuildNatural21();
 
     /// <summary>
@@ -355,17 +357,17 @@ public sealed class KeymapProfile
 
     /// <summary>
     /// 4 套内置预设，名字直接写死成直白的中文（不再由 <see cref="SchemeNameOf"/> 拼几何量）。
-    /// 第 1 套的名字必须等于 <see cref="DefaultName"/>，不等就写日志。
+    /// 第 1 套的名字必须等于 <see cref="DefaultName"/>（默认方案，v1.0.17 起是「8 键半音」），不等就写日志。
     /// 第 3 套的用户可见名字由用户指定，键位与旧的「36 键半音三排」相同（见 <see cref="LegacyPresetAlias"/>）。
     /// </summary>
     private static IReadOnlyList<KeymapProfile> BuildPresets()
     {
         var list = new List<KeymapProfile>
         {
-            Preset(BuildDefault(), DefaultName),              // 第 1 套 = 默认方案：中 / 高 / 高高，三行七列自然音
-            Preset(BuildChromatic21(), "21 键半音"),           // 第 2 套：低 / 中 / 高三个八度 + Shift 升 / Ctrl 降半音
-            Preset(BuildChromatic36(), "第五人格键位"),         // 第 3 套：三排各 12 个半音
-            Preset(BuildChromatic8(), "8 键半音"),             // 第 4 套：一排 8 键 do..高音 do + 鼠标三键
+            Preset(BuildChromatic8(), DefaultName),           // 第 1 套 = 默认方案：一排 8 键 do..高音 do + 鼠标三键
+            Preset(BuildDefault(), "21 键自然音"),             // 第 2 套：中 / 高 / 高高，三行七列自然音
+            Preset(BuildChromatic21(), "21 键半音"),           // 第 3 套：低 / 中 / 高三个八度 + Shift 升 / Ctrl 降半音
+            Preset(BuildChromatic36(), "第五人格键位"),         // 第 4 套：三排各 12 个半音
         };
         if (!string.Equals(list[0].Name, DefaultName, StringComparison.Ordinal))
             LogFile.Append($"[键位] 默认方案名是「{list[0].Name}」，与常量「{DefaultName}」不同，请同步。");
@@ -401,7 +403,7 @@ public sealed class KeymapProfile
     private static readonly Dictionary<string, string> LegacyPresetAlias = new(StringComparer.Ordinal)
     {
         // 上一版由 SchemeNameOf 算出来的名字 → 现在的直白名字（键位没变，只是换了称呼）
-        ["21 键 3 排 3 个八度"] = DefaultName,
+        ["21 键 3 排 3 个八度"] = "21 键自然音",
         ["21 键 3 排 2 个八度"] = "21 键半音",
         ["36 键 4 排 3 个八度"] = "第五人格键位",
         ["36 键 3 排 3 个八度"] = "第五人格键位",

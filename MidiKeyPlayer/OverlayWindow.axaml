@@ -33,7 +33,13 @@
         <Border CornerRadius="4" Background="#22FFFFFF" Height="90"
                 ToolTip.Tip="迷你卷帘跟着进度滚动：黄线是当前位置，右边是即将演奏的音">
           <Canvas x:Name="RollCanvas" Width="250" Height="90" ClipToBounds="True">
-            <Canvas x:Name="RollContent"/>
+            <Canvas x:Name="RollContent">
+              <!-- 滚动走 RenderTransform（只改渲染变换，不触发几百个音符矩形的重新布局），
+                   大型游戏占满 GPU/CPU 时也不卡 -->
+              <Canvas.RenderTransform>
+                <TranslateTransform X="0"/>
+              </Canvas.RenderTransform>
+            </Canvas>
             <Rectangle x:Name="Playhead" Width="1.5" Height="90" Fill="#FFFFD166"
                        Canvas.Left="62" ZIndex="1"/>
           </Canvas>

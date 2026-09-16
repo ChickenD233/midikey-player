@@ -71,6 +71,9 @@ public partial class MainWindow : Window
     private bool _updateBusy;              // 正在下载或正在应用更新
     private CancellationTokenSource? _updateCts;
     private OverlayWindow? _overlay;        // 播放悬浮窗（倒计时 / 进度 / 当前音）
+    private double _overlayLastElapsed = -1;   // 上次推给悬浮窗的进度（节流用；-1 = 还没推过）
+    private bool _overlayLastPaused;
+    private int _overlayLastLoop = -1;
     private MappingResult? _lastMapping;    // 最近一次映射结果（LblWarn 的「跳过明细」用）
 
     /// <summary>
@@ -2643,7 +2646,33 @@ public partial class MainWindow : Window
         w.RestorePosition(_cfg?.OverlayX ?? -1, _cfg?.OverlayY ?? -1);
     }
 
-    private void HideOverlay() => _overlay?.Close();
+    private void HideOverlay()
+    {
+        _overlay?.Close();
+        _overlayLastElapsed = -1;   // 节流基线一起清，下一轮播放从第一次推送开始
+    }
+
+    /// <summary>
+    /// 悬浮窗节流：进度变化 ≥0.15s、或暂停 / 循环状态变了才推，否则这趟什么都不做。
+    /// 大型游戏占满 GPU/CPU 时，悬浮窗的刷新频次从 12.5 次/秒降到约 7 次/秒，
+    /// 暂停时直接零刷新，不与游戏抢帧。
+    /// </summary>
+    private void PushOverlayThrottled(PlaybackEngine eng)
+    {
+        if (ChkOverlay.IsChecked != true) { _overlayLastElapsed = -1; return; }
+        double elapsed = eng.ElapsedSeconds;
+        bool paused = eng.IsPaused;
+        int loop = eng.LoopCount;
+        bool dirty = _overlayLastElapsed < 0
+                     || Math.Abs(elapsed - _overlayLastElapsed) >= 0.15
+                     || paused != _overlayLastPaused
+                     || loop != _overlayLastLoop;
+        if (!dirty) return;
+        _overlayLastElapsed = elapsed;
+        _overlayLastPaused = paused;
+        _overlayLastLoop = loop;
+        ShowOverlayProgress(eng);
+    }
 
     /// <summary>输入兼容档位：只影响下一次开始播放时的事件时序，不需要刷新预览。</summary>
     private void Timing_Changed(object? sender, SelectionChangedEventArgs e)
@@ -3330,9 +3359,10 @@ public partial class MainWindow : Window
                 LblStatus.Foreground = OkBrush;
                 LblStatus.Text = eng.CurrentNote;
             }
-            ShowOverlayProgress(eng);   // 悬浮窗跟随（含「已暂停」状态；开关关掉时内部直接返回）
+            PushOverlayThrottled(eng);   // 悬浮窗跟随（节流：进度变 ≥0.15s 或状态变了才推）
         };
         _uiTimer.Start();
+        _overlayLastElapsed = -1;   // 新一轮播放：重置节流基线
         if (ChkOverlay.IsChecked == true)
             EnsureOverlay().SetNotes(_playNotes, engine.TotalSeconds);   // 迷你卷帘的音符
         ShowOverlayProgress(engine);   // 倒计时是 0 秒时这里没有等待期，立刻摆出进度
