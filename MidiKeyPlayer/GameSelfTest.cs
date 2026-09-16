@@ -271,17 +271,24 @@ internal static class GameSelfTest
     // ================= 降半音键 =================
 
     /// <summary>
-    /// 降半音键（v1.0.14 新增）：「异环键位」预设有 Shift 升半音 + Ctrl 降半音；
+    /// 降半音键（v1.0.14 新增）：「21 键半音」预设有 Shift 升半音 + Ctrl 降半音；
     /// 黑键两条路都能到时固定优先升半音；最低键下面那一个半音只能用降半音；
     /// 只绑降半音键的方案用「上方邻键 + 降半音」补黑键。
+    /// v1.0.15 把短命的「异环键位」并入「21 键半音」，老名字走别名表。
     /// </summary>
     private static void TestFlatModifier()
     {
-        var p = KeymapProfile.PresetByName("异环键位");
-        Check("降半音：异环键位预设存在且半音键绑对",
+        var p = KeymapProfile.PresetByName("21 键半音");
+        Check("降半音：21 键半音预设存在且半音键绑对",
               p != null && p.Sharp == "Shift" && p.Flat == "Ctrl" && p.ModifiersEnabled,
               p == null ? "取不到" : $"Sharp=「{p.Sharp}」 Flat=「{p.Flat}」 开关={p.ModifiersEnabled}");
         if (p == null) return;
+
+        // 改名合并：v1.0.14 的「异环键位」要落到合并后的「21 键半音」上
+        var alias = KeymapProfile.PresetByName("异环键位");
+        Check("降半音：老名字「异环键位」落到 21 键半音",
+              alias != null && alias.Name == "21 键半音",
+              alias == null ? "取不到" : $"落到「{alias.Name}」");
 
         // 音域：低音 do（48）被 Ctrl 向下多扩一个半音到 47；最高仍是高音 si+升半音 = 84
         Check("降半音：音域向下多扩一个半音",

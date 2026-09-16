@@ -192,12 +192,13 @@ public sealed class KeymapProfile
     }
 
     /// <summary>
-    /// 21 键半音：三行七列**自然音**，三行分别是低音 / 中音 / 高音三个八度，配升半音键补齐半音。
+    /// 21 键半音：三行七列**自然音**，三行分别是低音 / 中音 / 高音三个八度，配半音键补齐半音。
     /// 下排 Z X C V B N M = 低音 do..si（48 起，偏移 −12 −10 −8 −7 −5 −3 −1）；
     /// 中排 A S D F G H J = 中音 do..si（60 起，偏移 0 2 4 5 7 9 11）；
     /// 上排 Q W E R T Y U = 高音 do..si（72 起，偏移 12 14 16 17 19 21 23）。
-    /// 功能键打开，「升半音」绑 Shift：按住 Shift 整排升半音。八度键留空。
-    /// 能弹 48..84（低音 do 到高音 do 再升半音），三个八度。
+    /// 功能键打开：按住 Shift 升半音、按住 Ctrl 降低半音（v1.0.14 的「异环键位」已并入本套，
+    /// 键位一字未动，见 <see cref="LegacyPresetAlias"/>）。八度键留空。
+    /// 能弹 47..84（低音 do 再低半音 到 高音 si 升半音）。
     /// </summary>
     private static KeymapProfile BuildChromatic21()
     {
@@ -216,13 +217,14 @@ public sealed class KeymapProfile
             Version = CurrentVersion,
             Description = "三行七列自然音，三行是低音 / 中音 / 高音三个八度："
                         + "Z X C V B N M 是低音 do..si，A S D F G H J 是中音 do..si，Q W E R T Y U 是高音 do..si；"
-                        + "按住 Shift 升半音",
+                        + "按住 Shift 升半音，按住 Ctrl 降低半音",
             BaseNote = 60,
             Keys = keys,
             ModifiersEnabled = true,
             OctaveUp = null,
             OctaveDown = null,
             Sharp = "Shift",
+            Flat = "Ctrl",
         };
     }
 
@@ -293,25 +295,6 @@ public sealed class KeymapProfile
     }
 
     /// <summary>
-    /// 第 5 套（异环键位）：键位与「21 键半音」完全相同（三行七列自然音，低 / 中 / 高三个八度），
-    /// 修饰键多一个降半音：按住 Shift 升半音、按住 Ctrl 降低半音。
-    /// 同一个黑键两条路都能到时固定用 Shift（升半音优先，规则见 TryKeyOfPitch）；
-    /// Ctrl 额外把音域向下多扩一个半音（最低键 低音 do 下面那一个半音）。
-    /// 能弹 47..84。
-    /// </summary>
-    private static KeymapProfile BuildChromatic21Flat()
-    {
-        var p = BuildChromatic21();
-        p.Name = "异环键位";
-        p.Sharp = "Shift";
-        p.Flat = "Ctrl";
-        p.Description = "三行七列自然音，三行是低音 / 中音 / 高音三个八度："
-                      + "Z X C V B N M 是低音 do..si，A S D F G H J 是中音 do..si，Q W E R T Y U 是高音 do..si；"
-                      + "按住 Shift 升半音，按住 Ctrl 降低半音";
-        return p;
-    }
-
-    /// <summary>
     /// 方案名：「N 键 M 排 K 个八度」。
     /// N = 键位数；M = 这些键在物理键盘上占几排；K = 能弹音域的八度数（向上取整）。
     /// K 由「键位 × 八度键」能到达的音高张角算出，升半音键只在音域内补半音，不扩展边界。
@@ -371,7 +354,7 @@ public sealed class KeymapProfile
     }
 
     /// <summary>
-    /// 5 套内置预设，名字直接写死成直白的中文（不再由 <see cref="SchemeNameOf"/> 拼几何量）。
+    /// 4 套内置预设，名字直接写死成直白的中文（不再由 <see cref="SchemeNameOf"/> 拼几何量）。
     /// 第 1 套的名字必须等于 <see cref="DefaultName"/>，不等就写日志。
     /// 第 3 套的用户可见名字由用户指定，键位与旧的「36 键半音三排」相同（见 <see cref="LegacyPresetAlias"/>）。
     /// </summary>
@@ -380,10 +363,9 @@ public sealed class KeymapProfile
         var list = new List<KeymapProfile>
         {
             Preset(BuildDefault(), DefaultName),              // 第 1 套 = 默认方案：中 / 高 / 高高，三行七列自然音
-            Preset(BuildChromatic21(), "21 键半音"),           // 第 2 套：低 / 中 / 高三个八度自然音 + Shift 升半音
+            Preset(BuildChromatic21(), "21 键半音"),           // 第 2 套：低 / 中 / 高三个八度 + Shift 升 / Ctrl 降半音
             Preset(BuildChromatic36(), "第五人格键位"),         // 第 3 套：三排各 12 个半音
             Preset(BuildChromatic8(), "8 键半音"),             // 第 4 套：一排 8 键 do..高音 do + 鼠标三键
-            Preset(BuildChromatic21Flat(), "异环键位"),         // 第 5 套：同 21 键半音 + Shift 升半音 / Ctrl 降半音
         };
         if (!string.Equals(list[0].Name, DefaultName, StringComparison.Ordinal))
             LogFile.Append($"[键位] 默认方案名是「{list[0].Name}」，与常量「{DefaultName}」不同，请同步。");
@@ -429,6 +411,9 @@ public sealed class KeymapProfile
         // 所以老名字指回新预设，老用户的设置能直接恢复，不用手工再选一次。
         ["8 键单排（含高八度 do，默认）"] = "8 键半音",
         ["8 键 1 排 3 个八度"] = "8 键半音",
+        // v1.0.14 的「异环键位」在 v1.0.15 并入「21 键半音」（键位相同，只是多了 Ctrl 降半音）。
+        // 已选过它的老用户直接落到合并后的方案，不用手工再选一次。
+        ["异环键位"] = "21 键半音",
     };
 
     /// <summary>
