@@ -624,7 +624,7 @@
                          ToolTip.Tip="切到文件夹曲目里的上一首。要先「打开文件夹」列出曲目才生效；播放中切歌不走倒计时，直接接着弹"/>
               <ComboBox x:Name="HotkeyPrevCombo" Width="86" FontSize="{DynamicResource FontSmall}"
                         VerticalAlignment="Center" SelectionChanged="Hotkey_Changed"
-                        ToolTip.Tip="默认 F4"/>
+                        ToolTip.Tip="默认 F8"/>
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" Spacing="8">
@@ -632,7 +632,7 @@
                          ToolTip.Tip="切到文件夹曲目里的下一首。要先「打开文件夹」列出曲目才生效；播放中切歌不走倒计时，直接接着弹"/>
               <ComboBox x:Name="HotkeyNextCombo" Width="86" FontSize="{DynamicResource FontSmall}"
                         VerticalAlignment="Center" SelectionChanged="Hotkey_Changed"
-                        ToolTip.Tip="默认 F8"/>
+                        ToolTip.Tip="默认 F9"/>
             </StackPanel>
 
             <Button x:Name="BtnExport" Content="导出按键表 ▾" FontSize="{DynamicResource FontSmall}"

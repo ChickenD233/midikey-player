@@ -102,9 +102,9 @@ public partial class MainWindow : Window
         HotkeyForwardCombo.ItemsSource = fkeys;
         HotkeyForwardCombo.SelectedIndex = 7;   // F7
         HotkeyPrevCombo.ItemsSource = fkeys;
-        HotkeyPrevCombo.SelectedIndex = 4;      // F4：上一首
+        HotkeyPrevCombo.SelectedIndex = 8;      // F8：上一首
         HotkeyNextCombo.ItemsSource = fkeys;
-        HotkeyNextCombo.SelectedIndex = 8;      // F8：下一首
+        HotkeyNextCombo.SelectedIndex = 9;      // F9：下一首
 
         // 输入兼容档位：决定修饰键与音键之间的物理时间余量
         TimingCombo.ItemsSource = InputTiming.Names;

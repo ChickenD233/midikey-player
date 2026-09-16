@@ -42,8 +42,8 @@ public sealed class AppConfig
     public int ControlHotkeyIndex { get; set; } = 6; // 统一控制键（默认 F6：开始/暂停/继续）
     public int RewindHotkeyIndex { get; set; } = 5;  // 后退热键（默认 F5）
     public int ForwardHotkeyIndex { get; set; } = 7; // 前进热键（默认 F7）
-    public int PrevSongHotkeyIndex { get; set; } = 4;   // 上一首热键（默认 F4，文件夹曲目）
-    public int NextSongHotkeyIndex { get; set; } = 8;   // 下一首热键（默认 F8，文件夹曲目）
+    public int PrevSongHotkeyIndex { get; set; } = 8;   // 上一首热键（默认 F8，文件夹曲目）
+    public int NextSongHotkeyIndex { get; set; } = 9;   // 下一首热键（默认 F9，文件夹曲目）
     public bool TrimLead { get; set; } = true;        // 去除开头空拍（首音平移到 0 秒）
     public bool FirstRunDone { get; set; } = false;   // 首次“快速上手”是否已看过
     public bool AutoMinimizeOnPlay { get; set; } = true;  // 播放开始后自动最小化窗口
