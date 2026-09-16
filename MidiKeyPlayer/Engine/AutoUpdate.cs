@@ -156,13 +156,15 @@ public static class AutoUpdate
         var outv = new int[3];
         for (int i = 0; i < parts.Length; i++)
         {
-            // 只比较前三段。预发布段（1.0.0-rc.1 里的 rc）被丢掉，所以它等于 1.0.0。
+            // 只比较前三段。预发布段（1.0.0-rc.1 里的 rc）既不参与比较，也不尝试解析 ——
+            // 否则每个预发布标签都会白写一条"不是数字"的警告。
+            if (i >= 3) break;
             if (!int.TryParse(parts[i], out int n))
             {
                 Persist.LogFile.Append($"[更新] 版本号「{v}」里的「{parts[i]}」不是数字，这一段按 0 算。");
-                n = 0;                                  // 预发布段不参与比较
+                n = 0;
             }
-            if (i < 3) outv[i] = n;
+            outv[i] = n;
         }
         return outv;
     }
@@ -330,15 +332,39 @@ public static class AutoUpdate
                 // 等主程序退出（保存设置、松按键、注销热键都在退出流程里）
                 "try { Wait-Process -Id $appPid -Timeout 180 -ErrorAction Stop } catch {}",
                 "Start-Sleep -Milliseconds 500",
-                // exe 文件可能还被系统占用一小会：重试一分钟
+                "$tmp = \"$target.tmp\"",
+                "$bak = \"$target.bak\"",
+                // 先把新 exe 复制到同目录的临时文件：直接原地覆盖目标时一旦中断（断电、被杀），
+                // 装好的程序就变砖。exe 文件可能还被系统占用一小会：重试一分钟
                 "$ok = $false",
                 "for ($i = 0; $i -lt 120; $i++) {",
-                "    try { Copy-Item -LiteralPath $new -Destination $target -Force -ErrorAction Stop; $ok = $true; break }",
+                "    try { Copy-Item -LiteralPath $new -Destination $tmp -Force -ErrorAction Stop; $ok = $true; break }",
                 "    catch { Start-Sleep -Milliseconds 500 }",
                 "}",
+                // 校验临时文件确实存在且不是残片（小于 10KB 视为复制失败）
                 "if ($ok) {",
+                "    $fi = Get-Item -LiteralPath $tmp",
+                "    if ($null -eq $fi -or $fi.Length -lt 10240) { $ok = $false }",
+                "}",
+                // 替换前先把当前 exe 备份到 .bak：替换失败还能把旧版还原回来
+                "if ($ok) {",
+                "    try { Copy-Item -LiteralPath $target -Destination $bak -Force -ErrorAction Stop } catch { $ok = $false }",
+                "}",
+                "if ($ok) {",
+                "    try { Move-Item -LiteralPath $tmp -Destination $target -Force -ErrorAction Stop } catch { $ok = $false }",
+                "}",
+                "if ($ok) {",
+                "    Remove-Item -LiteralPath $bak -Force",
                 "    Remove-Item -LiteralPath $new -Force",
                 "    Start-Process -FilePath $target",
+                "} else {",
+                "    # 失败：清掉临时文件，有备份就把旧 exe 还原，并把旧版重新启动 ——",
+                "    # 别让用户面对一个被关掉又打不开的程序",
+                "    Remove-Item -LiteralPath $tmp -Force",
+                "    if (Test-Path -LiteralPath $bak) {",
+                "        try { Move-Item -LiteralPath $bak -Destination $target -Force -ErrorAction Stop } catch {}",
+                "    }",
+                "    if (Test-Path -LiteralPath $target) { Start-Process -FilePath $target }",
                 "}",
                 "Remove-Item -LiteralPath $MyInvocation.MyCommand.Path -Force",
             });

@@ -279,6 +279,7 @@ public sealed class LivePlayback : IDisposable
             _sounding.Clear();
             _modKey = null;
             _modSharp = false;
+            _modFlat = false;
         }
         _wake.Release();
         if (_thread != null && _thread.IsAlive && !ReferenceEquals(_thread, Thread.CurrentThread))
@@ -349,15 +350,19 @@ public sealed class LivePlayback : IDisposable
             string? wantMod = map.Low ? ModKeyOrNull(profile.OctaveDown, profile)
                             : map.High ? ModKeyOrNull(profile.OctaveUp, profile)
                             : null;
+            // 切换前先清掉队列里相关键尚未发出的旧事件：旧 KeyDown 可能排在将来，
+            // 若修饰键在它发出前又翻转一次，这次排的 KeyUp 会落空（键还没按下），
+            // 而陈旧的 KeyDown 随后照样发出 → 修饰键被物理卡死。
             if (_modKey != wantMod)
             {
-                if (_modKey is { Length: > 0 } old) Enqueue(now, old, false);
-                if (wantMod is { Length: > 0 } neu) Enqueue(Math.Max(now, minDown - modLead), neu, true);
+                if (_modKey is { Length: > 0 } old) { PurgePending(old); Enqueue(now, old, false); }
+                if (wantMod is { Length: > 0 } neu) { PurgePending(neu); Enqueue(Math.Max(now, minDown - modLead), neu, true); }
                 _modKey = wantMod;
             }
             string? sharpKey = ModKeyOrNull(profile.Sharp, profile);
             if (_modSharp != map.Sharp && sharpKey != null)
             {
+                PurgePending(sharpKey);
                 if (_modSharp) Enqueue(now, sharpKey, false);
                 if (map.Sharp) Enqueue(Math.Max(now, minDown - modLead), sharpKey, true);
                 _modSharp = map.Sharp;
@@ -365,6 +370,7 @@ public sealed class LivePlayback : IDisposable
             string? flatKey = ModKeyOrNull(profile.Flat, profile);
             if (_modFlat != map.Flat && flatKey != null)
             {
+                PurgePending(flatKey);
                 if (_modFlat) Enqueue(now, flatKey, false);
                 if (map.Flat) Enqueue(Math.Max(now, minDown - modLead), flatKey, true);
                 _modFlat = map.Flat;
@@ -462,6 +468,9 @@ public sealed class LivePlayback : IDisposable
 #endif
         return Environment.TickCount64;
     }
+
+    /// <summary>清掉队列里某根键尚未发出的所有事件（修饰键切换时防陈旧 KeyDown 卡键）。持锁调用。</summary>
+    private void PurgePending(string key) => _queue.RemoveAll(e => e.Key == key);
 
     /// <summary>插入队列并保持按 Due 升序（同刻事件保持插入顺序：先抬起，后按下）。</summary>
     private void Enqueue(double due, string key, bool down)

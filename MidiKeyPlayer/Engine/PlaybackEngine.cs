@@ -57,7 +57,7 @@ public sealed class PlaybackEngine : IDisposable
     private List<MappedNote> _allNotes = new();   // 本轮全部可演奏音符（跳转/重建用）
     private double _totalMusic;          // 音乐时间总长
     private double _speed = 1.0;
-    private double _leadSec;             // 提前量（物理秒，与速度无关）
+    private double _leadSec;             // 提前量（音乐秒：物理预算 × 速度，与 _musicNow 同口径比较）
     private bool _loop;
 
     private Thread? _thread;
@@ -206,11 +206,13 @@ public sealed class PlaybackEngine : IDisposable
             if (_thread is { IsAlive: true } previous) previous.Join(200);
 
             _speed = speed <= 0 ? 1.0 : Math.Clamp(speed, MinSpeed, MaxSpeed);
-            // 提前量是"提前多少**物理**时间发事件"，绝不能乘 speed（旧版 5x 速度下会膨胀到
-            // 125ms，谱面与实际发声严重错位）；但又必须 ≥ ModLeadMs + 一帧，否则预置修饰键会被
-            // 推到音键之后发出，音高全错。建表侧另有一步 A01 的换算：物理预算 × 速度 → 音乐时间。
+            // 提前量在派发时与**音乐时间**比较（T 与 _musicNow 都是音乐时间），
+            // 所以物理毫秒预算必须乘速度换成音乐秒，否则物理提前量 = lead / speed：
+            // 400% 时只剩 14ms（小于一帧，预置修饰键被推到音键之后 → 音高全错）；
+            // 10% 时膨胀到 570ms。换算方向与建表侧 A01 一致：音乐秒 = 物理秒 × 速度。
+            // 下限仍须 ≥ ModLeadMs + 一帧，保证修饰键先于音键发出。
             double needLeadMs = Timing.ModLeadMs + Timing.FrameMs;
-            _leadSec = Math.Max(Timing.LeadMs, needLeadMs) / 1000.0;
+            _leadSec = Math.Max(Timing.LeadMs, needLeadMs) / 1000.0 * _speed;
             // 诊断口径跟着本轮速度走：表里的时间差是音乐时间，报出的毫秒要乘速度换回物理时间（A13）
             Probe.Speed = _speed;
             Probe.Timing = Timing;
@@ -262,7 +264,9 @@ public sealed class PlaybackEngine : IDisposable
             // 换谱点真正按着的修饰键由 ResyncModifiersAt 直接物理补按，不往表里插表头事件。
             var (evs, total) = BuildSchedule(inRange, ModState.None);
             _events = evs;
-            if (total > 0) _totalMusic = Math.Max(_totalMusic, total);
+            // 直接采用新表总长：不能用 Max 保留旧值，否则换成更短的谱面后，
+            // 工作线程会按陈旧的更大总长空等几分钟才循环 / 结束。
+            _totalMusic = total;
             _nextIdx = FindNextIdx(_musicNow);
             ResyncModifiersAt(_nextIdx);
             SetCurrentNote("");
@@ -341,7 +345,12 @@ public sealed class PlaybackEngine : IDisposable
         SetCurrentNote("");
     }
 
-    public void Dispose() => Stop();
+    public void Dispose()
+    {
+        Stop();
+        _resumeGate.Dispose();
+        _cancelEvent.Dispose();
+    }
 
     /// <summary>播放中重新开始一轮用的内部停止。调用方必须已持 <see cref="_gate"/>（A10）。</summary>
     private void StopInternal()
@@ -375,15 +384,15 @@ public sealed class PlaybackEngine : IDisposable
                 }
 
                 // 1) 积分：物理流逝 × 速度 → 音乐时间
+                // dt 在锁外采样（读物理时钟不需锁），但累加进 _musicNow 必须进锁：
+                // SeekFraction / UpdateNotes 在锁内改写 _musicNow，锁外累加会把那次写入冲掉（丢更新）。
                 double now = _clock.Elapsed.TotalSeconds;
                 double dt = now - _lastPhys;
                 _lastPhys = now;
-                if (dt > 0) _musicNow += dt * _speed;
 
                 // 2) 派发到期的事件
-                // 提前量是**固定物理时间**（不乘速度）：否则 5x 时提前 125ms 发，
-                // 谱面与实际发声严重错位。这里比的是音乐时间（T 与 _musicNow 都是音乐时间），
-                // 物理提前量与音乐提前量的换算由积分步长承担（A01）。
+                // _leadSec 已是音乐时间口径（Play 里已乘速度），与 _musicNow 直接可比；
+                // 实际发出的物理提前量恒等于 InputTiming 的毫秒值，换算由积分步长承担（A01）。
                 //
                 // 派发段与跳转 / 换谱 / 暂停共用 _gate：否则 SeekFraction 重建表之后，
                 // 工作线程可能先派发新表的第一个音，而补按的修饰键晚一步（R2-01、R2-02）。
@@ -398,6 +407,8 @@ public sealed class PlaybackEngine : IDisposable
                     if (myGen != _wgen) break;
                     // 等锁期间用户可能已经点了暂停：这一趟不派发，回到外层的暂停分支等放行（R3-01）
                     if (_paused) continue;
+                    // 积分累加进锁：与 SeekFraction / UpdateNotes 对 _musicNow 的写入同一口径
+                    if (dt > 0) _musicNow += dt * _speed;
                     double lead = _leadSec;
                     while (_running && _nextIdx < _events.Count && _events[_nextIdx].T <= _musicNow + lead)
                     {
@@ -464,7 +475,9 @@ public sealed class PlaybackEngine : IDisposable
                             double t2 = _clock.Elapsed.TotalSeconds;
                             double d2 = t2 - _lastPhys;
                             _lastPhys = t2;
-                            if (d2 > 0) _musicNow += d2 * _speed;
+                            // 累加同样要进锁：这里也在跑时用户拖进度条（SeekFraction 锁内写 _musicNow）
+                            // 会被锁外累加冲掉，与派发段同型竞态
+                            if (d2 > 0) { lock (_gate) { _musicNow += d2 * _speed; } }
                         }
                     }
                 }
@@ -508,7 +521,8 @@ public sealed class PlaybackEngine : IDisposable
             double now = _clock.Elapsed.TotalSeconds;
             double dt = now - _lastPhys;
             _lastPhys = now;
-            if (dt > 0) _musicNow += dt * _speed;
+            // 累加进锁，理由同派发段：长空拍正睡在这里，拖进度条不能被冲掉
+            if (dt > 0) { lock (_gate) { _musicNow += dt * _speed; } }
             _cancelEvent.Wait(2);
         }
     }

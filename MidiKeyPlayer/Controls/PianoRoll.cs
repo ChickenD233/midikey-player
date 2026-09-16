@@ -75,6 +75,8 @@ public sealed class PianoRoll : Control
     private DragMode _mode = DragMode.None;
     private bool _dragMoved;
     private Point _pressPt;
+    /// <summary>最后一次已知指针位置：捕获被抢走时没有落点可用，收尾用它。</summary>
+    private Point _lastPt;
     private Rect _marquee;
 
     // 拖动基准：手势开始时记录一次，**之后只读**；每次指针移动都从这份基准重新算结果，
@@ -338,6 +340,7 @@ public sealed class PianoRoll : Control
         if (preserveView) ClampView();      // 保留缩放与位置（撤销/重做时用），只把视口夹回新总长
         else { _viewFrom = 0; _viewTo = _total; }
         _positionAtLastFollow = double.NaN;
+        EnsureBarsInvalid();   // 音符换了必须废掉条形缓存（不能靠调用方先调 SetVoiceColors 兜底）
         InvalidateVisual();
         RaiseSelectionChanged();
         RaiseViewChanged();
@@ -938,6 +941,7 @@ public sealed class PianoRoll : Control
         if (_total <= 0) return;
 
         var p = e.GetPosition(this);
+        _lastPt = p;
         var props = e.GetCurrentPoint(this).Properties;
 
         if (props.IsMiddleButtonPressed)
@@ -1056,6 +1060,7 @@ public sealed class PianoRoll : Control
     {
         base.OnPointerMoved(e);
         var p = e.GetPosition(this);
+        _lastPt = p;
 
         if (_mode == DragMode.None)
         {
@@ -1118,7 +1123,26 @@ public sealed class PianoRoll : Control
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        // 先收尾再还捕获：Capture(null) 会同步触发 OnPointerCaptureLost，
+        // 顺序反了 SeekCommitted 会拿到 _lastPt 而不是松手落点（收尾也是幂等的，反过来只多跑一次空收尾）
+        EndDrag(e.GetPosition(this));
         e.Pointer.Capture(null);
+    }
+
+    /// <summary>
+    /// 捕获被抢走（拖出窗口、Alt+Tab）时收尾：与松手走同一段逻辑。
+    /// 缺了它，尺子定位手势会卡在 ScrubRuler，MainWindow 的 _seeking 一直为 true，进度显示冻住。
+    /// 没有有效落点，用最后一次已知指针位置（SeekCommitted 照常发，MainWindow 靠它解除 _seeking）。
+    /// </summary>
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+        EndDrag(_lastPt);
+    }
+
+    /// <summary>松手 / 捕获丢失的统一收尾：按手势模式提交或定位，再清掉拖动状态。</summary>
+    private void EndDrag(Point p)
+    {
         Cursor = HandCursor;
         var mode = _mode;
         _mode = DragMode.None;
@@ -1126,12 +1150,12 @@ public sealed class PianoRoll : Control
         switch (mode)
         {
             case DragMode.ScrubRuler:
-                SeekCommitted?.Invoke(TimeAt(e.GetPosition(this).X));
+                SeekCommitted?.Invoke(TimeAt(p.X));
                 break;
 
             case DragMode.Marquee when !_dragMoved:
                 ClearSelection();
-                SeekCommitted?.Invoke(TimeAt(e.GetPosition(this).X));
+                SeekCommitted?.Invoke(TimeAt(p.X));
                 break;
 
             case DragMode.Move:

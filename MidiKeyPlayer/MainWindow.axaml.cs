@@ -205,7 +205,7 @@ public partial class MainWindow : Window
         Roll.SelectionChanged += UpdateEditUi;
         Roll.EditCommitted += OnRollEditCommitted;
         Roll.ViewChanged += OnRollViewChanged;
-        ChkSnap.IsCheckedChanged += (_, _) => Roll.SnapEnabled = ChkSnap.IsChecked == true;
+        // ChkSnap 不再重复订阅：XAML 上已有 IsCheckedChanged="Snap_Changed"，做同一个赋值
         ChkFollow.IsCheckedChanged += (_, _) => Roll.SetFollow(ChkFollow.IsChecked == true);
         KeyDown += OnWindowKeyDown;
         Roll.SnapEnabled = ChkSnap.IsChecked == true;
@@ -217,7 +217,9 @@ public partial class MainWindow : Window
         _previewDeb.Tick += (_, _) =>
         {
             _previewDeb.Stop();
-            RefreshPreview();
+            // 去抖刷新的都是"音符没变、只是选项/速度/移调变了"的场景：
+            // keepView 保住卷帘视口与选择，别把正在编辑的用户弹回全曲。
+            RefreshPreview(keepView: true);
         };
 
         UpdateSettingLabels();
@@ -672,10 +674,12 @@ public partial class MainWindow : Window
         ShowPosition(seconds);
     }
 
-    /// <summary>卷帘松手：真正跳转。</summary>
+    /// <summary>卷帘松手：真正跳转。seconds 是谱面秒（卷帘轴就是谱面时间）。</summary>
     private void OnRollSeek(double seconds)
     {
         _seeking = false;
+        // 试听时钟走真实秒（谱面秒 / 速度）：先换算，与进度条拖动（真实秒量程）行为一致
+        if (_previewOn) seconds /= _previewSpeed;
         ApplySeek(seconds);
     }
 
@@ -960,7 +964,9 @@ public partial class MainWindow : Window
     private MidiPreviewSequencer? _previewSeq;
     /// <summary>界面刷新定时器：低频（60ms），只把位置画到界面上。音频派发不在这里。</summary>
     private DispatcherTimer? _previewTimer;
-    private double _previewTotal;
+    private double _previewTotal;   // 试听总长（真实秒 = 谱面秒 / 速度）
+    /// <summary>本次试听采用的速度：真实秒 ↔ 谱面秒换算用（谱面秒 = 真实秒 × 它）。</summary>
+    private double _previewSpeed = 1.0;
     private bool _previewOn;
     /// <summary>事件表条数。诊断用（探针要打印它）。</summary>
     internal int PreviewEventCount => _previewSeq?.EventCount ?? 0;
@@ -1020,6 +1026,7 @@ public partial class MainWindow : Window
         // 与演奏同一套时间基准：谱面时间除以速度 = 真实秒。
         // 事件表只在 Load 里建一次，播放中不再重建。
         double speed = Math.Max(0.1, SliderSpeed.Value / 100.0);
+        _previewSpeed = speed;
         var spans = new List<(double Start, double End, int Pitch)>(notes.Count);
         foreach (var n in notes) spans.Add((n.Start, n.End, n.Pitch));
 
@@ -1027,8 +1034,13 @@ public partial class MainWindow : Window
         _previewSeq.Load(spans, speed);
         _previewTotal = _previewSeq.TotalSeconds;
 
-        // 从进度条当前位置开始试听（用户可能已经把指针拖到某处了）
-        double startAt = Math.Clamp(SliderProgress.Value, 0, _previewTotal);
+        // 从当前定位位置开始试听（用户可能已经把指针拖到某处了）。
+        // 单位换算：_previewSeconds 是谱面秒（与 RefreshPreview 的进度条量程同轴，
+        // 试听中也被换算回谱面秒维护），而调度器的事件表是真实秒（谱面秒 / 速度），
+        // 起播位置必须先除速度 —— 否则 200% 速度下定位到谱面 80s 会被当成真实 80s
+        //（=谱面 160s，常被夹到末尾）。不读 SliderProgress.Value：上一场试听停掉后
+        // 进度条仍停留在真实秒量程，再除一次速度就错了。
+        double startAt = Math.Clamp(_previewSeconds / speed, 0, _previewTotal);
         _previewOn = true;
         BtnPreview.Content = "⏹ 停止试听";
         SliderProgress.Maximum = Math.Max(0.1, _previewTotal);
@@ -1063,7 +1075,7 @@ public partial class MainWindow : Window
         if (_seeking) return;
 
         double t = PreviewNow();
-        double shown = Math.Min(t, _previewTotal);
+        double shown = Math.Min(t, _previewTotal);   // 真实秒（调度器时钟）
         if (_previewTotal > 0)
         {
             SliderProgress.Value = shown;
@@ -1071,6 +1083,10 @@ public partial class MainWindow : Window
             Roll.SetPosition(shown);
             UpdateSeekNote(shown);
         }
+
+        // 同步记住定位位置：shown 是真实秒，换回谱面秒（×速度）保持 _previewSeconds 的单位契约。
+        // 不更新的话，试听结束后 F5/F7 相对定位会从试听前的旧位置起跳。
+        _previewSeconds = shown * _previewSpeed;
 
         if (_previewSeq is { IsFinished: true }) StopPreviewAudio();
     }
@@ -1886,7 +1902,16 @@ public partial class MainWindow : Window
     private async void TrackList_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_revertingTrack) return;   // RV-09：取消后回退选中行，忽略自触发的事件
-        if (TrackList.SelectedItem is TrackRowVM row) await SetMain(row);
+        if (TrackList.SelectedItem is not TrackRowVM row) return;
+        try
+        {
+            await SetMain(row);
+        }
+        catch (Exception ex)
+        {
+            // async void 里漏出的异常会直接崩进程：与其他处理器一样只记日志
+            InsertLog($"换主旋律轨失败：{ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     private async Task SetMain(TrackRowVM? row)
@@ -2221,30 +2246,38 @@ public partial class MainWindow : Window
     /// <summary>勾选“合”：勾选先后即主次（先勾=1 主）；勾完立即刷新，可直接播放。</summary>
     private async void Mix_Changed(object? sender, RoutedEventArgs e)
     {
-        if (sender is CheckBox cb && cb.DataContext is TrackRowVM row)
+        try
         {
-            if (_revertingMix) return;   // RV-09：取消后回退勾选，忽略自触发的事件
-            bool on = cb.IsChecked == true;
-            // RV-09：改合奏勾选会重建谱面并丢弃手动改动，先确认一次；取消则把勾选退回原值。
-            if (!await ConfirmDiscardEditsForActionAsync("改合奏声部"))
+            if (sender is CheckBox cb && cb.DataContext is TrackRowVM row)
             {
-                _revertingMix = true;
-                try { cb.IsChecked = !on; }   // 双向绑定同时把 IsMix 退回
-                finally { _revertingMix = false; }
-                return;
+                if (_revertingMix) return;   // RV-09：取消后回退勾选，忽略自触发的事件
+                bool on = cb.IsChecked == true;
+                // RV-09：改合奏勾选会重建谱面并丢弃手动改动，先确认一次；取消则把勾选退回原值。
+                if (!await ConfirmDiscardEditsForActionAsync("改合奏声部"))
+                {
+                    _revertingMix = true;
+                    try { cb.IsChecked = !on; }   // 双向绑定同时把 IsMix 退回
+                    finally { _revertingMix = false; }
+                    return;
+                }
+                DropEditsIfAny("改了合奏声部");
+                row.IsMix = on;   // 保证模型状态一致
+                if (on)
+                {
+                    if (!_mixOrder.Contains(row)) _mixOrder.Add(row);
+                }
+                else
+                {
+                    _mixOrder.Remove(row);
+                }
             }
-            DropEditsIfAny("改了合奏声部");
-            row.IsMix = on;   // 保证模型状态一致
-            if (on)
-            {
-                if (!_mixOrder.Contains(row)) _mixOrder.Add(row);
-            }
-            else
-            {
-                _mixOrder.Remove(row);
-            }
+            SyncMixOrder();
         }
-        SyncMixOrder();
+        catch (Exception ex)
+        {
+            // async void 里漏出的异常会直接崩进程：与其他处理器一样只记日志
+            InsertLog($"改合奏声部失败：{ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -2842,7 +2875,8 @@ public partial class MainWindow : Window
         if (TxtKeymapName != null) TxtKeymapName.Text = _keymap.Name;
         KeymapProfile.Current = _keymap;
         if (TxtSeekNote != null) UpdateSeekNote();
-        RefreshPreview();
+        // 换键位方案不改音符与时序：保住卷帘视口与选择（与撤销/重做同一理由）
+        RefreshPreview(keepView: true);
     }
 
     // ================= MIDI 设备接入（issue #4） =================
@@ -3019,11 +3053,15 @@ public partial class MainWindow : Window
     /// <summary>实时演奏时把最近一个音显示在状态行上，方便确认设备真的通了。</summary>
     private void OnMidiObserved(LiveMapping map, int pitch, int velocity)
     {
-        if (ChkMidiLive.IsChecked != true) return;
         string text = map.Playable
             ? $"[MIDI] {Music.SolfegeName(pitch)} → {KeyLabelOf(map)}"
             : $"[MIDI] {Music.SolfegeName(pitch)} → 超出音域";
-        UiPost(() => UpdateMidiStatus(text));
+        // 本函数跑在 MIDI 设备线程上：Avalonia 对象非线程安全，IsChecked 必须到 UI 线程再读
+        UiPost(() =>
+        {
+            if (ChkMidiLive.IsChecked != true) return;
+            UpdateMidiStatus(text);
+        });
     }
 
     private void UpdateMidiStatus(string note)
@@ -3197,6 +3235,9 @@ public partial class MainWindow : Window
     private void RequestPlay(bool skipCountdown = false)
     {
         if (_busy || ActiveRows().Count == 0) return;
+
+        // 试听与演奏不能同时进行（反向检查在 StartPreviewAudio）：先停试听再开弹
+        if (_previewOn) StopPreviewAudio();
 
         var map = BuildMapping();
         if (map.InRangeCount == 0)
@@ -3591,6 +3632,8 @@ public partial class MainWindow : Window
         _countdownTimer?.Stop();
         _liveTimer?.Stop();
         _uiTimer?.Stop();
+        _saveDeb?.Stop();     // 去抖计时器也会顶着拆窗口触发：一并停掉
+        _previewDeb?.Stop();
         _engine?.Stop();
         StopPreviewAudio();
         // 【诊断用，可删】关窗口这条路的清音证据（探针模式才写）

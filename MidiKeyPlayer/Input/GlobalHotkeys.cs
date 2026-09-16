@@ -53,6 +53,19 @@ public static class GlobalHotkeys
             // A08：阻塞等线程把 _winThreadId 写好（或注册失败）。否则 Stop() 可能在 id 写入前执行：
             // 那样发不出 WM_QUIT，_thread 又被置 null，钩子线程与低级键盘钩子终身泄漏。
             _ready.Wait(500);
+            if (_running && _winThreadId == 0)
+            {
+                // 超时：线程 id 还没写好。不能把 _running 留真 —— Stop() 发不出 WM_QUIT，
+                // 钩子线程泄漏，下次 Start() 还会再装一个钩子（同一按键触发两次）。
+                // 按启动失败处理：再给一小段时间等 id 补写，等到就补发 WM_QUIT，等不到就放弃
+                //（Worker 的消息循环以 _running 为条件，之后任何消息到达都会让它自行退出拆钩）。
+                _running = false;
+                if (_ready.Wait(200))
+                {
+                    uint tid = _winThreadId;
+                    if (tid != 0) PostThreadMessageW(tid, WM_QUIT, IntPtr.Zero, IntPtr.Zero);
+                }
+            }
             return _running;
         }
     }
@@ -90,7 +103,11 @@ public static class GlobalHotkeys
             if (_lastDownTick.TryGetValue(code, out long last) && now - last < 100) return; // 防连发
             _lastDownTick[code] = now;
         }
-        KeyState?.Invoke(code, true);
+        // 订阅者代码不能同步跑在钩子回调里：处理一慢（如开演奏前的自检有多个 150ms 超时等待），
+        // Windows 会按 LowLevelHooksTimeout 静默摘掉 LL 钩子，热键无声失效、还不报任何错。
+        // 防连发判断留在钩子线程，真正的派发扔给线程池，回调立刻返回。
+        int vk = code;
+        Task.Run(() => KeyState?.Invoke(vk, true));
     }
 
     // ================= 低层键盘钩子 =================

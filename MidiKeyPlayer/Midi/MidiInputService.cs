@@ -133,8 +133,21 @@ public static class MidiInputService
         {
             foreach (var d in InputDevice.GetAll())
             {
-                string name = d.Name ?? "";
-                if (!string.IsNullOrWhiteSpace(name) && !list.Contains(name)) list.Add(name);
+                try
+                {
+                    string name = d.Name ?? "";
+                    if (!string.IsNullOrWhiteSpace(name) && !list.Contains(name)) list.Add(name);
+                }
+                finally
+                {
+                    // GetAll 返回的设备是 IDisposable：只枚举名字也必须释放，否则每次刷新都漏一个
+                    // 设备句柄，有些驱动之后会拒绝再打开（报"设备忙"）。防御风格同 Stop（A09）。
+                    try { d.Dispose(); }
+                    catch (Exception ex)
+                    {
+                        LogFile.Append($"[MIDI] 释放枚举到的设备失败（已忽略）：{ex.Message}");
+                    }
+                }
             }
         }
         catch (Exception ex)

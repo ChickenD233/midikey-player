@@ -27,7 +27,7 @@ public sealed record InputTiming
     /// <summary>前音抬起 → 后音按下之间的最小间隔（跨帧安全边距）。</summary>
     public double ReleaseGapMs { get; init; } = 40.0;   // ≈ 2.5 帧 @60fps
 
-    /// <summary>提前派发的物理时间（固定值，不再乘速度）。须 ≥ ModLeadMs + FrameMs。</summary>
+    /// <summary>提前派发预算（物理毫秒）。引擎乘速度换成音乐秒后与音乐时间比较。须 ≥ ModLeadMs + FrameMs。</summary>
     public double LeadMs { get; init; } = 57.0;         // ≥ 40 + 16.7
 
     /// <summary>档位中文名（界面用）。</summary>
@@ -130,7 +130,9 @@ public sealed class InputTimingProbe
     {
         lock (_gate)
         {
-            _lastModMusicT = musicT;
+            // 提前量基准只记「按下」：松开也更新的话，紧跟在修饰键松开后的音会算出 ≈0 的
+            // 提前量 → 误报 ModLeadTooShort。是否仍有修饰键按着由 _heldMods 把关。
+            if (down) _lastModMusicT = musicT;
             _heldMods += down ? 1 : -1;
             if (_heldMods < 0) _heldMods = 0;
         }
@@ -149,7 +151,8 @@ public sealed class InputTimingProbe
                 double gapMs = (musicT - _lastKeyDownMusicT) * phys * 1000.0;
                 if (gapMs < Timing.RetriggerMs) RetriggerTooShort++;
             }
-            if (!double.IsNegativeInfinity(_lastModMusicT))
+            // 只有此刻真有修饰键按着才评估提前量：修饰键已松开后来的音不做这项检查
+            if (_heldMods > 0 && !double.IsNegativeInfinity(_lastModMusicT))
             {
                 double leadMs = (musicT - _lastModMusicT) * phys * 1000.0;
                 if (leadMs < MinModLeadMs) MinModLeadMs = leadMs;

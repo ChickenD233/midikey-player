@@ -322,7 +322,10 @@ public sealed class MidiPreviewSequencer : IDisposable
             var s = spans[i];
             double on = s.Start / sp;
             double end = s.End / sp;
-            double off = Math.Max(on + 0.03, end - gap);
+            // 音符比断开间隙还短时，off 绝不能越过本音自己的结束点：
+            // 否则会落到下一个同音高音符的 on 之后，把那个音提前关掉。
+            double off = end - on < gap ? Math.Min(on + 0.03, end)
+                                        : Math.Max(on + 0.03, end - gap);
             buf[i * 2] = (on, 1, s.Pitch);
             buf[i * 2 + 1] = (off, 0, s.Pitch);
             built[i] = (on, off, s.Pitch);

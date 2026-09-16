@@ -181,7 +181,8 @@ public static class InputSender
 
     // ---------------------------------------------------------------- 发送
 
-    private static void SendKeyVk(bool down, ushort vk, bool extended)
+    /// <returns>true = 事件注入成功；false = 被系统拦截（SendInput 返回 0）。</returns>
+    private static bool SendKeyVk(bool down, ushort vk, bool extended)
     {
         // 一律发扫描码（wVk=0 + KEYEVENTF_SCANCODE）：很多目标程序/DirectInput 只认扫描码
         uint flags = (down ? 0u : KEYEVENTF_KEYUP) | KEYEVENTF_SCANCODE;
@@ -201,12 +202,13 @@ public static class InputSender
             type = INPUT_KEYBOARD,
             U = new InputUnion { ki = ki }
         };
-        SendInput(1, new[] { input }, Marshal.SizeOf<INPUT>());
+        return SendInput(1, new[] { input }, Marshal.SizeOf<INPUT>()) == 1;
     }
 
-    private static void SendMouse(MouseButton button, bool down)
+    /// <returns>true = 事件注入成功；false = 被系统拦截（SendInput 返回 0）。</returns>
+    private static bool SendMouse(MouseButton button, bool down)
     {
-        if (!OperatingSystem.IsWindows()) return;
+        if (!OperatingSystem.IsWindows()) return false;
         uint flag = button switch
         {
             MouseButton.Left => down ? MOUSEEVENTF_LEFTDOWN : MOUSEEVENTF_LEFTUP,
@@ -230,7 +232,7 @@ public static class InputSender
                 }
             }
         };
-        SendInput(1, new[] { input }, Marshal.SizeOf<INPUT>());
+        return SendInput(1, new[] { input }, Marshal.SizeOf<INPUT>()) == 1;
     }
 
     /// <summary>按下一个键。键名可以是方案里的任何键名，也可以是 "MouseLeft" / "MouseRight" / "MouseMiddle"。</summary>
@@ -249,7 +251,12 @@ public static class InputSender
             bool changed;
             lock (HeldGate) changed = down ? HeldButtons.Add(button) : HeldButtons.Remove(button);
             if (!changed) return;
-            SendMouse(button, down);
+            if (!SendMouse(button, down))
+            {
+                // 注入失败：回滚记账（抬起失败要留账等 ReleaseEverything 再抬；按下失败别记，
+                // 否则账上以为按着，实际没按下）
+                lock (HeldGate) { if (down) HeldButtons.Remove(button); else HeldButtons.Add(button); }
+            }
             return;
         }
 
@@ -265,7 +272,13 @@ public static class InputSender
             lock (HeldGate) { if (down) HeldKeys.Remove(norm); else HeldKeys.Add(norm); }
             return;
         }
-        SendKeyVk(down, vk, ExtendedVk.Contains(vk));
+        if (!SendKeyVk(down, vk, ExtendedVk.Contains(vk)))
+        {
+            // 注入失败（SendInput 返回 0，被系统拦截）：回滚记账。
+            // KeyUp 失败必须把键留回账里 —— 否则账上以为已抬、实际还按着，
+            // 这个键就物理卡死，连 ReleaseEverything 都救不回来；KeyDown 失败则别记账。
+            lock (HeldGate) { if (down) HeldKeys.Remove(norm); else HeldKeys.Add(norm); }
+        }
     }
 
     /// <summary>按下一个键（字符形式）。命名键的哨兵字符会还原成键名。</summary>
@@ -294,15 +307,27 @@ public static class InputSender
     {
         if (!OperatingSystem.IsWindows()) return;
 
-        List<string> keys;
-        List<MouseButton> buttons;
-        lock (HeldGate)
+        // 一次在锁内取一笔并结账、锁外抬键，循环到账空为止。
+        // 不能"锁内快照、锁外逐个抬"：快照后并发的 KeyDown 会落进快照之外的账里，漏抬。
+        while (true)
         {
-            if (HeldKeys.Count == 0 && HeldButtons.Count == 0) return;
-            keys = new List<string>(HeldKeys);
-            buttons = new List<MouseButton>(HeldButtons);
+            string? key = null;
+            MouseButton? button = null;
+            lock (HeldGate)
+            {
+                foreach (var k in HeldKeys) { key = k; break; }
+                if (key == null)
+                    foreach (var b in HeldButtons) { button = b; break; }
+                if (key == null && button == null) return;   // 账已空
+                if (key != null) HeldKeys.Remove(key);
+                else HeldButtons.Remove(button!.Value);
+            }
+            // 账已结，直接发抬键（不走 SendKeyByName 的记账：抬起失败也不再记回，避免死循环）
+            if (key != null)
+            {
+                if (TryVkCode(key, out ushort vk)) SendKeyVk(false, vk, ExtendedVk.Contains(vk));
+            }
+            else SendMouse(button!.Value, false);
         }
-        foreach (var key in keys) KeyUp(key);
-        foreach (var b in buttons) MouseUp(b);
     }
 }

@@ -43,7 +43,8 @@ public sealed class ScoreEditor
     /// <summary>改一个音，返回它在重新排序后的下标。</summary>
     public int Update(int index, int pitch, double start, double end)
     {
-        if (index < 0 || index >= _notes.Count) return index;
+        // 越界下标原样返回会让调用方把无效值存成选中下标，统一返回 -1
+        if (index < 0 || index >= _notes.Count) return -1;
         Snapshot();
         var n = Make(pitch, start, end);
         _notes[index] = n;

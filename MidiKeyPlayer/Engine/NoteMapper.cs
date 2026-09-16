@@ -280,7 +280,9 @@ public static class NoteMapper
             {
                 if (c.Note.End > lastNote.End)
                 {
-                    result.Add(new RawNote
+                    // 部分被吞：补回超出主声部的尾巴段，并把它登记为新的「最后一个音」——
+                    // 不登记的话，落在尾巴区间里的后一个音会被整条加入，输出就重叠了。
+                    var tail = new RawNote
                     {
                         Pitch = c.Note.Pitch,
                         Start = lastNote.End,
@@ -288,7 +290,10 @@ public static class NoteMapper
                         Velocity = c.Note.Velocity,
                         Channel = c.Note.Channel,
                         Voice = c.Rank
-                    });
+                    };
+                    result.Add(tail);
+                    lastNote = tail;
+                    lastRank = c.Rank;
                 }
                 continue;
             }

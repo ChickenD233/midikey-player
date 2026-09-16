@@ -113,13 +113,16 @@ public static class MacroExporter
         sb.AppendLine();
         sb.AppendLine("local events = {");
 
-        double lastMs = 0;
+        // G HUB 的 Sleep 只取整数毫秒：直接写 0.1ms 精度的浮点会被逐个截断，
+        // 整首累积可达 1–2s 漂移。改为「误差进位」量化：
+        // 每段等待 = round(累计毫秒) − 上一段的取整值，总漂移恒小于 1ms。
+        long lastMsInt = 0;
         foreach (var e in events)
         {
-            double ms = e.MusicTime * 1000.0;
-            double wait = ms - lastMs;
+            long msInt = (long)Math.Round(e.MusicTime * 1000.0);
+            long wait = msInt - lastMsInt;
             if (wait < 0) wait = 0;
-            lastMs = ms;
+            lastMsInt = msInt;
 
             string name = KeyNameOf(e.Key);
             string action;
@@ -139,7 +142,7 @@ public static class MacroExporter
                                 : $"ReleaseMouseButton({MouseButtonNo(e.Kind)})";
             }
 
-            sb.AppendLine($"  {{{wait.ToString("F1", CultureInfo.InvariantCulture)}, function() {action} end}},");
+            sb.AppendLine($"  {{{wait}, function() {action} end}},");
         }
 
         sb.AppendLine("}");

@@ -661,12 +661,24 @@ public sealed class KeymapProfile
         try
         {
             Directory.CreateDirectory(DirPath);
-            File.WriteAllText(FilePath, ToJson());
+            WriteAllTextAtomic(FilePath, ToJson());
         }
         catch (Exception ex)
         {
             LogFile.Append("[键位] 保存 keymap.json 失败：" + ex.Message);
         }
+    }
+
+    /// <summary>
+    /// 原子写入：先写临时文件再替换（与 AppConfig.Save 同一套模式）。
+    /// 直接覆盖写时若中途崩溃，keymap.json 会被截断，Load 的 catch 静默回退内置默认方案，
+    /// 用户自定义的键位就全丢了。
+    /// </summary>
+    private static void WriteAllTextAtomic(string path, string text)
+    {
+        string tmp = path + ".tmp";
+        File.WriteAllText(tmp, text);
+        File.Move(tmp, path, overwrite: true);
     }
 
     /// <summary>导出到用户选的路径。返回 false 时 error 里是中文原因。</summary>
@@ -677,7 +689,7 @@ public sealed class KeymapProfile
         {
             string dir = Path.GetDirectoryName(path) ?? "";
             if (dir.Length > 0) Directory.CreateDirectory(dir);
-            File.WriteAllText(path, ToJson());
+            WriteAllTextAtomic(path, ToJson());
             return true;
         }
         catch (Exception ex)
