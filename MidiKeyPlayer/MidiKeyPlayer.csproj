@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <RootNamespace>MidiKeyPlayer</RootNamespace>
     <AssemblyName>MidiKeyPlayer</AssemblyName>
-    <Version>1.0.15</Version>
+    <Version>1.0.16</Version>
     <Company>MidiKeyPlayer</Company>
     <Product>MIDI 按键播放器</Product>
     <Description>导入 MIDI，把音符映射成键盘按键输出（Windows）</Description>

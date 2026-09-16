@@ -101,6 +101,10 @@ public partial class MainWindow : Window
         HotkeyRewindCombo.SelectedIndex = 5;    // F5
         HotkeyForwardCombo.ItemsSource = fkeys;
         HotkeyForwardCombo.SelectedIndex = 7;   // F7
+        HotkeyPrevCombo.ItemsSource = fkeys;
+        HotkeyPrevCombo.SelectedIndex = 4;      // F4：上一首
+        HotkeyNextCombo.ItemsSource = fkeys;
+        HotkeyNextCombo.SelectedIndex = 8;      // F8：下一首
 
         // 输入兼容档位：决定修饰键与音键之间的物理时间余量
         TimingCombo.ItemsSource = InputTiming.Names;
@@ -113,6 +117,8 @@ public partial class MainWindow : Window
         HotkeyControlCombo.SelectedIndex = Math.Clamp(_cfg.ControlHotkeyIndex, 0, 12);
         HotkeyRewindCombo.SelectedIndex = Math.Clamp(_cfg.RewindHotkeyIndex, 0, 12);
         HotkeyForwardCombo.SelectedIndex = Math.Clamp(_cfg.ForwardHotkeyIndex, 0, 12);
+        HotkeyPrevCombo.SelectedIndex = Math.Clamp(_cfg.PrevSongHotkeyIndex, 0, 12);
+        HotkeyNextCombo.SelectedIndex = Math.Clamp(_cfg.NextSongHotkeyIndex, 0, 12);
         SliderSpeed.Value = Math.Clamp(_cfg.Speed, 10, 400);
         SliderTranspose.Value = Math.Clamp(_cfg.Transpose, -24, 24);
         ChkTrimLead.IsChecked = _cfg.TrimLead;
@@ -283,7 +289,8 @@ public partial class MainWindow : Window
     private void ReconfigureHotkeys()
     {
         var codes = new List<int>();
-        foreach (var combo in new[] { HotkeyControlCombo, HotkeyRewindCombo, HotkeyForwardCombo })
+        foreach (var combo in new[] { HotkeyControlCombo, HotkeyRewindCombo, HotkeyForwardCombo,
+                                      HotkeyPrevCombo, HotkeyNextCombo })
         {
             int code = CodeOf(combo);
             if (code != 0) codes.Add(code);
@@ -306,10 +313,50 @@ public partial class MainWindow : Window
     private void HandleGlobalKey(int code)
     {
         if (code == 0) return;
-        // 三个热键统一走 ToggleControl / SeekRelative：热键、按钮、托盘菜单共用同一条路。
+        // 五个热键统一走 ToggleControl / SeekRelative / SwitchSong：热键、按钮、托盘菜单共用同一条路。
         if (code == CodeOf(HotkeyControlCombo)) { ToggleControl(); return; }
         if (code == CodeOf(HotkeyRewindCombo)) { SeekRelative(-SeekStepSeconds); return; }
-        if (code == CodeOf(HotkeyForwardCombo)) SeekRelative(SeekStepSeconds);
+        if (code == CodeOf(HotkeyForwardCombo)) { SeekRelative(SeekStepSeconds); return; }
+        if (code == CodeOf(HotkeyPrevCombo)) { SwitchSong(-1); return; }
+        if (code == CodeOf(HotkeyNextCombo)) SwitchSong(+1);
+    }
+
+    /// <summary>
+    /// 切歌：换到文件夹曲目里的上一首 / 下一首（到底回绕）。
+    /// 演奏中（含暂停中）切歌不走倒计时——用户已经守在目标程序里——直接接着弹新的一首；
+    /// 空闲时只载入，不自动开始。有未导出的卷帘改动时拒绝切歌（热键场景弹不出确认框，不能静默丢）。
+    /// </summary>
+    private void SwitchSong(int delta)
+    {
+        if (_folderFiles.Count == 0)
+        {
+            InsertLog("切歌需要先「打开 MIDI 文件 / 文件夹 ▾ → 打开文件夹…」，文件夹曲目是空的。");
+            return;
+        }
+        if (HasUnexportedEdits)
+        {
+            InsertLog("有未导出的卷帘改动：先点「导出 MIDI…」保存，再切歌。");
+            return;
+        }
+
+        string cur = _parsed?.FilePath ?? "";
+        int idx = _folderFiles.FindIndex(f => string.Equals(f, cur, StringComparison.OrdinalIgnoreCase));
+        int next = idx < 0 ? (delta > 0 ? 0 : _folderFiles.Count - 1)
+                           : (idx + delta + _folderFiles.Count) % _folderFiles.Count;
+        string path = _folderFiles[next];
+        string name = System.IO.Path.GetFileName(path);
+
+        if (!System.IO.File.Exists(path))
+        {
+            InsertLog($"文件已不在：{name}");
+            ScanMidiFolder(_folderPath);   // 重扫一次，列表跟着变成当前目录的内容
+            return;
+        }
+
+        bool wasPlaying = _engine is { IsRunning: true };   // 暂停中也算：接着弹新的一首
+        InsertLog($"切歌：{(delta > 0 ? "下一首" : "上一首")} → {name}（{next + 1}/{_folderFiles.Count}）");
+        LoadMidiFile(path);
+        if (wasPlaying) RequestPlay(skipCountdown: true);
     }
 
     /// <summary>
@@ -457,6 +504,8 @@ public partial class MainWindow : Window
         _cfg.ControlHotkeyIndex = Math.Clamp(HotkeyControlCombo.SelectedIndex, 0, 12);
         _cfg.RewindHotkeyIndex = Math.Clamp(HotkeyRewindCombo.SelectedIndex, 0, 12);
         _cfg.ForwardHotkeyIndex = Math.Clamp(HotkeyForwardCombo.SelectedIndex, 0, 12);
+        _cfg.PrevSongHotkeyIndex = Math.Clamp(HotkeyPrevCombo.SelectedIndex, 0, 12);
+        _cfg.NextSongHotkeyIndex = Math.Clamp(HotkeyNextCombo.SelectedIndex, 0, 12);
         _cfg.TrimLead = ChkTrimLead.IsChecked == true;
         _cfg.AutoMinimizeOnPlay = ChkAutoMinimize.IsChecked == true;
         _cfg.ShowPreflight = ChkShowPreflight.IsChecked == true;
@@ -3116,7 +3165,7 @@ public partial class MainWindow : Window
         RequestPlay();
     }
 
-    private void RequestPlay()
+    private void RequestPlay(bool skipCountdown = false)
     {
         if (_busy || ActiveRows().Count == 0) return;
 
@@ -3129,7 +3178,8 @@ public partial class MainWindow : Window
         _playNotes = map.Notes.Where(n => n.InRange).ToList();
 
         SetBusy(true);
-        int cd = SelectedCountdownSeconds;
+        // 切歌热键已经守在目标程序里，不走倒计时，直接开弹
+        int cd = skipCountdown ? 0 : SelectedCountdownSeconds;
         if (cd > 0)
         {
             _countdownLeft = cd;
