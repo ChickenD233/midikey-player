@@ -2656,6 +2656,9 @@ public partial class MainWindow : Window
             _cfg.OverlayY = y;
             ScheduleSave();
         };
+        // 浮窗上的 ✕：直接拨掉设置里的开关。走 Overlay_Changed 一条链路：
+        // 写设置、落盘、立刻关窗，与在设置窗口里取消勾选完全同一行为。
+        w.CloseRequested += () => { ChkOverlay.IsChecked = false; };
         w.Closed += (_, _) => { if (ReferenceEquals(_overlay, w)) _overlay = null; };
         _overlay = w;
         return w;

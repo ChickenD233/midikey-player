@@ -10,12 +10,16 @@ namespace MidiKeyPlayer;
 /// 倒计时期间显示大号秒数；开始演奏后显示整首曲子的迷你卷帘 ——
 /// 音符按音高与时间排布，黄色播放头跟着进度走；暂停与循环遍数标在右下角。
 /// 主窗负责它的生命周期：开始播放时 SetNotes + ShowProgress，停止 / 播完 / 关窗时 Close。
+/// 卡片右上角的 ✕ 是悬浮窗自己的开关：点了等同设置里取消勾选（写进设置）。
 /// 不抢焦点（ShowActivated=false），不打扰目标程序。
 /// </summary>
 public partial class OverlayWindow : Window
 {
     /// <summary>拖动松手后触发：参数是新的窗口位置（供主窗写进设置）。</summary>
     public event Action<int, int>? DragFinished;
+
+    /// <summary>点了浮窗上的 ✕：主窗把悬浮窗开关关掉（等同设置里取消勾选，写进设置）。</summary>
+    public event Action? CloseRequested;
 
     private static readonly IBrush NoteBrush = new SolidColorBrush(Color.Parse("#FF4CAF7D"));
     private const int MaxDrawnNotes = 2000;   // 音符太多时只画前这些，防止控件树爆炸
@@ -143,5 +147,10 @@ public partial class OverlayWindow : Window
     {
         if (e.InitialPressMouseButton == MouseButton.Left)
             DragFinished?.Invoke(Position.X, Position.Y);
+    }
+
+    private void BtnOverlayOff_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        CloseRequested?.Invoke();
     }
 }
