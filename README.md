@@ -2,6 +2,8 @@
 
 **简体中文** | [English](#midikeyplayer-midi-key-player)
 
+> 新手先看：[图文教程：5 分钟上手](docs/图文教程.md)（带截图）
+
 导入 MIDI。程序把音符转换成键盘与鼠标按键输出，发送到前台窗口。
 内置谱面编辑器。你可以先改谱，再播放。
 
@@ -392,6 +394,8 @@ tag 已存在，脚本直接停手。日志里没有当前版本号那一节，`
 # MidiKeyPlayer (MIDI Key Player)
 
 [简体中文](#midikeyplayermidi-按键播放器) | **English**
+
+> New here? See the illustrated quick-start tutorial: [docs/图文教程.md](docs/图文教程.md) (Chinese, with screenshots).
 
 Import a MIDI file. The program converts the notes into keyboard and mouse key output and sends it to the foreground window.
 A built-in score editor lets you edit the score before playing.
