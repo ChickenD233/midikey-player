@@ -1,5 +1,7 @@
 # MidiKeyPlayer（MIDI 按键播放器）
 
+**简体中文** | [English](#midikeyplayer-midi-key-player)
+
 导入 MIDI。程序把音符转换成键盘与鼠标按键输出，发送到前台窗口。
 内置谱面编辑器。你可以先改谱，再播放。
 
@@ -383,3 +385,394 @@ tag 已存在，脚本直接停手。日志里没有当前版本号那一节，`
 ## 免责声明
 
 本工具仅供学习和个人使用。因使用产生的账号处罚或其它后果，由使用者承担。
+
+
+---
+
+# MidiKeyPlayer (MIDI Key Player)
+
+[简体中文](#midikeyplayermidi-按键播放器) | **English**
+
+Import a MIDI file. The program converts the notes into keyboard and mouse key output and sends it to the foreground window.
+A built-in score editor lets you edit the score before playing.
+
+- OS: Windows 10 / 11 (64-bit)
+- Single-file exe. No .NET installation required
+- UI language: Chinese
+
+> ⚠️ Simulated input may violate the terms of use of third-party software and carries a risk of account bans. Use it only for practice, testing, or single-machine scenarios. You assume all consequences.
+
+## Download
+
+1. Open **Releases** on the right.
+2. Download `MidiKeyPlayer-win-x64-<version>.zip` (pick the latest version number), about 17 MB.
+3. Extract it. Inside are `MidiKeyPlayer.exe` (about 23 MB) and `更新日志.txt` (changelog).
+4. Double-click `MidiKeyPlayer.exe`.
+5. When the UAC prompt appears, choose "Yes".
+6. If SmartScreen shows "unknown publisher", choose "More info", then "Run anyway".
+7. Antivirus software may flag "simulated keystrokes" as a false positive. Add it to the whitelist.
+
+The first launch takes a few extra seconds: the program is a single file and extracts its native libraries to disk before starting.
+The extraction directory is `%TEMP%\.net`. After you clean the temp directory, the next launch extracts once more.
+When whitelisting, add `MidiKeyPlayer.exe` and `%TEMP%\.net` together. If you only whitelist the exe, the extracted DLLs may still be blocked —
+the symptom is a launch failure with no obvious message.
+
+The program is a self-contained single-file exe. No .NET installation required.
+The release notes, third-party notices, and MIT license are all packaged inside the exe; you will not see these loose files after extraction.
+The current version has no UI entry to open them. To read them, open the source files of the same name in the repository.
+
+`更新日志.txt` ships in the package, not inside the exe. It accumulates versions from newest to oldest; each release only adds one section at the top.
+To see what changed in a version, open this file. The source file is `MidiKeyPlayer/docs/更新日志.txt`.
+
+## Usage
+
+1. Click "Open MIDI File / Folder" (打开 MIDI 文件 / 文件夹), pick a file, or pick a folder to have the program list the songs inside. Supports `.mid`, `.midi`, `.kar`, `.rmi`.
+2. After selecting a folder, a "Folder Songs" (文件夹曲目) area appears above the track list in the left column, listing the MIDI files in that folder — click one to load it; "Close" (关闭) at the top right collapses it. The arrow menu next to the button also has "Recently Opened" (最近打开).
+3. Click a row on the left as the main melody. The green dot marks the row recommended by the program. Percussion tracks can also be selected: some target instruments come with a drum kit. To sound multiple parts together, tick multiple tracks on the left.
+4. When you need to edit the score, edit it directly on the piano roll. See below for how.
+5. Adjust tempo, transposition, and countdown.
+6. Click "Play" (▶ 播放), or press **F6**.
+7. Switch to the target program before the countdown ends.
+
+The common items sit right on the side. The ones you rarely change — device connection, input compatibility, hotkeys, key table export, key layout scheme — are all tucked into a single "Settings" (设置) window, and the main window keeps only one button. The pre-play self-check is not in Settings: it lives permanently in the status card at the top right of the main window.
+
+During playback you can drag the piano roll or the progress bar to seek. You can also change tempo and transposition in real time. While paused you can directly open another song to switch.
+
+## Piano Roll Editing
+
+The piano roll draws the whole melody. The top is a time ruler, with bar lines drawn from the file's time signature and tempo. The left side is a piano-key strip.
+
+| Action | Effect |
+|---|---|
+| Click / drag on the ruler | Move the play position |
+| Click a piano key on the left | Select all notes of that pitch. Hold and drag to select multiple pitches in a row |
+| Drag the middle of a note | Move it. With a multi-selection the whole group moves. Left/right changes time, up/down changes pitch |
+| Drag either end of a note | Change length. The left end moves the head, the right end moves the tail. Pitch unchanged |
+| Drag on empty space | Box-select multiple notes |
+| Single-click empty space | Seek, and clear the selection |
+| Double-click empty space | Add a note. Keep holding and drag to set its length in one go |
+| Right button | Delete notes. Hold and drag to erase continuously |
+| Delete | Delete the selected notes |
+| Ctrl+A / Esc | Select all / clear selection |
+| Arrow keys | Nudge. Left/right by the snap step, up/down by semitone. Hold Shift to speed up |
+| Ctrl+Z / Ctrl+Y | Undo / redo. Keeps the current zoom position |
+| Wheel | Zoom anchored at the cursor |
+| Shift+wheel | Pan left/right |
+| Middle-button drag | Pan left/right |
+| Zoom out / zoom in / whole song | Toolbar buttons. The current zoom percentage is shown on the right |
+| Help | Expand / collapse the operation help on the right |
+
+**Colors.** Each track gets one unique color. The text color in the left list matches the note color in the piano roll. Tracks not taking part in the performance use gray (percussion tracks slightly darker). Notes that have no corresponding key in the current key layout scheme are shown in gray and are skipped during performance.
+
+**Snap.** With "Snap 0.1s" (吸附 0.1s) ticked, dragging and adding notes align to 0.1 seconds. What snaps is the note's head or tail, not the cursor.
+
+**Edits live only in memory.** To keep them, click "Export MIDI…" (导出 MIDI…). The program writes out a standard MIDI file.
+
+**Switching tracks discards edits.** Switching the main melody track, or changing the ensemble ticks, makes the program discard manual edits. The log says so. To keep your edits, export MIDI first.
+
+## Preview
+
+Click the "Preview" (试听) button to play the current score with the MIDI synthesizer built into Windows. Click again to stop.
+
+- It is completely separate from performing: it sends no keystrokes, runs no countdown, and does not minimize the window.
+- During playback you can drag the progress bar or the piano roll to seek at any time. Release, and it continues from the new position.
+- No audio software needs to be installed. When the device is unavailable the button grays out automatically, and the log states the reason.
+
+## Options
+
+The bottom right of the main window is split into two cards. **Performance Parameters** (演奏参数) only changes how it plays, without touching the score. **Score Adjustment** (谱面调整) modifies the current score, visible in the piano roll.
+
+- **Pre-play self-check** (播放前自检). Lives permanently in the status card at the top right of the main window: administrator privilege and input method status, a check mark for pass and a cross for fail. After switching between Chinese and English input modes, click "Refresh" (刷新) to re-test. If you don't want it, turn it off in Settings (default on).
+- **Ensemble** (合奏). Tick multiple parts on the left to perform together. Number 1 has the highest priority. The instrument emits only one note at a time; on conflict the smaller number plays first.
+- **Trim leading empty beats** (去除开头空拍). Default on. Cuts the rests at the start so the melody begins at second 0. The bottom left of the piano roll marks how many seconds were cut.
+- **Input compatibility** (输入兼容). Three levels: Safe (稳健), Standard (标准), Extreme (极限). The target program reads keys per frame. If the gap between a modifier key and a note key is smaller than one frame, notes get dropped. On a machine that drops frames, choose "Safe".
+- **Auto-minimize window after play** (播放后自动最小化窗口). Default on.
+- **Playback overlay** (播放悬浮窗). Default on. During the countdown and the performance, a top-most small window shows at the top right of the screen: the countdown is a large second count;
+  once playing it becomes a **scrolling mini piano roll** — a visible window of 8 seconds, a yellow playhead fixed at the quarter position,
+  notes scrolling from right to left (the ones on the right are about to be played). Below are a progress bar and the time; pause and loop pass count are marked at the bottom right.
+  It stays visible after you switch to the target program. The overlay is draggable, and its position is remembered automatically. If you don't want it, turn it off in Settings → General → Interface (设置 → 常规 → 界面).
+- **Export key table** (导出按键表). Export a G HUB script (.lua), or a generic CSV. The content follows the current key layout scheme and matches the actual performance.
+- **Loop** (循环). Default off. When ticked, playback restarts from the beginning after one pass, and the log states which pass it is on.
+- **Value ranges.** Tempo 10%–400%, default 100%. Transposition ±24 semitones, default 0. Countdown 0 / 3 / 5 / 10 seconds, default 3 seconds.
+- **Settings…** (设置…). Click this button to open the Settings window, with two pages.
+  The **General** (常规) page: device connection, input compatibility, three hotkeys, key table export, interface (skin, self-check switch).
+  The **Keys** (键位) page: scheme, key bindings, function keys.
+  Changes take effect immediately; closing the window does not affect the settings. The main window therefore no longer piles up these items, and the piano roll gets more height.
+
+## Skins
+
+Two skins: **Light (white)** (浅色（白）) and **Dark (black)** (深色（黑）); you can also choose **Auto** (自动) to follow the Windows light / dark setting.
+
+1. Click "Settings…" (设置…) and switch to the **General** (常规) page.
+2. In the "Interface" (界面) column, under "Skin" (皮肤), choose: Auto (follow system) / Light (white) / Dark (black).
+3. It takes effect immediately — no restart, and no need to close the window.
+
+The default is **Auto**. The setting is stored in `ThemeMode` in `settings.json` (0 auto / 1 light / 2 dark).
+The colors of both skins are defined in `MidiKeyPlayer/Styles/Theme.axaml`; the text contrast of the dark skin is above 6:1 everywhere.
+
+## MIDI Device Live Performance
+
+Connect a MIDI keyboard or pad, and key presses are sent directly to the target program. No need to make a score first.
+
+1. In the options area, tick "MIDI Device Live Performance" (MIDI 设备实时演奏).
+2. Choose your device under "Device" (设备). Click "Refresh" (刷新) to rescan (hot-plug supported).
+3. Switch to the target program and start playing.
+
+| Setting | Effect |
+|---|---|
+| Base octave (基准八度) | Which octave on the device is middle do. Default: middle do (1) |
+| Auto-fit range (自动贴合音域) | Default on. Automatically picks the base octave from recently played notes, so playing across several octaves never goes silent |
+| Velocity floor (力度下限) | Default 1 (no filtering). Raise it when the device has jitter or aftertouch noise |
+
+**How pitches map.**
+
+- Base octave do re mi fa sol la si → `Z X C V B N M` (default scheme "8-key chromatic" / 8 键半音).
+- The range is determined by the current scheme. "21-key diatonic" (21 键自然音) and "Identity V layout" (第五人格键位) have no function keys and only play notes within the layout range.
+- To play across octaves, tick "Enable function keys" (启用功能键) in the key settings, then bind octave up and octave down.
+- Notes with no corresponding key stay silent. The status text and the log state the reason: out of range, or the note is not in the key table.
+- The instrument emits only one note at a time. When multiple keys are held at once, the later note wins and the earlier one is replaced.
+
+"Device live performance" and "file playback" do not interfere with each other. The device can still be played during playback, but both input paths take effect at the same time —
+untick it during playback if you want it clean. The status text shows in real time what the most recent note mapped to.
+On stop, the log gives statistics: how many notes were received, how many had no corresponding key, and how many were replaced by later notes.
+
+Settings are remembered automatically. Location: `%LOCALAPPDATA%\MidiKeyPlayer\settings.json`. The log is in the same directory, file name `play.log`.
+
+## Hotkeys
+
+The program uses a system low-level keyboard hook. Hotkeys take effect directly inside the target program.
+
+| Key | Action |
+|---|---|
+| **F6** | Idle = start. Playing = pause. Paused = resume. Countdown = cancel |
+| **F5** | Back 5 seconds |
+| **F7** | Forward 5 seconds |
+| **F8** | Previous song (folder songs, wraps around at the end) |
+| **F9** | Next song (folder songs, wraps around at the end) |
+
+All five keys can be changed or disabled (choose "None" / 无). Change them under "Control Hotkey" (控制热键), "Back Hotkey" (后退热键), "Forward Hotkey" (前进热键), "Previous Song" (上一首), and "Next Song" (下一首) in the UI.
+
+**Song-switch hotkeys** only work after you "Open Folder" (打开文件夹) to list the songs. Switching songs during playback (including while paused) skips the countdown and continues directly with the new song;
+while idle it only loads without auto-playing. With unexported piano-roll edits, song switching is refused, to prevent edits from being silently lost.
+
+**Note**: seeking during playback may cause stuck notes on the target program's side. If a note sticks, press "Stop" (停止) and play again. The most robust usage is to seek with the piano roll or progress bar before playing.
+
+## Cautions
+
+1. Use **windowed** or **borderless windowed** mode for the target program. Exclusive fullscreen cannot receive simulated keystrokes.
+2. Before playback starts, click the target window once. The target program must be in the foreground.
+3. Switch the input method to **English**. A Chinese input method intercepts the keystrokes.
+4. **Stand still** inside the target window. While holding `W`, `A`, `S`, `D`, the keyboard matrix swallows some note keys. This is a keyboard hardware limitation that software cannot fix. Only full NKRO (n-key rollover) keyboards avoid it.
+5. The program forces itself to start as administrator. When the target program runs as administrator, this program must also be administrator. Otherwise Windows blocks the keystrokes.
+6. If the mouse or keyboard goes out of control, mash **F6**.
+
+## Key Layout Schemes
+
+The program ships with four built-in schemes. The scheme names are the four names in the table below.
+
+| Scheme | Keys | Range | Function keys |
+|---|---|---|---|
+| 8-key chromatic (default) (8 键半音) | One row `Z X C V B N M ,` = do..high do (natural notes). Left mouse button lowers an octave, right raises an octave, middle raises a semitone | `1.` ~ `#1˙` | On; left, right, and middle mouse buttons |
+| 21-key diatonic (21 键自然音) | Bottom row `Z X C V B N M` = middle do..si; middle row `A S D F G H J` one octave higher; top row `Q W E R T Y U` another octave higher | `1` ~ `7˙˙` | Not used |
+| 21-key chromatic (21 键半音) | Bottom row `Z X C V B N M` = low do..si; middle row `A S D F G H J` = middle; top row `Q W E R T Y U` = high. Hold `Shift` to raise a semitone, hold `Ctrl` to lower a semitone | one semitone below low do ~ `7˙` | On; `Shift` raises a semitone, `Ctrl` lowers a semitone |
+| Identity V layout (第五人格键位) | Low row `, L . ; / I 9 O 0 P - [` (low octave); middle row `Z S X D C V G B H N J M` (middle); high row `Q 2 W 3 E R 5 T 6 Y 7 U` (high octave). 12 semitones per row | `1.` ~ `7˙` | Not used |
+
+"21-key chromatic" and "8-key chromatic" both have function keys on: without a modifier key you get natural notes; hold one to get altered notes
+(`Shift`+`Z` raises a semitone, `Ctrl`+`Z` lowers a semitone, or hold the middle mouse button and press `Z`). The two mouse buttons of "8-key chromatic" can also shift the whole row up or down an octave.
+
+Ranges in the table use **numbered musical notation (jianpu)**: digits 1..7 are scale degrees, 1 = do. Accidentals are written before the digit, e.g. `#4`.
+A `˙` after the digit is one octave higher; `˙˙` is another octave higher.
+A `.` after the digit is one octave lower; `..` is another octave lower.
+
+**Notes with no corresponding key are not played.** Whichever semitone is missing from the range is skipped — no pitch substitution. This behavior is fixed; there is no switch for it in the UI.
+"Identity V layout" is a full chromatic scale: every semitone has its own key, no octave keys or semitone-up keys needed.
+"8-key chromatic" has only natural-note keys; semitones are filled in with the middle mouse button.
+
+**Function keys.** At the top of the "Function Keys" (功能键) block there is an "Enable function keys" (启用功能键) checkbox.
+When ticked, you can bind four keys: octave up, octave down, semitone up, semitone down. The range expands one octave up and down accordingly,
+and the semitone-down key extends the lowest note one more semitone down.
+When unticked, the scheme does not use these four keys. Notes outside the layout range are simply not played.
+
+**Tie-break rule for semitone keys.** When the same black key is reachable both as "white key below + semitone up" and "white key above + semitone down",
+the semitone-up key is always used. The semitone-down key is used in two places: to fill in black keys when the scheme has no semitone-up key bound, and for the one semitone below the lowest key
+(which the semitone-up key cannot reach). "21-key chromatic" is the scheme with both semitone keys bound.
+
+**Editing key bindings.** Click the "Settings…" (设置…) button on the main window and switch to the "Keys" (键位) page. This page has three blocks:
+
+| Block | Purpose |
+|---|---|
+| Scheme (方案) | Select scheme, New Scheme… (新建方案…), Rename… (改名…), Import Scheme… (导入方案…), Export Scheme… (导出方案…), Manage ▾ (管理) (delete scheme, restore default settings) |
+| Key bindings (按键绑定) | Keycap squares arranged in rows. The large text on a block is the jianpu pitch, the small text is the solfège name, the key name is on the lower half, and `✕` at the top right unbinds |
+| Function keys (功能键) | The "Enable function keys" checkbox, with three keys below: octave up, octave down, semitone up |
+
+**Row layout.** Keys in a row are ordered by pitch from left to right. A row does not wrap; if it is too long it scrolls horizontally.
+The two 21-key schemes form a neat three-row seven-column grid; the 36-key one forms a neat three-row twelve-column grid.
+The "+" at the end of a row adds a note at the end of that row. The "+ Add a Row" (+ 加一行) below the last row adds a whole row, one octave above the previous row.
+
+**Waiting for a key.** After you click a key block it turns into "Press a key…" (按一个键…); press a keyboard or mouse button to bind it. Press Esc to cancel.
+For keys you cannot press on the keycaps, like `PageUp`, click "Choose Key Name" (选键名) next to it and pick from a list.
+Pressing and releasing `Shift`, `Ctrl`, or `Alt` alone also binds them as function keys.
+
+**Which notes are still unbound.** A statistics line stays at the bottom of the window, e.g. "21 bindings, 3 rows. Playable from 1 to 7˙˙, of which 0 notes have no key bound. (Function keys off)".
+
+**Range is determined by the keys.** No numbers to fill in. As far as the keys go is as far as you can play. When function keys are off, the octave keys and the semitone-up key do not participate.
+
+**Scheme files.** The four built-in schemes cannot be renamed or deleted. To change one, click "New Scheme…" (新建方案…) first to copy it.
+Custom schemes live under `%LOCALAPPDATA%\MidiKeyPlayer\schemes\` and remain in the list after a restart. "Import Scheme…" (导入方案…) and "Export Scheme…" (导出方案…) work with a single JSON file, convenient for sharing with each other.
+
+**Per-scheme memory.** Tempo, transposition, and the input compatibility level are saved separately by key layout scheme name.
+
+**Relationship with device live performance.** The base octave for MIDI device input is set separately in the "MIDI Device Live Performance" area.
+The octave keys and the semitone-up key follow the current scheme's "Enable function keys".
+
+## FAQ
+
+**No response in the target program, but typing works in Notepad?**
+
+Check four things in order.
+
+1. Click the target window first.
+2. Set the target program to borderless windowed.
+3. Run both the target program and this program as administrator.
+4. Switch the input method to English.
+
+**No dropped notes while standing still, but notes drop once you move?**
+
+This is the keyboard hardware ghosting problem, not a software problem. See item 4 of "Cautions" above.
+
+**Occasional missing notes?**
+
+When playback ends, the message bar at the bottom of the window shows a line of "timing diagnostics" (时序诊断). The full record is written to `%LOCALAPPDATA%\MidiKeyPlayer\play.log`. When you click "Stop" (停止) manually, the message bar is overwritten by "Stopped." (已停止。) — read play.log directly.
+
+- Insufficient modifier lead time: change "Input compatibility" to "Safe" (稳健). That level raises the lead time from 40ms to 70ms.
+- Too many same-key re-triggers: switch to the "Safe" level. It raises the same-key re-trigger interval from 45ms to 80ms. Tempo does not change this physical interval.
+- The count of notes whose duration was clamped to the floor is not 0: this score is denser than the fastest speed the level allows. Switch to the "Safe" level, or slow down.
+
+**MIDI device not responding?**
+
+Check four things in order.
+
+1. If the device is occupied by other software, close that first (a MIDI input can usually be opened by only one program).
+2. Click "Refresh" (刷新) and confirm the device appears in the dropdown.
+3. The status text should show "Live performance active" (实时演奏中). If it stays at "Starting…" (启动中…) without moving, the device failed to open; the log has the reason.
+4. The notes you play have no corresponding key. Check the status text: if it shows "No corresponding key" (没有对应的键), adjust "Base Octave" (基准八度) or tick "Auto-fit Range" (自动贴合音域).
+
+**What happens when you click the window's ×?**
+
+A full exit. The program stops playback, releases all keys, and unregisters the hotkeys. If you only want to leave the target window briefly, minimize the window instead. The tray menu can control start, pause, stop, and exit.
+
+## Directory Layout
+
+```
+MidiKeyPlayer/              # 主程序（Avalonia + .NET 8）
+MidiKeyPlayer/docs/更新说明.txt  # 本说明书（打包时嵌进 exe）
+MidiKeyPlayer/docs/更新日志.txt  # 累积更新日志（打包时进 zip）
+MidiKeyPlayer/build-win.sh  # 发布脚本：打包成单文件 exe 的 zip
+MidiKeyPlayer/release/      # 发布产物：zip 与解出的 exe（打包生成）
+示例MIDI/                   # 开发用示例曲目（不进发布包）
+tools/run-selftest.ps1      # 跑一次内置自检，统计 PASS / FAIL
+tools/release.ps1           # 发新版：版本号加一、写日志、构建、验证、发 Release
+LICENSE                     # MIT 许可
+THIRD-PARTY-NOTICES.md      # 第三方组件许可声明
+```
+
+## Self-Test (for Development)
+
+The program ships with a pure-logic self-test covering key layout schemes and jianpu conversion. It creates no window, registers no hotkeys, and touches neither keystrokes nor MIDI devices.
+
+1. Build the Release configuration: `dotnet build MidiKeyPlayer/MidiKeyPlayer.csproj -c Release`.
+   The csproj sets `RuntimeIdentifier=win-x64`; the build output is in `MidiKeyPlayer\bin\Release\net8.0\win-x64\`.
+2. Run `tools/run-selftest.ps1`. The script finds the exe automatically by priority: `bin\Release\net8.0\win-x64\`, `release\win-x64\`, `bin\Release\net8.0\`.
+   Then it sets the environment variable, waits for the program to exit, reads back the report, and counts PASS / FAIL. To specify another exe, use `-ExePath <path>`.
+3. Exit code 0 = all passed, 1 = a case failed. See the script header for the script's other exit codes.
+
+Currently all 29 assertions pass, exit code 0. It used to be 36: 13 of them tested a key-name translation copy internal to the self-test;
+the copy has been deleted, and those 13 went with it.
+
+You can also manually set `MIDIKEY_GAME_SELFTEST=<report file path>` and then start the program. The program manifest requires administrator privilege, so the self-test process is elevated as well.
+
+## Packaging Yourself (for Development)
+
+Regular users do not need this section. Only install these if you build from source yourself:
+
+- **.NET 8 SDK**: compiles the program.
+- **Python 3**: the packaging script uses it to write the zip; the standard library `zipfile` must be available. No usable Python, no package.
+
+The packaging command is `bash MidiKeyPlayer/build-win.sh`; the output is under `MidiKeyPlayer/release/`.
+
+Releasing a new version goes through the release script `tools/release.ps1`. It does all of the following in one run:
+
+1. Bump the patch version by +1 (changeable with `-Bump Minor` / `-Bump Major`).
+2. Add a section for the new version at the top of `MidiKeyPlayer/docs/更新日志.txt`.
+   Without `-Notes`, it uses the commit titles since the last tag as a draft.
+3. Update `<Version>` in `MidiKeyPlayer/MidiKeyPlayer.csproj` and the version number on the first line of `更新说明.txt`.
+4. Run `build-win.sh` to produce the package. The zip contains the exe and `更新日志.txt`.
+5. Run the built-in self-test; the exit code must be 0.
+6. Run UI snapshots of the main window, both Settings pages, and the main window in the dark skin, confirming all of them render.
+   The two Settings steps walk through "open → close → open" on their own, verifying along the way that the content ownership moves back and forth cleanly.
+7. Run the folder-songs song-switch regression: click three songs in a row; each step must switch over, and the list row count must not collapse.
+8. Commit, push main, tag, create the Release, upload the zip. After upload, compare the remote asset's sha256 with the local zip;
+   a mismatch is an error.
+
+```
+powershell -File tools\release.ps1 -DryRun                     # 只看会发什么
+powershell -File tools\release.ps1 -Notes "（这一版改了什么）"   # 自己写日志
+powershell -File tools\release.ps1 -SkipPush                   # 只构建验证，不提交不发布
+powershell -File tools\release.ps1 -TrimParity                 # 加做裁剪比对
+```
+
+Rules: every release ships a new version. Already-published packages are not touched, not overwritten, and not re-uploaded.
+The release is fully automatic; the script goes all the way to upload completion without stopping to ask.
+If the tag already exists, the script stops immediately. If the changelog has no section for the current version, `build-win.sh` refuses to package.
+
+The release package has trimming enabled; the settings are in `MidiKeyPlayer.csproj`. Trimming brings the exe from 45.6 MB down to 23.0 MB.
+Reflection-related assemblies (`MidiKeyPlayer`, the `Avalonia` family, `Melanchall.DryWetMidi`) are pinned with
+`TrimmerRootAssembly`; not a single type or member is removed.
+
+After touching trim settings or upgrading dependencies, add `-TrimParity` when releasing. It additionally builds an untrimmed exe
+and compares the two UI snapshots byte for byte. If the comparison fails, it does not release.
+For finer curve verification (attaching an Avalonia log listener to check binding errors), see `midikey-audit\fixes\58-trim-verify.md`.
+
+## Auto-Update
+
+On startup it checks for a new version in the background (on by default; auto-download supported since v1.0.10). When a new version is found, a banner appears at the top of the window:
+
+- **Left-click the banner**: automatically download the update package with progress shown; after the download completes, click once more — the program exits, overwrites the old files automatically, and restarts into the new version.
+- **Click once more while downloading**: cancel the download.
+- **Right-click the banner**: skip this version; the next version will still prompt.
+- If the download or verification fails, click the banner to retry; when there is no direct update-package link, it falls back to "Open Download Page" (打开下载页) for a manual download.
+- If the piano roll has unexported edits before updating, it prompts you to export MIDI first.
+- After the update restart, the new version's first launch writes a line "updated from vX to vY" (已从 vX 更新到 vY) to play.log, confirming the replacement succeeded.
+
+Settings → General → About (设置 → 常规 → 关于) shows the current version number, a "Check for Updates" (检查更新) button, and entries to view the release notes / third-party notices / license.
+
+Update packages are downloaded only from this repository's Releases (address whitelist), and the exe inside the package is verified intact before replacement.
+To turn off the check, change `Enabled` in `MidiKeyPlayer/Engine/AutoUpdate.cs` to `false`.
+
+## Settings Migration
+
+On first launch, if the new directory has no settings file, the program tries to read the old directory `%LOCALAPPDATA%\HarpAutoPlayer`
+and migrates tempo, transposition, hotkeys, and MIDI device settings. A migration failure only writes to the log and does not interrupt startup.
+
+## Technical Notes
+
+- UI: Avalonia (.NET 8). MIDI parsing and device connection: DryWetMidi.
+- Release package: single-file, self-contained, trimming on, reflection-related assemblies pinned from trimming. Zip ~17 MB, exe ~23 MB.
+- Third-party component licenses: see `THIRD-PARTY-NOTICES.md`. This text is embedded in the exe.
+- Input: Windows SendInput, scancode mode. Global hotkeys: WH_KEYBOARD_LL.
+- Preview: the winmm MIDI output built into Windows. No third-party audio library.
+- Timing margins are given in **physical milliseconds** and do not scale with playback tempo. Standard level: the modifier key leads the note key by at least 40ms; during file playback each note is held for at least 17.7ms (46ms on the MIDI device live-performance path); same-key re-trigger is at least 45ms apart; the dispatch-ahead amount is also a fixed physical time.
+- At 10% and 400%, these physical intervals are exactly the same as at 100% (measured 40ms / 17.7ms). What changes is the musical time they correspond to: at fast playback the same physical interval covers more music, at slow playback less.
+- The result is that fast playback no longer drops notes because intervals get squeezed within one frame. The cost is that at slow playback, notes sound slightly later than the score overall, and release slightly later too.
+- Notes are spaced with "slots": a note overlapping the previous one is deferred to after it, rather than shortening the previous note to make room. This produces no zero-duration keystrokes.
+- There is only one set of piano-roll coordinate conversions. Rendering and hit-testing share it, symmetric in both directions.
+
+## License
+
+This program is under the MIT license. `LICENSE` is at the repository root.
+Third-party component licenses: see `THIRD-PARTY-NOTICES.md`.
+Both texts are packaged into the exe and distributed with the program. The current version has no UI entry to open them.
+
+## Disclaimer
+
+This tool is for learning and personal use only. Account penalties or other consequences arising from use are borne by the user.
