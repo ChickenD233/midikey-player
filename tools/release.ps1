@@ -1,4 +1,4 @@
-﻿#Requires -Version 5.1
+#Requires -Version 5.1
 <#
 .SYNOPSIS
     发一个新版本：版本号自动加一，写更新日志，构建、自检、提交、打 tag、上传。
@@ -302,7 +302,7 @@ function New-ReleaseBody([string]$version, [string]$section) {
     [void]$sb.AppendLine()
     [void]$sb.AppendLine("1. 下载下面的 ``MidiKeyPlayer-win-x64-$version.zip``。")
     [void]$sb.AppendLine('2. 解压。里面有 `MidiKeyPlayer.exe` 与 `更新日志.txt`。')
-    [void]$sb.AppendLine('3. 双击 `MidiKeyPlayer.exe`。系统弹出 UAC 时选「是」。')
+    [void]$sb.AppendLine('3. 双击 `MidiKeyPlayer.exe`。')
     [void]$sb.AppendLine('4. 弹出 SmartScreen「未知发布者」时，选「更多信息」，再选「仍要运行」。')
     [void]$sb.AppendLine('5. 杀毒软件可能误报「模拟按键」。请把它加入白名单。')
     [void]$sb.AppendLine()
@@ -313,7 +313,7 @@ function New-ReleaseBody([string]$version, [string]$section) {
     [void]$sb.AppendLine('1. 目标窗口用窗口化或无边框窗口化。全屏独占收不到模拟按键。')
     [void]$sb.AppendLine('2. 播放前点一下目标窗口，让它在前台。')
     [void]$sb.AppendLine('3. 输入法切到英文。')
-    [void]$sb.AppendLine('4. 程序强制以管理员启动。目标程序以管理员运行时，本程序也必须是管理员。')
+    [void]$sb.AppendLine('4. 目标程序以管理员运行时，本程序也要提权（自检卡的「以管理员重启」一键搞定）；普通程序不需要提权。')
     [void]$sb.AppendLine('5. 鼠标或键盘失控时，狂按 F6。')
     [void]$sb.AppendLine()
     [void]$sb.AppendLine('## 免责声明')

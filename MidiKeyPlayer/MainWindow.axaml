@@ -262,11 +262,14 @@
               <Border BorderThickness="0,1,0,0" BorderBrush="{DynamicResource BrushBorder}" Margin="0,0,0,5"/>
               <WrapPanel HorizontalAlignment="Center" ItemSpacing="14" LineSpacing="4">
                 <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center"
-                            ToolTip.Tip="模拟按键受 Windows 的 UIPI 限制：目标程序若以管理员运行而本程序不是，按键会被系统拦截">
+                            ToolTip.Tip="仅当目标程序以管理员运行时才需要本程序同权（Windows 的 UIPI 限制）。普通目标程序不提权也能用">
                   <TextBlock x:Name="TxtCheckAdminMark" Text="–" FontSize="{DynamicResource FontBody}" FontWeight="Bold"
                              Foreground="{DynamicResource BrushTextMuted}" VerticalAlignment="Center"/>
                   <TextBlock x:Name="TxtCheckAdmin" Text="管理员" FontSize="{DynamicResource FontSmall}" VerticalAlignment="Center"/>
                 </StackPanel>
+                <Button x:Name="BtnElevate" Content="以管理员重启" FontSize="{DynamicResource FontCaption}" Padding="10,3"
+                        Classes="secondary" VerticalAlignment="Center" Click="BtnElevate_Click" IsVisible="False"
+                        ToolTip.Tip="以管理员身份重新启动本程序：目标程序以管理员运行时才需要。未保存的手动改动请先导出"/>
                 <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center"
                             ToolTip.Tip="只有输入法开着并且处于中文/假名输入状态时才会截走按键。中文键盘布局切到英文模式可以直接用，不会误报">
                   <TextBlock x:Name="TxtCheckImeMark" Text="–" FontSize="{DynamicResource FontBody}" FontWeight="Bold"
@@ -448,7 +451,7 @@
             </Grid>
 
             <!-- 两列网格：左列 = 速度 / 倒计时，右列 = 移调 / 播放后最小化。两行等距 -->
-            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" RowSpacing="6">
+            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
               <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="8">
                 <TextBlock Text="速度" Classes="label" MinWidth="34" VerticalAlignment="Center"/>
                 <Slider x:Name="SliderSpeed" Width="96" Minimum="10" Maximum="400" Value="100"
@@ -480,6 +483,13 @@
                         IsChecked="True" VerticalAlignment="Center"
                         ToolTip.Tip="播放后窗口最小化。不勾选则保持原样（副屏看进度用，记得点一下目标窗口）"
                         IsCheckedChanged="AutoMinimize_Changed"/>
+
+              <!-- 焦点守卫：键只进游戏。焦点离开目标程序就自动暂停，切回来自动继续 -->
+              <CheckBox Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" x:Name="ChkFocusGuard"
+                        Content="焦点离开目标程序时自动暂停（按键只进游戏）"
+                        FontSize="{DynamicResource FontSmall}" IsChecked="True" VerticalAlignment="Center"
+                        ToolTip.Tip="勾选后：演奏中焦点离开目标程序的窗口就自动暂停，切回去自动继续。Alt+Tab 出去不会把谱面弹进聊天窗口。与主程序自己的窗口交互不算离开"
+                        IsCheckedChanged="FocusGuard_Changed"/>
             </Grid>
           </StackPanel>
         </Border>

@@ -73,6 +73,17 @@ public static class InputSender
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetWindowTextW(IntPtr hWnd, System.Text.StringBuilder text, int maxCount);
 
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
+
+    /// <summary>窗口所属进程的 PID；hwnd 为空返回 0。</summary>
+    public static uint PidOfWindow(IntPtr hwnd)
+    {
+        if (!OperatingSystem.IsWindows() || hwnd == IntPtr.Zero) return 0;
+        GetWindowThreadProcessId(hwnd, out uint pid);
+        return pid;
+    }
+
     public static IntPtr ForegroundWindow =>
         OperatingSystem.IsWindows() ? GetForegroundWindow() : IntPtr.Zero;
 

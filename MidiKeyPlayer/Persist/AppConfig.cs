@@ -47,6 +47,7 @@ public sealed class AppConfig
     public bool TrimLead { get; set; } = true;        // 去除开头空拍（首音平移到 0 秒）
     public bool FirstRunDone { get; set; } = false;   // 首次“快速上手”是否已看过
     public bool AutoMinimizeOnPlay { get; set; } = true;  // 播放开始后自动最小化窗口
+    public bool FocusGuard { get; set; } = true;          // 焦点离开目标程序时自动暂停（按键只进游戏）
     public bool ShowPreflight { get; set; } = true;   // 主界面状态卡里显示播放前自检（默认开）
     public int ThemeMode { get; set; } = 0;           // 皮肤：0 自动（跟随系统）/ 1 浅色 / 2 深色
     public int TimingIndex { get; set; } = 1;         // 输入兼容档位：0稳健/1标准/2极限

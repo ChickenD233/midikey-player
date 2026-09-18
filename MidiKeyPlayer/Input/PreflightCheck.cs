@@ -412,10 +412,14 @@ public static class PreflightCheck
                 Ime = new Check("输入法", false, "非 Windows")
             };
 
-        // ① 模拟按键受 UIPI 限制，未提权时会被系统直接拦截
+        // ① 模拟按键受 UIPI 限制：仅当目标程序以管理员运行时，注入方才需要同权。
+        //    默认不提权（asInvoker），所以这里只提醒、不判不通过 —— 普通目标程序完全不受影响。
         bool admin = IsSelfElevated();
-        var adminCheck = new Check("管理员", admin,
-            admin ? "已提权" : "未提权，目标程序为管理员时按键会被拦截");
+        var adminCheck = admin
+            ? new Check("管理员", Status.Pass, "已提权")
+            : new Check("管理员", Status.Warn,
+                "未提权：普通目标程序不受影响；目标以管理员运行时 SendInput 会被拦截"
+                + "（可换「罗技 G HUB 驱动」输入方式，不受此限；或点「以管理员重启」）");
 
         // ② 输入法：只有"输入法开着且在中文/假名状态"才会截走按键。
         //    误报"不通过"会拦住本来能用的配置，所以读不准只提醒、不报错。

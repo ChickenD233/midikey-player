@@ -4,10 +4,10 @@
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
     <security>
       <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
-        <!-- requireAdministrator：模拟按键受 UIPI 限制，
-             若目标程序以管理员运行而本程序不是，按键会被系统直接拦截。
-             强制以管理员启动可消除这一整类「发不进目标程序」的问题。 -->
-        <requestedExecutionLevel level="requireAdministrator" uiAccess="false" />
+        <!-- asInvoker：默认不提权。模拟按键受 UIPI 限制，仅当目标程序以管理员运行时
+             注入方才需要同权 —— 那种情况由界面上的「以管理员重启」按需提权，
+             普通场景不再需要每次启动都过 UAC。 -->
+        <requestedExecutionLevel level="asInvoker" uiAccess="false" />
       </requestedPrivileges>
     </security>
   </trustInfo>

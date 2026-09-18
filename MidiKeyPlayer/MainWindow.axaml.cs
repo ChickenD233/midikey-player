@@ -45,6 +45,9 @@ public partial class MainWindow : Window
     private bool _editsExported;                      // true = 这份手动改动已经导出过 MIDI（UI-01 / UI-02）
     private bool _discardPrompting;                   // RV-09：丢弃改动确认框正在显示，不重复弹
     private bool _revertingTrack;                     // RV-09：取消后回退主旋律轨选中，忽略自触发的事件
+    private DispatcherTimer? _focusTimer;             // 焦点守卫：焦点离开目标程序自动暂停
+    private bool _focusAutoPaused;                    // 当前暂停是焦点守卫触发的（只有这种才自动继续）
+    private uint _gamePid;                            // 目标程序进程 PID（同进程窗口都算「在游戏里」）
     private bool _revertingMix;                       // RV-09：取消后回退合奏勾选，忽略自触发的事件
     private bool _exitConfirming;                     // 关窗确认框正在显示，避免连点 × 弹多个
     private bool _helpOn;                             // 卷帘右侧操作说明：默认收起，保持界面干净
@@ -129,6 +132,7 @@ public partial class MainWindow : Window
         SliderTranspose.Value = Math.Clamp(_cfg.Transpose, -24, 24);
         ChkTrimLead.IsChecked = _cfg.TrimLead;
         ChkAutoMinimize.IsChecked = _cfg.AutoMinimizeOnPlay;
+        ChkFocusGuard.IsChecked = _cfg.FocusGuard;   // 焦点守卫默认开：按键只进游戏
         ChkShowPreflight.IsChecked = _cfg.ShowPreflight;
         PreflightRow.IsVisible = _cfg.ShowPreflight;   // 默认开：自检常驻主界面状态卡
         ChkOverlay.IsChecked = _cfg.OverlayEnabled;    // 悬浮窗默认开
@@ -430,20 +434,89 @@ public partial class MainWindow : Window
             InsertLog("当前没有在播放，无法暂停。");
             return;
         }
+        _focusAutoPaused = false;   // 手动暂停/继续：焦点守卫不再把这次暂停当成自己触发的
         if (eng.IsPaused)
         {
             eng.Resume();
-            LblStatus.Foreground = OkBrush;
-            LblStatus.FontSize = ResourceFontSize("FontDisplay", 22);
-            LblStatus.Text = "演奏中…";
+            SetPauseUi(false);
         }
         else
         {
             eng.Pause();
-            LblStatus.Foreground = FailBrush;
-            LblStatus.Text = "已暂停 —— 按 F6 或点「▶ 继续」";
+            SetPauseUi(true);
         }
+    }
+
+    /// <summary>暂停/继续的状态区与按钮（手动 F6 与焦点守卫共用）。</summary>
+    private void SetPauseUi(bool paused)
+    {
+        LblStatus.Foreground = paused ? FailBrush : OkBrush;
+        LblStatus.FontSize = ResourceFontSize("FontDisplay", 22);
+        LblStatus.Text = paused ? "已暂停 —— 按 F6 或点「▶ 继续」" : "演奏中…";
         UpdateTransportUi();
+    }
+
+    // ================= 焦点守卫：按键只进游戏 =================
+
+    /// <summary>
+    /// 开始演奏时挂上焦点守卫（「焦点离开目标程序时自动暂停」勾选且记到了目标窗口才有）。
+    /// 守卫按进程判：目标程序的任何窗口都算「在游戏里」，本程序自己的窗口算中立（不暂停也不继续），
+    /// 其余一切前台 = 离开 → 自动暂停；焦点回到目标进程 → 自动继续（只继续守卫自己暂停的那次）。
+    /// </summary>
+    private void StartFocusGuard()
+    {
+        _focusAutoPaused = false;
+        _focusTimer?.Stop();
+        _focusTimer = null;
+        _gamePid = Input.InputSender.PidOfWindow(_gameHwnd);
+        if (ChkFocusGuard.IsChecked != true || _gamePid == 0) return;
+
+        _focusTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+        _focusTimer.Tick += FocusGuardTick;
+        _focusTimer.Start();
+    }
+
+    private void FocusGuardTick(object? sender, EventArgs e)
+    {
+        var eng = _engine;
+        if (eng is not { IsRunning: true })
+        {
+            _focusTimer?.Stop();
+            _focusTimer = null;
+            return;
+        }
+
+        uint fg = Input.InputSender.PidOfWindow(Input.InputSender.ForegroundWindow);
+        if (fg == 0 || fg == Environment.ProcessId) return;   // 读不到 / 本程序自己的窗口：中立
+        bool inGame = fg == _gamePid;
+
+        if (!inGame && !eng.IsPaused)
+        {
+            eng.Pause();
+            _focusAutoPaused = true;
+            InsertLog("焦点离开目标程序，已自动暂停（切回去自动继续；不需要可在「演奏参数」里关掉）。");
+            SetPauseUi(true);
+        }
+        else if (inGame && eng.IsPaused && _focusAutoPaused)
+        {
+            eng.Resume();
+            _focusAutoPaused = false;
+            InsertLog("焦点回到目标程序，自动继续。");
+            SetPauseUi(false);
+        }
+    }
+
+    private void FocusGuard_Changed(object? sender, RoutedEventArgs e)
+    {
+        if (_cfg != null) _cfg.FocusGuard = ChkFocusGuard.IsChecked == true;
+        ScheduleSave();
+        if (!_uiReady) return;
+        // 播放中改开关：勾上立刻补挂守卫，取消就拆掉（不改当前暂停状态）
+        if (_engine is { IsRunning: true })
+        {
+            if (ChkFocusGuard.IsChecked == true) StartFocusGuard();
+            else { _focusTimer?.Stop(); _focusTimer = null; }
+        }
     }
 
     // ================= 状态区 / 按钮提示 =================
@@ -2251,6 +2324,7 @@ public partial class MainWindow : Window
 
         PaintCheck(report.Admin, TxtCheckAdminMark, TxtCheckAdmin);
         PaintCheck(report.Ime, TxtCheckImeMark, TxtCheckIme);
+        BtnElevate.IsVisible = !report.Admin.Passed;   // 未提权时给「以管理员重启」入口（按需提权）
 
         // 全通过就没有要说的；留一行空文字会白占主界面状态卡的高度
         string hint = report.HasBlocked
@@ -2277,6 +2351,30 @@ public partial class MainWindow : Window
     {
         RunPreflight();
         InsertLog("已重新检测管理员权限与输入法。");
+    }
+
+    /// <summary>
+    /// 以管理员身份重启本程序（按需提权：仅目标程序以管理员运行时才需要）。
+    /// 用 runas 起新进程后退出当前进程；UAC 取消则原地不动。
+    /// </summary>
+    private void BtnElevate_Click(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = Environment.ProcessPath ?? "MidiKeyPlayer.exe",
+                Verb = "runas",
+                UseShellExecute = true,
+            };
+            System.Diagnostics.Process.Start(psi);
+            InsertLog("已用管理员身份重新启动，本实例退出。");
+            QuitApp();
+        }
+        catch (Exception ex)
+        {
+            InsertLog("提权重启已取消或失败：" + ex.Message);
+        }
     }
 
     // 语义色一律从主题资源取（Styles/Theme.axaml 是唯一真源，深浅两套都在那里）。
@@ -3365,6 +3463,7 @@ public partial class MainWindow : Window
         };
         _uiTimer.Start();
         _overlayLastElapsed = -1;   // 新一轮播放：重置节流基线
+        StartFocusGuard();   // 焦点守卫：勾选时焦点离开目标程序自动暂停（内部自己判断要不要挂）
         if (ChkOverlay.IsChecked == true)
             EnsureOverlay().SetNotes(_playNotes, engine.TotalSeconds);   // 迷你卷帘的音符
         ShowOverlayProgress(engine);   // 倒计时是 0 秒时这里没有等待期，立刻摆出进度
@@ -3423,6 +3522,9 @@ public partial class MainWindow : Window
         _liveTimer = null;
         _liveQueued = false;
         _seeking = false;
+        _focusTimer?.Stop();
+        _focusTimer = null;
+        _focusAutoPaused = false;
         SetBusy(false);
         // 停止后按谱面时间换算当前位置，方便直接重新定位
         double frac = SliderProgress.Maximum > 0 ? SliderProgress.Value / SliderProgress.Maximum : 0;
