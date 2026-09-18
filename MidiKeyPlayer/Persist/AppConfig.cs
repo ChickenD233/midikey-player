@@ -50,6 +50,7 @@ public sealed class AppConfig
     public bool ShowPreflight { get; set; } = true;   // 主界面状态卡里显示播放前自检（默认开）
     public int ThemeMode { get; set; } = 0;           // 皮肤：0 自动（跟随系统）/ 1 浅色 / 2 深色
     public int TimingIndex { get; set; } = 1;         // 输入兼容档位：0稳健/1标准/2极限
+    public int InputBackend { get; set; } = 0;        // 输入方式：0 SendInput（默认）/ 1 罗技 G HUB 驱动
     public string SkippedUpdateTag { get; set; } = "";   // 用户选择“跳过”的版本号（空=不跳过）
     public bool DisclaimerAccepted { get; set; } = false;  // 免责声明确认过一次后不再显示
     public string LastRunVersion { get; set; } = "";    // 上次运行的版本号（自动更新成功确认用）

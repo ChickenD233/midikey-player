@@ -98,6 +98,10 @@
     <AvaloniaResource Include="docs\更新说明.txt" Link="Docs/更新说明.txt" />
     <AvaloniaResource Include="..\THIRD-PARTY-NOTICES.md" Link="Docs/THIRD-PARTY-NOTICES.md" />
     <AvaloniaResource Include="..\LICENSE" Link="Docs/LICENSE" />
+    <!-- IbInputSimulator.dll（MIT，作者 Chaoses-Ib）：罗技 G HUB 驱动注入后端。
+         嵌进 exe，首次选「罗技 G HUB 驱动」时释放到 %LOCALAPPDATA%\MidiKeyPlayer\ 再加载（见 Input\IbDriver.cs），
+         发布包保持只有一个 exe。 -->
+    <AvaloniaResource Include="libs\IbInputSimulator.dll" Link="Libs/IbInputSimulator.dll" />
   </ItemGroup>
 
   <!-- 发布目录只留一个 exe。DryWetMidi 包里带 macOS / Linux 的原生库（.dylib / .so），

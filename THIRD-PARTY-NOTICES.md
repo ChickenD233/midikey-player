@@ -23,7 +23,18 @@ Avalonia 资源地址是 `avares://MidiKeyPlayer/Docs/THIRD-PARTY-NOTICES.md`。
 | Avalonia.Themes.Fluent | 11.3.20 | MIT | Copyright 2013-2026 © The AvaloniaUI Project |
 | Melanchall.DryWetMidi | 7.2.0 | MIT | Copyright © Melanchall 2024 |
 
-## 2. 传递依赖
+## 2. 捆绑的原生组件（嵌在 exe 里）
+
+| 组件 | 版本 | 许可 | 版权行 |
+|---|---|---|---|
+| IbInputSimulator | v0.4.1 | MIT | Copyright (c) 2021 Chaoses-Ib |
+
+`IbInputSimulator.dll`（约 239 KB，x64）作为 Avalonia 资源嵌在 `MidiKeyPlayer.exe` 里
+（`avares://MidiKeyPlayer/Libs/IbInputSimulator.dll`），首次使用「罗技 G HUB 驱动」输入方式时
+释放到 `%LOCALAPPDATA%\MidiKeyPlayer\` 再加载。来源：
+https://github.com/Chaoses-Ib/IbInputSimulator/releases 。
+
+## 3. 传递依赖
 
 还原结果里还有下列组件。Windows x64 单文件产物会带上其中的托管程序集与原生库。
 构建期工具 `Microsoft.NET.ILLink.Tasks 8.0.31` 不进包，故不列。
@@ -46,7 +57,7 @@ Avalonia 资源地址是 `avares://MidiKeyPlayer/Docs/THIRD-PARTY-NOTICES.md`。
 | Tmds.DBus.Protocol | 0.21.3 | MIT | Copyright Tom Deseyn |
 | Avalonia.Angle.Windows.Natives（ANGLE） | 2.1.25547.20250602 | BSD 3-Clause | Copyright 2018 The ANGLE Project Authors |
 
-## 3. .NET 8 运行时（随 exe 分发）
+## 4. .NET 8 运行时（随 exe 分发）
 
 发布 exe 是自包含单文件（`MidiKeyPlayer.csproj` 里 `SelfContained` + `PublishSingleFile`）。
 .NET 8 运行时已内嵌在这个 exe 里，并随包分发。
@@ -65,7 +76,7 @@ Zlib、Mono（MIT）、W3C 文档许可、LLVM（Apache-2.0 with LLVM Exceptions
 
 本文件不逐条抄录这份清单。该清单也没有嵌进 exe。
 
-## 4. MIT 许可全文（适用于第 1、2、3 节里标 MIT 的组件）
+## 5. MIT 许可全文（适用于第 1、2、3、4 节里标 MIT 的组件）
 
 ```
 MIT License
@@ -89,9 +100,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-每个 MIT 组件的版权行见第 1、2 节表格。
+每个 MIT 组件的版权行见第 1、2、3 节表格。
 
-## 5. BSD 3-Clause 许可全文（ANGLE）
+## 6. BSD 3-Clause 许可全文（ANGLE）
 
 ```
 // Copyright 2018 The ANGLE Project Authors.

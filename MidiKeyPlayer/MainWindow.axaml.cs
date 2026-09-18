@@ -113,6 +113,9 @@ public partial class MainWindow : Window
         TimingCombo.ItemsSource = InputTiming.Names;
         TimingCombo.SelectedIndex = 1;          // 标准
 
+        // 输入方式：SendInput（默认）或罗技 G HUB 驱动（绕过 SendInput 屏蔽）
+        BackendCombo.ItemsSource = new[] { "SendInput（Windows 自带）", "罗技 G HUB 驱动（绕过输入屏蔽）" };
+
 
         // —— 记住上次设置 ——
         _cfg = AppConfig.Load();
@@ -134,6 +137,7 @@ public partial class MainWindow : Window
         ThemeCombo.ItemsSource = ThemeSwitch.Names;    // 自动 / 浅色 / 深色，下标就是设置里的取值
         ThemeCombo.SelectedIndex = ThemeSwitch.Clamp(_cfg.ThemeMode);
         TimingCombo.SelectedIndex = Math.Clamp(_cfg.TimingIndex, 0, 2);
+        BackendCombo.SelectedIndex = Math.Clamp(_cfg.InputBackend, 0, 1);   // 触发 Backend_Changed → 应用后端
         RefreshRecentUi();   // 「打开」下拉菜单按设置里的历史重建（含「最近打开」子菜单）
         // 曲目卡常驻（issue #57）：上次列过的目录还在就自动扫描并显示，不用每次重开都重新选目录
         RestoreFolderFromConfig();
@@ -2722,6 +2726,34 @@ public partial class MainWindow : Window
                   $"重触发 {t.RetriggerMs:F0}ms）");
     }
 
+    /// <summary>
+    /// 输入方式：SendInput（默认）或罗技 G HUB 驱动（目标程序屏蔽 SendInput 时用）。
+    /// 改动即时生效；切驱动失败时保持 SendInput 并在日志里给出原因。
+    /// 启动时由「恢复设置」触发本事件完成应用，所以这里不挡 _uiReady。
+    /// </summary>
+    private void Backend_Changed(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_cfg != null) _cfg.InputBackend = Math.Clamp(BackendCombo.SelectedIndex, 0, 1);
+        ScheduleSave();
+        ApplyBackendFromUi();
+    }
+
+    private void ApplyBackendFromUi()
+    {
+        var kind = BackendCombo.SelectedIndex == 1
+            ? Input.InputSender.BackendKind.LogitechGHub
+            : Input.InputSender.BackendKind.SendInput;
+        if (Input.InputSender.SetBackend(kind, out string err))
+        {
+            if (kind == Input.InputSender.BackendKind.LogitechGHub)
+                InsertLog("输入方式：罗技 G HUB 驱动。注意：只发键盘，鼠标键无效；同时按住的音最多 6 个。");
+        }
+        else
+        {
+            InsertLog("罗技 G HUB 驱动初始化失败：" + err.Replace("\n", "") + "（已保持 SendInput）");
+        }
+    }
+
     /// <summary>「播放后自动最小化窗口」：只影响开始播放时是否缩窗，不需要刷新预览。</summary>
     private void AutoMinimize_Changed(object? sender, RoutedEventArgs e)
     {
@@ -3239,6 +3271,14 @@ public partial class MainWindow : Window
     private void RequestPlay(bool skipCountdown = false)
     {
         if (_busy || ActiveRows().Count == 0) return;
+
+        // 选了罗技驱动但还没初始化成功（比如启动时 G HUB 没就绪）：开播前补一次，
+        // 失败就不开弹（静默发不出键比直接报错更难排查）
+        if (!Input.InputSender.EnsureBackend(out string backendErr))
+        {
+            InsertLog(backendErr.Replace("\n", ""));
+            return;
+        }
 
         // 试听与演奏不能同时进行（反向检查在 StartPreviewAudio）：先停试听再开弹
         if (_previewOn) StopPreviewAudio();

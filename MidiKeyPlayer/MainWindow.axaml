@@ -596,6 +596,14 @@
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="输入方式" Classes="label"
+                         ToolTip.Tip="SendInput 是 Windows 自带的注入。有的目标程序会屏蔽它：事件带「已注入」标记，被直接过滤。这时改选罗技 G HUB 驱动。"/>
+              <ComboBox x:Name="BackendCombo" Width="216" FontSize="{DynamicResource FontSmall}"
+                        VerticalAlignment="Center" SelectionChanged="Backend_Changed"
+                        ToolTip.Tip="罗技 G HUB 驱动：直接向罗技驱动发标准键盘报告，绕过 SendInput 屏蔽。需安装 Logitech G HUB（不需要罗技硬件）。只发键盘：鼠标键无效；同时按住的音最多 6 个。"/>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Spacing="8">
               <TextBlock Text="控制热键" Classes="label"
                          ToolTip.Tip="一个键四用：空闲=开始，播放=暂停，暂停=继续，倒计时=取消"/>
               <ComboBox x:Name="HotkeyControlCombo" Width="86" FontSize="{DynamicResource FontSmall}"

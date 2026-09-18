@@ -98,6 +98,49 @@ public static class InputSender
 
     public static bool IsSupported => OperatingSystem.IsWindows();
 
+    private static bool _mouseWarnedInDriverMode;   // 罗技驱动模式下「鼠标键发不了」只提醒一次
+
+    // ---------------------------------------------------------------- 输入后端
+
+    /// <summary>输入后端：SendInput（默认，用户态注入）/ 罗技 G HUB 驱动（驱动级 HID 报告）。</summary>
+    public enum BackendKind { SendInput = 0, LogitechGHub = 1 }
+
+    /// <summary>当前输入后端。默认 SendInput；只有 SetBackend 成功后才会变成罗技驱动。</summary>
+    public static BackendKind Backend { get; private set; } = BackendKind.SendInput;
+
+    /// <summary>
+    /// 切换输入后端。切罗技驱动时立刻初始化：失败则保持 SendInput 不变，error 是中文原因。
+    /// 切回 SendInput 时把驱动设备句柄关掉。
+    /// </summary>
+    public static bool SetBackend(BackendKind kind, out string error)
+    {
+        error = "";
+        if (kind == BackendKind.LogitechGHub)
+        {
+            if (!IbDriver.TryInit(out error)) return false;
+            Backend = BackendKind.LogitechGHub;
+            return true;
+        }
+
+        IbDriver.Shutdown();
+        Backend = BackendKind.SendInput;
+        return true;
+    }
+
+    /// <summary>
+    /// 播放前确认当前后端可用：罗技驱动已选但尚未初始化（比如启动时 G HUB 还没装好）时在这里补一次初始化。
+    /// 失败返回 false，error 可直接弹给用户；后端自动退回 SendInput，避免无声播放。
+    /// </summary>
+    public static bool EnsureBackend(out string error)
+    {
+        error = "";
+        if (Backend != BackendKind.LogitechGHub) return true;
+        if (IbDriver.TryInit(out error)) return true;
+        Backend = BackendKind.SendInput;
+        error += "\n本次先退回 SendInput。";
+        return false;
+    }
+
     // ---------------------------------------------------------------- 按下记账（A04）
 
     // 本程序真正按下过的键/鼠标键。ReleaseEverything 只抬这一份记录，绝不碰用户物理按住的键。
@@ -181,9 +224,13 @@ public static class InputSender
 
     // ---------------------------------------------------------------- 发送
 
-    /// <returns>true = 事件注入成功；false = 被系统拦截（SendInput 返回 0）。</returns>
+    /// <returns>true = 事件注入成功；false = 被系统拦截（SendInput 返回 0）或驱动报告失败。</returns>
     private static bool SendKeyVk(bool down, ushort vk, bool extended)
     {
+        // 罗技驱动后端：直接发标准 HID 键盘报告，不走 SendInput（注入标记那条链路）。
+        if (Backend == BackendKind.LogitechGHub)
+            return IbDriver.Keybd(down, vk);
+
         // 一律发扫描码（wVk=0 + KEYEVENTF_SCANCODE）：很多目标程序/DirectInput 只认扫描码
         uint flags = (down ? 0u : KEYEVENTF_KEYUP) | KEYEVENTF_SCANCODE;
         if (extended) flags |= KEYEVENTF_EXTENDEDKEY;
@@ -209,6 +256,13 @@ public static class InputSender
     private static bool SendMouse(MouseButton button, bool down)
     {
         if (!OperatingSystem.IsWindows()) return false;
+        // 新版 G HUB 砍掉了鼠标驱动，罗技后端只发键盘。鼠标键（八度/半音修饰）仍走 SendInput，
+        // 目标程序屏蔽注入时这些键会发不出去 —— 记一次日志提醒，不刷屏。
+        if (Backend == BackendKind.LogitechGHub && !_mouseWarnedInDriverMode)
+        {
+            _mouseWarnedInDriverMode = true;
+            Persist.LogFile.Append("[输入] 罗技 G HUB 驱动模式不支持鼠标键：方案里的鼠标键仍走 SendInput。");
+        }
         uint flag = button switch
         {
             MouseButton.Left => down ? MOUSEEVENTF_LEFTDOWN : MOUSEEVENTF_LEFTUP,
