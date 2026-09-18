@@ -114,7 +114,7 @@ public partial class MainWindow : Window
         TimingCombo.SelectedIndex = 1;          // 标准
 
         // 输入方式：SendInput（默认）或罗技 G HUB 驱动（绕过 SendInput 屏蔽）
-        BackendCombo.ItemsSource = new[] { "SendInput（Windows 自带）", "罗技 G HUB 驱动（绕过输入屏蔽）" };
+        BackendCombo.ItemsSource = new[] { "SendInput（Windows 自带）", "罗技 G HUB 驱动" };
 
 
         // —— 记住上次设置 ——
@@ -2727,7 +2727,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 输入方式：SendInput（默认）或罗技 G HUB 驱动（目标程序屏蔽 SendInput 时用）。
+    /// 输入方式：SendInput（默认）或罗技 G HUB 驱动。
     /// 改动即时生效；切驱动失败时保持 SendInput 并在日志里给出原因。
     /// 启动时由「恢复设置」触发本事件完成应用，所以这里不挡 _uiReady。
     /// </summary>

@@ -597,10 +597,10 @@
 
             <StackPanel Orientation="Horizontal" Spacing="8">
               <TextBlock Text="输入方式" Classes="label"
-                         ToolTip.Tip="SendInput 是 Windows 自带的注入。有的目标程序会屏蔽它：事件带「已注入」标记，被直接过滤。这时改选罗技 G HUB 驱动。"/>
+                         ToolTip.Tip="SendInput 是 Windows 自带的输入模拟；罗技 G HUB 驱动则直接向罗技驱动发键盘报告。两种方式的兼容性不同，默认 SendInput 即可。"/>
               <ComboBox x:Name="BackendCombo" Width="216" FontSize="{DynamicResource FontSmall}"
                         VerticalAlignment="Center" SelectionChanged="Backend_Changed"
-                        ToolTip.Tip="罗技 G HUB 驱动：直接向罗技驱动发标准键盘报告，绕过 SendInput 屏蔽。需安装并保持运行 Logitech G HUB（不需要罗技硬件，装好后默认开机自启）。只发键盘：鼠标键无效；同时按住的音最多 6 个。"/>
+                        ToolTip.Tip="罗技 G HUB 驱动：直接向罗技驱动发标准键盘报告。需安装并保持运行 Logitech G HUB（不需要罗技硬件，装好后默认开机自启）。只发键盘：鼠标键无效；同时按住的音最多 6 个。"/>
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" Spacing="8">

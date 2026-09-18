@@ -6,9 +6,8 @@ namespace MidiKeyPlayer.Input;
 
 /// <summary>
 /// IbInputSimulator 驱动注入（第三方组件，MIT 许可，作者 Chaoses-Ib）。
-/// 用途：目标程序屏蔽 SendInput（注入事件带「已注入」标记，会被过滤）时，
-/// 改走罗技 G HUB / LGS 的驱动级注入 —— 直接向罗技驱动设备发标准 HID 键盘报告，
-/// 目标程序收到的是「驱动层上来的键」，与 SendInput 的用户态注入不是一条链路。
+/// 即「罗技 G HUB 驱动」输入方式：直接向罗技驱动设备发标准 HID 键盘报告，
+/// 与 SendInput 的用户态注入不是一条链路。
 ///
 /// 用法：先 <see cref="TryInit"/>（选「罗技 G HUB 驱动」时调用一次），之后
 /// <see cref="Keybd"/> 发按下/抬起。不需要罗技硬件，但要求装过 G HUB 或 LGS
