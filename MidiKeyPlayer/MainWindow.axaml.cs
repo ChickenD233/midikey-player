@@ -2690,8 +2690,9 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// 悬浮窗节流：进度变化 ≥0.15s、或暂停 / 循环状态变了才推，否则这趟什么都不做。
-    /// 大型游戏占满 GPU/CPU 时，悬浮窗的刷新频次从 12.5 次/秒降到约 7 次/秒，
+    /// 大型游戏占满 GPU/CPU 时，悬浮窗的文字刷新频次从 12.5 次/秒降到约 7 次/秒，
     /// 暂停时直接零刷新，不与游戏抢帧。
+    /// 卷帘的平滑滚动不受影响：两次推送之间由悬浮窗自己按实测速率外推（见 OverlayWindow.SmoothTick）。
     /// </summary>
     private void PushOverlayThrottled(PlaybackEngine eng)
     {
