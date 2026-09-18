@@ -62,7 +62,7 @@ public sealed class KeymapFormatException : Exception
 public sealed class KeymapProfile
 {
     /// <summary>
-    /// 默认方案名。内置四套都用直白名字（自然音 / 半音 / 第五人格键位 / 8 键半音），
+    /// 默认方案名。内置几套都用直白名字（自然音 / 半音 / 第五人格键位 / 8 键半音 / 洛克王国手碟），
     /// 不再由几何量拼出来 ——「36 键 4 排 3 个八度」这类名字会把用户绕晕，实际只有三排。
     /// 默认方案（v1.0.17 起）：Z X C V B N M , 一排 do..高音 do，
     /// 鼠标左键降八度、右键升八度、中键升半音，能弹 48..85。
@@ -147,7 +147,7 @@ public sealed class KeymapProfile
     private static IReadOnlyList<KeymapProfile>? _presets;
 
     /// <summary>
-    /// 4 套内置预设。第一项就是默认方案。名字现在是写死的中文（见 <see cref="BuildPresets"/>），
+    /// 内置预设。第一项就是默认方案。名字现在是写死的中文（见 <see cref="BuildPresets"/>），
     /// <see cref="SchemeNameOf"/> 只留着算几何量，不再用来命名。只读用；要改先 <see cref="Clone"/>。
     /// </summary>
     public static IReadOnlyList<KeymapProfile> Presets => _presets ??= BuildPresets();
@@ -297,6 +297,39 @@ public sealed class KeymapProfile
     }
 
     /// <summary>
+    /// 第 5 套（洛克王国手碟）：手碟键位，只有自然音，不带功能键。
+    ///   T Y U = 高音 do re mi（偏移 +12 +14 +16，第 3 行）
+    ///   F G H J K = 中音 mi fa sol la si（偏移 +4 +5 +7 +9 +11，第 2 行）
+    ///   B = 低音 la（偏移 −3，第 1 行）
+    /// 行号与物理键盘的排一致：QWERTY 排在上、ASDF 排居中、ZXCV 排在下。能弹 57..76。
+    /// </summary>
+    private static KeymapProfile BuildHandpan()
+    {
+        var keys = new List<KeyBinding>();
+        // (行号, 该行的键, 该行第一个音的偏移)：行内从左到右按音高升序。
+        foreach (var (row, rowKeys, offsets) in new (int, string[], int[])[]
+        {
+            (0, new[] { "B" }, new[] { -3 }),                        // 低音 la
+            (1, new[] { "F", "G", "H", "J", "K" }, new[] { 4, 5, 7, 9, 11 }),   // 中音 mi..si
+            (2, new[] { "T", "Y", "U" }, new[] { 12, 14, 16 }),      // 高音 do re mi
+        })
+            for (int c = 0; c < rowKeys.Length; c++)
+                keys.Add(new KeyBinding { Key = rowKeys[c], Offset = offsets[c], Row = row });
+
+        return new KeymapProfile
+        {
+            Version = CurrentVersion,
+            Description = "手碟键位：T Y U 是高音 do re mi，F G H J K 是中音 mi fa sol la si，B 是低音 la",
+            BaseNote = 60,
+            Keys = keys,
+            ModifiersEnabled = false,
+            OctaveUp = null,
+            OctaveDown = null,
+            Sharp = null,
+        };
+    }
+
+    /// <summary>
     /// 方案名：「N 键 M 排 K 个八度」。
     /// N = 键位数；M = 这些键在物理键盘上占几排；K = 能弹音域的八度数（向上取整）。
     /// K 由「键位 × 八度键」能到达的音高张角算出，升半音键只在音域内补半音，不扩展边界。
@@ -356,7 +389,7 @@ public sealed class KeymapProfile
     }
 
     /// <summary>
-    /// 4 套内置预设，名字直接写死成直白的中文（不再由 <see cref="SchemeNameOf"/> 拼几何量）。
+    /// 内置预设，名字直接写死成直白的中文（不再由 <see cref="SchemeNameOf"/> 拼几何量）。
     /// 第 1 套的名字必须等于 <see cref="DefaultName"/>（默认方案，v1.0.17 起是「8 键半音」），不等就写日志。
     /// 第 3 套的用户可见名字由用户指定，键位与旧的「36 键半音三排」相同（见 <see cref="LegacyPresetAlias"/>）。
     /// </summary>
@@ -368,6 +401,7 @@ public sealed class KeymapProfile
             Preset(BuildDefault(), "21 键自然音"),             // 第 2 套：中 / 高 / 高高，三行七列自然音
             Preset(BuildChromatic21(), "21 键半音"),           // 第 3 套：低 / 中 / 高三个八度 + Shift 升 / Ctrl 降半音
             Preset(BuildChromatic36(), "第五人格键位"),         // 第 4 套：三排各 12 个半音
+            Preset(BuildHandpan(), "洛克王国手碟"),             // 第 5 套：手碟键位（T Y U / F G H J K / B）
         };
         if (!string.Equals(list[0].Name, DefaultName, StringComparison.Ordinal))
             LogFile.Append($"[键位] 默认方案名是「{list[0].Name}」，与常量「{DefaultName}」不同，请同步。");
@@ -420,7 +454,7 @@ public sealed class KeymapProfile
 
     /// <summary>
     /// 已经删掉的预设：读到这些名字就回退到默认方案。
-    /// 现在保留 21 键自然音 / 21 键半音 / 第五人格键位 / 8 键半音四套，其余历史名字全部列在这里。
+    /// 现在保留 21 键自然音 / 21 键半音 / 第五人格键位 / 8 键半音 / 洛克王国手碟五套，其余历史名字全部列在这里。
     /// 改过名但键位还在的（例如「36 键半音三排」「8 键单排（含高八度 do，默认）」）走
     /// <see cref="LegacyPresetAlias"/>，不要写在这里。
     /// </summary>
@@ -515,7 +549,7 @@ public sealed class KeymapProfile
     }
 
     /// <summary>
-    /// 全部可用方案名：内置 3 套在前（按 Presets 的顺序），用户方案文件在后（按名字排序）。
+    /// 全部可用方案名：内置预设在前（按 Presets 的顺序），用户方案文件在后（按名字排序）。
     /// 名字相同的只留一次。下拉框直接用这个列表。
     /// </summary>
     public static IReadOnlyList<string> ListSchemeNames()

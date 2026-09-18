@@ -314,9 +314,10 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
     /// <summary>
     /// 重建绑定区：把方案里的键位按**方案自己的行号**（<see cref="KeyBinding.Row"/>）分成一行行，
     /// 每行从左到右按音高升序，行号大的显示在上面。
-    /// 所以三套预设都是整整齐齐的三行七列或三行十二列：
+    /// 所以预设按方案行号排出来都整整齐齐：
     /// 21 键自然音与 21 键半音的第 1 行 = 上排 Q W E R T Y U、第 2 行 = 中排 A S D F G H J、第 3 行 = 下排 Z X C V B N M；
-    /// 第五人格键位的第 1 行是高音排（Q 2 W 3 E…），第 3 行是低音排（，L . ; …）。
+    /// 第五人格键位的第 1 行是高音排（Q 2 W 3 E…），第 3 行是低音排（，L . ; …）；
+    /// 洛克王国手碟的第 1 行是高音 T Y U、第 2 行是中音 F G H J K、第 3 行只有低音 B。
     /// 一行内绝不换行（XAML 里用横向 StackPanel + 横向滚动）。
     /// 老方案（所有键的 Row 都是 0）退回「按物理键盘的排分组」。
     /// </summary>
@@ -1874,8 +1875,8 @@ internal sealed class RowVM : KeyCapRow
 
 /// <summary>
 /// 绑定区的一行：一行键帽，从左到右音高升序，行内绝不换行。
-/// 行按方案自己的行号分（<see cref="KeyBinding.Row"/>），行号大的显示在上面，
-/// 所以三套预设都是整整齐齐的三行七列或三行十二列。
+/// 行按方案自己的行号分（<see cref="KeyBinding.Row"/>），行号大的显示在上面：
+/// 上排是 QWERTY 排，下排是 ZXCV 排，每行内部从左到右音高升序。
 /// 行标题写第几行、几个键、音域到哪。行尾的「+」由模板固定画在右边。
 /// </summary>
 internal sealed class KeymapRowGroup : INotifyPropertyChanged

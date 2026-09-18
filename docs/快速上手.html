@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>MidiKeyPlayer 快速上手</title>
+<style>
+  body {
+    font-family: "Microsoft YaHei", "微软雅黑", sans-serif;
+    max-width: 720px;
+    margin: 40px auto;
+    padding: 0 24px;
+    color: #1a1a1a;
+    line-height: 1.8;
+    font-size: 15px;
+  }
+  h1 { font-size: 28px; border-bottom: 3px solid #2e7d32; padding-bottom: 8px; }
+  h2 { font-size: 20px; color: #2e7d32; margin-top: 36px; }
+  img { max-width: 100%; border: 1px solid #ccc; border-radius: 6px; margin: 12px 0; }
+  code, kbd {
+    background: #f0f0f0; border: 1px solid #ddd; border-radius: 4px;
+    padding: 1px 6px; font-family: Consolas, monospace; font-size: 13px;
+  }
+  ol li { margin: 6px 0; }
+  .tip { background: #fff8e1; border-left: 4px solid #f9a825; padding: 10px 14px; border-radius: 4px; }
+  .footer { margin-top: 40px; color: #888; font-size: 13px; border-top: 1px solid #eee; padding-top: 12px; }
+</style>
+</head>
+<body>
+
+<h1>MidiKeyPlayer 快速上手</h1>
+
+<p>把 MIDI 文件变成键盘、鼠标按键，弹给前台窗口里的目标程序听。<br>
+这份教程只讲最基本的：让一首曲子在目标程序里响起来。全程 2 分钟。</p>
+
+<h2>1. 下载</h2>
+<ol>
+  <li>打开仓库右侧 <b>Releases</b>，下载最新的 <code>MidiKeyPlayer-win-x64-x.x.x.zip</code>。</li>
+  <li>解压，双击 <code>MidiKeyPlayer.exe</code>。</li>
+  <li>弹窗都放行：UAC 选「是」；SmartScreen 选「更多信息」→「仍要运行」。</li>
+</ol>
+<p class="tip">杀毒软件报「模拟按键」是误报。白名单要把 <code>MidiKeyPlayer.exe</code> 和 <code>%TEMP%\.net</code> <b>一起</b>加，只加 exe 会启动失败。</p>
+
+<h2>2. 打开文件，选主旋律</h2>
+<img src="images/01-main.png" alt="主界面">
+<ol>
+  <li>点左上「<b>打开 MIDI 文件 / 文件夹</b>」，选一个 <code>.mid</code> 文件。</li>
+  <li>左下声轨列表里，点带<b>绿点</b>的那一行（程序推荐的主旋律）。</li>
+</ol>
+
+<h2>3. 播放</h2>
+<ol>
+  <li>按 <kbd>F6</kbd>（或点「▶ 播放」）。倒计时开始，默认 3 秒。</li>
+  <li><b>倒计时内点一下目标窗口</b>，让它在前台。到点自动开弹。</li>
+</ol>
+<p>想停：再按 <kbd>F6</kbd>（暂停 / 继续），或点「■ 停止」。鼠标键盘失控就狂按 <kbd>F6</kbd>。</p>
+
+<h2>没反应？按顺序查这 4 条</h2>
+<ol>
+  <li>目标程序是<b>窗口化 / 无边框窗口化</b>（全屏独占收不到按键）。</li>
+  <li>播放前<b>点过目标窗口</b>。</li>
+  <li>输入法切到<b>英文</b>。</li>
+  <li>目标程序是管理员运行的话，本程序也得是管理员。</li>
+</ol>
+
+<p class="footer">MidiKeyPlayer 快速上手 · 更多功能见仓库 README 与图文教程 · github.com/ChickenD233/midikey-player</p>
+
+</body>
+</html>
