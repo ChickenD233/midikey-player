@@ -2743,10 +2743,13 @@ public partial class MainWindow : Window
         var kind = BackendCombo.SelectedIndex == 1
             ? Input.InputSender.BackendKind.LogitechGHub
             : Input.InputSender.BackendKind.SendInput;
-        if (Input.InputSender.SetBackend(kind, out string err))
+        if (Input.InputSender.SetBackend(kind, out string err, out string? warn))
         {
             if (kind == Input.InputSender.BackendKind.LogitechGHub)
+            {
                 InsertLog("输入方式：罗技 G HUB 驱动。注意：只发键盘，鼠标键无效；同时按住的音最多 6 个。");
+                if (warn != null) InsertLog(warn);
+            }
         }
         else
         {
@@ -3274,11 +3277,12 @@ public partial class MainWindow : Window
 
         // 选了罗技驱动但还没初始化成功（比如启动时 G HUB 没就绪）：开播前补一次，
         // 失败就不开弹（静默发不出键比直接报错更难排查）
-        if (!Input.InputSender.EnsureBackend(out string backendErr))
+        if (!Input.InputSender.EnsureBackend(out string backendErr, out string? backendWarn))
         {
             InsertLog(backendErr.Replace("\n", ""));
             return;
         }
+        if (backendWarn != null) InsertLog(backendWarn);   // 这次补初始化发现 G HUB 没在运行
 
         // 试听与演奏不能同时进行（反向检查在 StartPreviewAudio）：先停试听再开弹
         if (_previewOn) StopPreviewAudio();

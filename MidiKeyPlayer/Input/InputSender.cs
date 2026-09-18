@@ -110,14 +110,15 @@ public static class InputSender
 
     /// <summary>
     /// 切换输入后端。切罗技驱动时立刻初始化：失败则保持 SendInput 不变，error 是中文原因。
-    /// 切回 SendInput 时把驱动设备句柄关掉。
+    /// 成功但 G HUB 没在运行时 warn 非空（设备句柄能开但按键发不出去）。切回 SendInput 时把驱动设备句柄关掉。
     /// </summary>
-    public static bool SetBackend(BackendKind kind, out string error)
+    public static bool SetBackend(BackendKind kind, out string error, out string? warn)
     {
         error = "";
+        warn = null;
         if (kind == BackendKind.LogitechGHub)
         {
-            if (!IbDriver.TryInit(out error)) return false;
+            if (!IbDriver.TryInit(out error, out warn)) return false;
             Backend = BackendKind.LogitechGHub;
             return true;
         }
@@ -130,12 +131,15 @@ public static class InputSender
     /// <summary>
     /// 播放前确认当前后端可用：罗技驱动已选但尚未初始化（比如启动时 G HUB 还没装好）时在这里补一次初始化。
     /// 失败返回 false，error 可直接弹给用户；后端自动退回 SendInput，避免无声播放。
+    /// warn：这次真的做了初始化且发现 G HUB 没在运行时非空；没动初始化时为 null（不重复提醒）。
     /// </summary>
-    public static bool EnsureBackend(out string error)
+    public static bool EnsureBackend(out string error, out string? warn)
     {
         error = "";
+        warn = null;
         if (Backend != BackendKind.LogitechGHub) return true;
-        if (IbDriver.TryInit(out error)) return true;
+        // TryInit 在已初始化时直接返回、warn 保持 null：只有这次真做了初始化才可能带出提醒
+        if (IbDriver.TryInit(out error, out warn)) return true;
         Backend = BackendKind.SendInput;
         error += "\n本次先退回 SendInput。";
         return false;

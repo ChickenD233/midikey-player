@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using MidiKeyPlayer.Persist;
 
@@ -59,12 +60,14 @@ internal static class IbDriver
 
     /// <summary>
     /// 初始化罗技驱动注入。成功返回 true；失败时 error 是中文原因（可直接弹给用户）。
-    /// 线程安全；重复调用只在未成功时真正重试。
+    /// warn：初始化成功但检测到 G HUB 代理（lghub_agent）没在运行 —— 实测此时 IOCTL 照样成功
+    /// 但按键不会进系统，必须提醒用户启动 G HUB。线程安全；重复调用只在未成功时真正重试。
     /// </summary>
-    public static bool TryInit(out string error)
+    public static bool TryInit(out string error, out string? warn)
     {
         lock (Gate)
         {
+            warn = null;
             if (_ready) { error = ""; return true; }
             if (!OperatingSystem.IsWindows()) { error = "当前平台不支持驱动注入。"; return false; }
             if (_dllMissing)
@@ -97,9 +100,26 @@ internal static class IbDriver
 
             _ready = true;
             error = "";
+
+            // 实测：G HUB 代理（lghub_agent）不运行时，打开设备与发报告的 IOCTL 都照样成功，
+            // 但按键根本不进系统。初始化成功的这一刻检查一次，提前把话说清楚。
+            if (!GHubAgentRunning())
+            {
+                warn = "检测到 Logitech G HUB 没在运行：驱动设备在，但按键发不出去。"
+                       + "请启动 Logitech G HUB（装好后默认开机自启），再开始播放。";
+                LogFile.Append("[输入] G HUB 代理（lghub_agent）未在运行，按键可能发不出去。");
+            }
+
             LogFile.Append("[输入] 已切到罗技 G HUB 驱动注入（IbInputSimulator）。");
             return true;
         }
+    }
+
+    /// <summary>G HUB 代理是否在跑（驱动注入实际由它的虚拟键盘设备承载）。</summary>
+    private static bool GHubAgentRunning()
+    {
+        try { return Process.GetProcessesByName("lghub_agent").Length > 0; }
+        catch { return true; }   // 查不了就别误报
     }
 
     /// <summary>发一次键盘按下/抬起。未初始化或发送失败返回 false（调用方按「注入失败」处理）。</summary>
