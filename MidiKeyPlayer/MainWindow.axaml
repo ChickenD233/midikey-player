@@ -195,10 +195,10 @@
                                Padding="4,3" FontSize="{DynamicResource FontSmall}"/>
                     <TextBlock Grid.Column="3" Text="{Binding ChannelLabel}" VerticalAlignment="Center"
                                Padding="4,3" FontSize="{DynamicResource FontSmall}"/>
-                    <TextBlock Grid.Column="4" Text="{Binding DisplayName}" VerticalAlignment="Center"
+                    <TextBlock Grid.Column="4" Text="{Binding Name}" VerticalAlignment="Center"
                                Padding="4,3" FontSize="{DynamicResource FontSmall}" TextTrimming="CharacterEllipsis"
-                               FontWeight="{Binding NameWeight}" Foreground="{Binding VoiceBrush}"
-                               ToolTip.Tip="{Binding DisplayName}"/>
+                               Foreground="{Binding VoiceBrush}"
+                               ToolTip.Tip="{Binding Name}"/>
                     <TextBlock Grid.Column="5" Text="{Binding DurationText}" VerticalAlignment="Center"
                                Padding="4,3" FontSize="{DynamicResource FontCaption}" Classes="sectionLabel"/>
                     <TextBlock Grid.Column="6" Text="{Binding NoteCount}" VerticalAlignment="Center"
@@ -720,7 +720,7 @@
         <StackPanel Spacing="9">
           <TextBlock Text="快速上手" FontSize="17" FontWeight="Bold"/>
           <TextBlock TextWrapping="Wrap" FontSize="{DynamicResource FontBody}" LineHeight="21"
-                     Text="1. 打开 MIDI。绿点是推荐的主旋律轨。"/>
+                     Text="1. 打开 MIDI。在左侧点一行作为主旋律轨（选中的行带 ● 标记）。"/>
           <TextBlock TextWrapping="Wrap" FontSize="{DynamicResource FontBody}" LineHeight="21"
                      Text="2. 按 F6 播放。倒计时结束前切到目标程序，装备乐器。"/>
           <TextBlock TextWrapping="Wrap" FontSize="{DynamicResource FontBody}" LineHeight="21"

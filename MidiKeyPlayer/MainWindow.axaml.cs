@@ -1740,7 +1740,8 @@ public partial class MainWindow : Window
             // UI-01 / OL-02：唯一的丢弃点。两条换歌路径（打开文件、开发快照）都经过这里，
             // 所以保护与日志都放在 LoadMidiFile 内部，不再直接调 ResetEdits()。
             DropEditsIfAny("打开了新文件");
-            ChooseRecommendedTrack();
+            // 自动推荐轨已移除（猜得不准反而误导）：载入后不预选，请用户自己点一行
+            InsertLog("点左侧一行作为主旋律轨（选中的行带 ● 标记）。");
             RefreshPreview();
             RememberRecentFile(path);   // 载入成功才记：读不动的文件不进「最近打开」
             // 曲目卡跟随当前文件所在目录：从别处打开一首歌后，卡片自动列那个目录，接着换曲不用再选文件夹。
@@ -1814,94 +1815,6 @@ public partial class MainWindow : Window
     }
 
     // ================= 主旋律选择 =================
-
-    /// <summary>载入后自动挑最像主旋律的轨并选中。依据：非打击乐、轨名像旋律、音域贴合乐器。</summary>
-    private void ChooseRecommendedTrack()
-    {
-        TrackRowVM? best = null;
-        double bestScore = double.MinValue;
-        foreach (var r in _tracks)
-        {
-            double s = ScoreCandidate(r);
-            // 有旋律轨可选时不要自动推荐鼓：鼓可以手选，但不该抢默认位。
-            if (r.IsPercussion) s -= 1000;
-            if (s > bestScore)
-            {
-                bestScore = s;
-                best = r;
-            }
-        }
-        if (best == null)
-        {
-            InsertLog("没有适合乐器的旋律轨（全是打击乐？），请手动点选一行。");
-            return;
-        }
-
-        best.IsRecommended = true;
-        TrackList.SelectedItem = best;   // 触发 SelectionChanged → SetMain → 高亮
-        if (bestScore >= 20)
-            InsertLog($"已自动选中推荐轨：{best.DisplayName}（想换就点其它行）");
-        else
-            InsertLog($"已自动选中较合适的轨：{best.DisplayName}（音域贴合不多，可用「一键移调」）");
-
-        // 覆盖不全就明说：进度条与卷帘只覆盖这一段，免得用户以为「加载不全」
-        double span = best.Candidate.Notes.Count == 0 ? 0 : best.Candidate.Notes.Max(n => n.End);
-        double fileSec = _parsed?.DurationSec ?? 0;
-        if (fileSec > 5 && span < fileSec * 0.6)
-            InsertLog($"注意：这条轨只到 {span:F1}s，全曲 {fileSec:F1}s。" +
-                      $"进度条与卷帘只覆盖这一段，可在左侧点其它行换轨。");
-    }
-
-    private double ScoreCandidate(TrackRowVM r)
-    {
-        string name = r.Candidate.Name;
-        double s = 0;
-
-        // 轨道名像“旋律”的加分
-        string[] melodyHints =
-            { "旋律", "主旋律", "主唱", "人声", "女声", "男声", "独奏", "主音",
-              "lead", "melod", "vocal", "vox", "solo", "sing" };
-        foreach (var kw in melodyHints)
-        {
-            if (name.Contains(kw, StringComparison.OrdinalIgnoreCase))
-            {
-                s += 45;
-                break;
-            }
-        }
-        // 明显是伴奏/低音/吉他的减分
-        string[] accompHints =
-            { "伴奏", "和声", "和弦", "低音", "吉他", "钢琴伴", "节奏",
-              "bass", "chord", "back", "guitar", "pad", "rhythm", "fx" };
-        foreach (var kw in accompHints)
-        {
-            if (name.Contains(kw, StringComparison.OrdinalIgnoreCase))
-            {
-                s -= 35;
-                break;
-            }
-        }
-
-        var notes = r.Candidate.Notes;
-        if (notes.Count > 0)
-        {
-            var map = NoteMapper.Map(notes, 0, null);
-            s += 30.0 * map.InRangeCount / notes.Count;   // 音域贴合度（不抢先于名字线索）
-            if (notes.Count < 8) s -= 20;                  // 太碎不像是能演奏的歌
-            s += Math.Min(notes.Count / 50.0, 8.0);        // 稍偏好完整曲目轨
-
-            // 覆盖时长：只盖住开头几秒的轨（前奏、过门、演示音）不该压过整首主旋律。
-            // 用「最后一个音的结束时刻」而不是跨度，这样后半段才进旋律的轨也能得高分。
-            double fileSec = _parsed?.DurationSec ?? 0;
-            if (fileSec > 1)
-            {
-                double cover = Math.Clamp(notes.Max(n => n.End) / fileSec, 0, 1);
-                s += 60.0 * cover * cover;
-                if (cover < 0.25) s -= 25;
-            }
-        }
-        return s;
-    }
 
     private async void TrackList_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {

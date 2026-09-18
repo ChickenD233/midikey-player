@@ -9,7 +9,6 @@ public sealed class TrackRowVM : INotifyPropertyChanged
     private bool _isMain;
     private bool _isMix;
     private int _mixRank;
-    private bool _isRecommended;
     private int _voiceIndex = -1;
     private Avalonia.Media.IBrush? _voiceBrush;
     private bool _voiceActive;
@@ -94,26 +93,6 @@ public sealed class TrackRowVM : INotifyPropertyChanged
     /// 这种时候鼓点就该被当成正常声部发出去。
     /// </summary>
     public bool IsPlayable => true;
-
-    /// <summary>载入时被自动推荐为主旋律轨。</summary>
-    public bool IsRecommended
-    {
-        get => _isRecommended;
-        set
-        {
-            if (_isRecommended == value) return;
-            _isRecommended = value;
-            OnPropertyChanged();
-            OnPropertyChanged(nameof(DisplayName));
-            OnPropertyChanged(nameof(NameWeight));
-        }
-    }
-
-    /// <summary>推荐轨名称带 ★ 标记。</summary>
-    public string DisplayName => IsRecommended ? Name + " ★推荐" : Name;
-
-    public Avalonia.Media.FontWeight NameWeight =>
-        IsRecommended ? Avalonia.Media.FontWeight.SemiBold : Avalonia.Media.FontWeight.Normal;
 
     // ================= 声轨配色 =================
 
