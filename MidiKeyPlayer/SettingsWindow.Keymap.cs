@@ -317,7 +317,8 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
     /// 所以预设按方案行号排出来都整整齐齐：
     /// 21 键自然音与 21 键半音的第 1 行 = 上排 Q W E R T Y U、第 2 行 = 中排 A S D F G H J、第 3 行 = 下排 Z X C V B N M；
     /// 第五人格键位的第 1 行是高音排（Q 2 W 3 E…），第 3 行是低音排（，L . ; …）；
-    /// 洛克王国手碟的第 1 行是高音 T Y U、第 2 行是中音 F G H J K、第 3 行只有低音 B。
+    /// 洛克王国手碟的第 1 行是高音 T Y U、第 2 行是中音 F G H J K、第 3 行只有低音 B；
+    /// Roblox 钢琴键位的第 1 行是高音排 Z X C V B N M（D6..C7），第 4 行是低音排 1 2 3 4 5 6 7 8 9 0（C2..E3）。
     /// 一行内绝不换行（XAML 里用横向 StackPanel + 横向滚动）。
     /// 老方案（所有键的 Row 都是 0）退回「按物理键盘的排分组」。
     /// </summary>

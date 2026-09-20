@@ -62,7 +62,7 @@ public sealed class KeymapFormatException : Exception
 public sealed class KeymapProfile
 {
     /// <summary>
-    /// 默认方案名。内置几套都用直白名字（自然音 / 半音 / 第五人格键位 / 8 键半音 / 洛克王国手碟），
+    /// 默认方案名。内置几套都用直白名字（自然音 / 半音 / 第五人格键位 / 8 键半音 / 洛克王国手碟 / Roblox 钢琴键位），
     /// 不再由几何量拼出来 ——「36 键 4 排 3 个八度」这类名字会把用户绕晕，实际只有三排。
     /// 默认方案（v1.0.17 起）：Z X C V B N M , 一排 do..高音 do，
     /// 鼠标左键降八度、右键升八度、中键升半音，能弹 48..85。
@@ -330,6 +330,50 @@ public sealed class KeymapProfile
     }
 
     /// <summary>
+    /// 第 6 套（Roblox 钢琴键位）：Roblox 里那套通用的虚拟钢琴键位，四排 36 个白键 + 按住 Shift 的 25 个黑键，一共 61 键。
+    ///
+    /// 白键（不按修饰键，低音到高音），行内从左到右升序：
+    ///   数字排 1 2 3 4 5 6 7 8 9 0   = C2 D2 E2 F2 G2 A2 B2 C3 D3 E3
+    ///   QWERTY 排 Q W E R T Y U I O P = F3 G3 A3 B3 C4 D4 E4 F4 G4 A4
+    ///   ASDF 排 A S D F G H J K L     = B4 C5 D5 E5 F5 G5 A5 B5 C6
+    ///   ZXCV 排 Z X C V B N M         = D6 E6 F6 G6 A6 B6 C7
+    /// 黑键：按住 Shift 再按同一个键（Shift+1 = C#2、Shift+Q = F#3 依此类推），共 25 个。
+    /// E、B 与最高的 C7 上面本来就没有黑键，正好对上：Shift+3 / Shift+7 / Shift+0 / Shift+M 不发新音。
+    /// 能弹 36..96（C2..C7）。基准音是中音 C4 = 60，八度键与降半音键都不绑。
+    /// </summary>
+    private static KeymapProfile BuildRobloxPiano()
+    {
+        var keys = new List<KeyBinding>();
+        // (行号, 该行的键, 该行第一个音相对 C4 的偏移)：行内从左到右按音高升序。
+        foreach (var (row, rowKeys, offsets) in new (int, string[], int[])[]
+        {
+            (0, new[] { "1", "2", "3", "4", "5", "6", "7", "8", "9", "0" },
+                new[] { -24, -22, -20, -19, -17, -15, -13, -12, -10, -8 }),      // C2..E3
+            (1, new[] { "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P" },
+                new[] { -7, -5, -3, -1, 0, 2, 4, 5, 7, 9 }),                      // F3..A4
+            (2, new[] { "A", "S", "D", "F", "G", "H", "J", "K", "L" },
+                new[] { 11, 12, 14, 16, 17, 19, 21, 23, 24 }),                    // B4..C6
+            (3, new[] { "Z", "X", "C", "V", "B", "N", "M" },
+                new[] { 26, 28, 29, 31, 33, 35, 36 }),                            // D6..C7
+        })
+            for (int c = 0; c < rowKeys.Length; c++)
+                keys.Add(new KeyBinding { Key = rowKeys[c], Offset = offsets[c], Row = row });
+
+        return new KeymapProfile
+        {
+            Version = CurrentVersion,
+            Description = "Roblox 钢琴键位（61 键）：白键是 1 2 3 4 5 6 7 8 9 0 / Q W E R T Y U I O P / "
+                        + "A S D F G H J K L / Z X C V B N M，按住 Shift 弹黑键。能弹 C2 到 C7",
+            BaseNote = 60,
+            Keys = keys,
+            ModifiersEnabled = true,
+            OctaveUp = null,
+            OctaveDown = null,
+            Sharp = "Shift",
+        };
+    }
+
+    /// <summary>
     /// 方案名：「N 键 M 排 K 个八度」。
     /// N = 键位数；M = 这些键在物理键盘上占几排；K = 能弹音域的八度数（向上取整）。
     /// K 由「键位 × 八度键」能到达的音高张角算出，升半音键只在音域内补半音，不扩展边界。
@@ -402,6 +446,7 @@ public sealed class KeymapProfile
             Preset(BuildChromatic21(), "21 键半音"),           // 第 3 套：低 / 中 / 高三个八度 + Shift 升 / Ctrl 降半音
             Preset(BuildChromatic36(), "第五人格键位"),         // 第 4 套：三排各 12 个半音
             Preset(BuildHandpan(), "洛克王国手碟"),             // 第 5 套：手碟键位（T Y U / F G H J K / B）
+            Preset(BuildRobloxPiano(), "Roblox 钢琴键位"),       // 第 6 套：Roblox 虚拟钢琴 61 键（四排白键 + Shift 黑键）
         };
         if (!string.Equals(list[0].Name, DefaultName, StringComparison.Ordinal))
             LogFile.Append($"[键位] 默认方案名是「{list[0].Name}」，与常量「{DefaultName}」不同，请同步。");
@@ -454,7 +499,7 @@ public sealed class KeymapProfile
 
     /// <summary>
     /// 已经删掉的预设：读到这些名字就回退到默认方案。
-    /// 现在保留 21 键自然音 / 21 键半音 / 第五人格键位 / 8 键半音 / 洛克王国手碟五套，其余历史名字全部列在这里。
+    /// 现在保留 21 键自然音 / 21 键半音 / 第五人格键位 / 8 键半音 / 洛克王国手碟 / Roblox 钢琴键位六套，其余历史名字全部列在这里。
     /// 改过名但键位还在的（例如「36 键半音三排」「8 键单排（含高八度 do，默认）」）走
     /// <see cref="LegacyPresetAlias"/>，不要写在这里。
     /// </summary>

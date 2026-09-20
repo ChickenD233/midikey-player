@@ -76,6 +76,7 @@ internal static class GameSelfTest
             TestKeyMapNames();
             TestSolfegeNames();
             TestFlatModifier();
+            TestRobloxPiano();
         }
         catch (Exception ex)
         {
@@ -311,6 +312,60 @@ internal static class GameSelfTest
         bool okOnly = onlyFlat.TryKeyOfPitch(61, out string k61b, out _, out bool s61b, out bool f61b, out _)
                       && k61b == "S" && !s61b && f61b;
         Check("降半音：没绑升半音时用上方邻键", okOnly, $"61 → {k61b} 升={s61b} 降={f61b}");
+    }
+
+    // ================= Roblox 钢琴键位 =================
+
+    /// <summary>
+    /// Roblox 钢琴键位（v1.0.27 新增）：四排 36 个白键（C2..C7）+ 25 个黑键，
+    /// 黑键固定是「按住 Shift + 下面那个白键」，与目标程序的虚拟钢琴一致。
+    /// 白键表与黑键表逐条写在这里：偏移改错一个音，这一条就红。
+    /// </summary>
+    private static void TestRobloxPiano()
+    {
+        var p = KeymapProfile.PresetByName("Roblox 钢琴键位");
+        Check("Roblox 钢琴：预设存在、36 个白键、Shift 升半音、不绑八度键",
+              p != null && p.Keys.Count == 36 && p.Sharp == "Shift" && p.Flat == null
+              && p.ModifiersEnabled && p.OctaveUp == null && p.OctaveDown == null,
+              p == null ? "取不到" : $"键 {p.Keys.Count} 个；Sharp=「{p.Sharp}」");
+        if (p == null) return;
+
+        // 白键：键名 → 音高。C2 = 36 起，自然音逐个往上，四排连成一条。
+        var white = new (string Key, int Pitch)[]
+        {
+            ("1", 36), ("2", 38), ("3", 40), ("4", 41), ("5", 43), ("6", 45), ("7", 47),
+            ("8", 48), ("9", 50), ("0", 52),
+            ("Q", 53), ("W", 55), ("E", 57), ("R", 59), ("T", 60), ("Y", 62), ("U", 64),
+            ("I", 65), ("O", 67), ("P", 69),
+            ("A", 71), ("S", 72), ("D", 74), ("F", 76), ("G", 77), ("H", 79), ("J", 81),
+            ("K", 83), ("L", 84),
+            ("Z", 86), ("X", 88), ("C", 89), ("V", 91), ("B", 93), ("N", 95), ("M", 96),
+        };
+        string badWhite = "";
+        foreach (var (key, pitch) in white)
+            if (!p.TryKeyOfPitch(pitch, out string got, out _, out bool sharp)
+                || got != key || sharp)
+                badWhite += $"{pitch}→「{got}」(升={sharp}) 应为「{key}」 ";
+        Check("Roblox 钢琴：36 个白键都对上", badWhite.Length == 0, badWhite);
+
+        // 黑键：Shift + 下面那个白键。E、B 与最高的 C7 上面没有黑键，所以是 25 个而不是 36 个。
+        var black = new (string Key, int Pitch)[]
+        {
+            ("1", 37), ("2", 39), ("4", 42), ("5", 44), ("6", 46), ("8", 49), ("9", 51),
+            ("Q", 54), ("W", 56), ("E", 58), ("T", 61), ("Y", 63), ("I", 66), ("O", 68), ("P", 70),
+            ("S", 73), ("D", 75), ("G", 78), ("H", 80), ("J", 82), ("L", 85),
+            ("Z", 87), ("C", 90), ("V", 92), ("B", 94),
+        };
+        string badBlack = "";
+        foreach (var (key, pitch) in black)
+            if (!p.TryKeyOfPitch(pitch, out string got, out _, out bool sharp)
+                || got != key || !sharp)
+                badBlack += $"{pitch}→「{got}」(升={sharp}) 应为「{key}」+Shift ";
+        Check("Roblox 钢琴：25 个黑键都是下面白键 + Shift", badBlack.Length == 0, badBlack);
+
+        Check("Roblox 钢琴：音域 36..97（97 是 C7 上面那个半音，琴上没有键）",
+              p.ResolveMinNote() == 36 && p.ResolveMaxNote() == 97,
+              $"实际 {p.ResolveMinNote()}..{p.ResolveMaxNote()}");
     }
 
     // ================= 断言 =================

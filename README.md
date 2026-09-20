@@ -179,7 +179,7 @@
 
 ## 键位方案
 
-程序内置四套方案。方案名就是下表的四个名字。
+程序内置六套方案。方案名就是下表的六个名字。
 
 | 方案 | 键位 | 音域 | 功能键 |
 |---|---|---|---|
@@ -187,8 +187,10 @@
 | 21 键自然音 | 下排 `Z X C V B N M` = 中音 do..si；中排 `A S D F G H J` 高一个八度；上排 `Q W E R T Y U` 再高一个八度 | `1` ~ `7˙˙` | 不用 |
 | 21 键半音 | 下排 `Z X C V B N M` = 低音 do..si；中排 `A S D F G H J` = 中音；上排 `Q W E R T Y U` = 高音。按 `Shift` 升半音，按 `Ctrl` 降低半音 | 低音 do 再低半音 ~ `7˙` | 开，`Shift` 升半音、`Ctrl` 降半音 |
 | 第五人格键位 | 低排 `, L . ; / I 9 O 0 P - [`（低八度）；中排 `Z S X D C V G B H N J M`（中音）；高排 `Q 2 W 3 E R 5 T 6 Y 7 U`（高八度）。每排 12 个半音 | `1.` ~ `7˙` | 不用 |
+| 洛克王国手碟 | `T Y U` = 高音 do re mi（`1˙` ~ `3˙`）；`F G H J K` = 中音 mi fa sol la si（`3` ~ `7`）；`B` = 低音 la（`6.`）。只有自然音 | `6.` ~ `3˙` | 不用 |
+| Roblox 钢琴键位 | 四排白键：`1 2 3 4 5 6 7 8 9 0`（C2..E3）、`Q W E R T Y U I O P`（F3..A4）、`A S D F G H J K L`（B4..C6）、`Z X C V B N M`（D6..C7）。按住 `Shift` 再按同一个键弹黑键 | `1..` ~ `1˙˙`（C2..C7） | 开，`Shift` 升半音 |
 
-「21 键半音」与「8 键半音」都开着功能键：不按修饰键是自然音，按住就得到变化的音
+「21 键半音」「Roblox 钢琴键位」与「8 键半音」都开着功能键：不按修饰键是自然音，按住就得到变化的音
 （`Shift`+`Z` 升半音、`Ctrl`+`Z` 降半音，或按住鼠标中键再按 `Z`）。「8 键半音」的两个鼠标键还能整排上下挪一个八度。
 
 表格里的音域用**简谱**：数字 1..7 是音级，1 = do。升降号写在数字前面，例如 `#4`。
@@ -198,6 +200,8 @@
 **没有对应键的音不弹。** 音域里缺哪个半音，就跳过哪个音，不换音高。这条行为固定，界面里没有开关。
 「第五人格键位」是完整半音阶：每个半音都有自己的键，不用八度键与升半音键。
 「8 键半音」只有自然音键，半音靠鼠标中键补。
+「Roblox 钢琴键位」的黑键固定是「按住 `Shift` + 下面那个白键」，与目标程序的虚拟钢琴一致；
+四个白键（`3`、`7`、`0`、`M`，也就是 E、B 与最高的 C7）上面没有黑键，按 `Shift` 也不会多出发音。
 
 **功能键。** 「功能键」区块顶上有一个「启用功能键」勾选框。
 勾上后，可以绑升高八度、降低八度、升半音、降低半音四个键。音域随之向上下各扩一个八度，
@@ -217,7 +221,7 @@
 | 功能键 | 「启用功能键」勾选框，下面是升高八度、降低八度、升半音三个键 |
 
 **按行排。** 一行里的键从左到右按音高排。行内不换行，太长就左右滚动。
-21 键的两套方案就是整齐的三行七列，36 键那套就是整齐的三行十二列。
+21 键的两套方案就是整齐的三行七列，36 键那套就是整齐的三行十二列，Roblox 钢琴键位是四排白键。
 行尾的「+」在这一行末尾加一个音。最后一行下面的「+ 加一行」加一整行，音高比上一行高一个八度。
 
 **等待按键。** 点按键方块后它变成「按一个键…」，按一下键盘或鼠标就绑上。按 Esc 取消。
@@ -228,7 +232,7 @@
 
 **音域由键位决定。** 不填数字。键能到哪，就能弹到哪。功能键关掉时，八度键与升半音键不参与。
 
-**方案文件。** 内置四套不能改名、不能删掉。想改就先点「新建方案…」复制一份。
+**方案文件。** 内置方案不能改名、不能删掉。想改就先点「新建方案…」复制一份。
 自定义方案在 `%LOCALAPPDATA%\MidiKeyPlayer\schemes\` 下，重启后仍在列表里。「导入方案…」「导出方案…」走单个 JSON 文件，方便互相分享。
 
 **每个方案独立记忆。** 速度、移调、输入兼容档按键位方案名分别保存。
@@ -572,7 +576,7 @@ while idle it only loads without auto-playing. With unexported piano-roll edits,
 
 ## Key Layout Schemes
 
-The program ships with four built-in schemes. The scheme names are the four names in the table below.
+The program ships with six built-in schemes. The scheme names are the six names in the table below.
 
 | Scheme | Keys | Range | Function keys |
 |---|---|---|---|
@@ -580,8 +584,10 @@ The program ships with four built-in schemes. The scheme names are the four name
 | 21-key diatonic (21 键自然音) | Bottom row `Z X C V B N M` = middle do..si; middle row `A S D F G H J` one octave higher; top row `Q W E R T Y U` another octave higher | `1` ~ `7˙˙` | Not used |
 | 21-key chromatic (21 键半音) | Bottom row `Z X C V B N M` = low do..si; middle row `A S D F G H J` = middle; top row `Q W E R T Y U` = high. Hold `Shift` to raise a semitone, hold `Ctrl` to lower a semitone | one semitone below low do ~ `7˙` | On; `Shift` raises a semitone, `Ctrl` lowers a semitone |
 | Identity V layout (第五人格键位) | Low row `, L . ; / I 9 O 0 P - [` (low octave); middle row `Z S X D C V G B H N J M` (middle); high row `Q 2 W 3 E R 5 T 6 Y 7 U` (high octave). 12 semitones per row | `1.` ~ `7˙` | Not used |
+| Roco Kingdom handpan (洛克王国手碟) | `T Y U` = high do re mi (`1˙` ~ `3˙`); `F G H J K` = middle mi fa sol la si (`3` ~ `7`); `B` = low la (`6.`). Natural notes only | `6.` ~ `3˙` | Not used |
+| Roblox piano layout (Roblox 钢琴键位) | Four rows of white keys: `1 2 3 4 5 6 7 8 9 0` (C2..E3), `Q W E R T Y U I O P` (F3..A4), `A S D F G H J K L` (B4..C6), `Z X C V B N M` (D6..C7). Hold `Shift` with the same key for the black keys | `1..` ~ `1˙˙` (C2..C7) | On; `Shift` raises a semitone |
 
-"21-key chromatic" and "8-key chromatic" both have function keys on: without a modifier key you get natural notes; hold one to get altered notes
+"21-key chromatic", "Roblox piano layout", and "8-key chromatic" all have function keys on: without a modifier key you get natural notes; hold one to get altered notes
 (`Shift`+`Z` raises a semitone, `Ctrl`+`Z` lowers a semitone, or hold the middle mouse button and press `Z`). The two mouse buttons of "8-key chromatic" can also shift the whole row up or down an octave.
 
 Ranges in the table use **numbered musical notation (jianpu)**: digits 1..7 are scale degrees, 1 = do. Accidentals are written before the digit, e.g. `#4`.
@@ -591,6 +597,8 @@ A `.` after the digit is one octave lower; `..` is another octave lower.
 **Notes with no corresponding key are not played.** Whichever semitone is missing from the range is skipped — no pitch substitution. This behavior is fixed; there is no switch for it in the UI.
 "Identity V layout" is a full chromatic scale: every semitone has its own key, no octave keys or semitone-up keys needed.
 "8-key chromatic" has only natural-note keys; semitones are filled in with the middle mouse button.
+In "Roblox piano layout" a black key is always `Shift` plus the white key below it, which matches the virtual pianos in the target program;
+four white keys (`3`, `7`, `0`, `M` — E, B, and the top C7) have no black key above them, so `Shift` adds no note there.
 
 **Function keys.** At the top of the "Function Keys" (功能键) block there is an "Enable function keys" (启用功能键) checkbox.
 When ticked, you can bind four keys: octave up, octave down, semitone up, semitone down. The range expands one octave up and down accordingly,
@@ -610,7 +618,7 @@ the semitone-up key is always used. The semitone-down key is used in two places:
 | Function keys (功能键) | The "Enable function keys" checkbox, with three keys below: octave up, octave down, semitone up |
 
 **Row layout.** Keys in a row are ordered by pitch from left to right. A row does not wrap; if it is too long it scrolls horizontally.
-The two 21-key schemes form a neat three-row seven-column grid; the 36-key one forms a neat three-row twelve-column grid.
+The two 21-key schemes form a neat three-row seven-column grid; the 36-key one forms a neat three-row twelve-column grid; the Roblox piano scheme is four rows of white keys.
 The "+" at the end of a row adds a note at the end of that row. The "+ Add a Row" (+ 加一行) below the last row adds a whole row, one octave above the previous row.
 
 **Waiting for a key.** After you click a key block it turns into "Press a key…" (按一个键…); press a keyboard or mouse button to bind it. Press Esc to cancel.
@@ -621,7 +629,7 @@ Pressing and releasing `Shift`, `Ctrl`, or `Alt` alone also binds them as functi
 
 **Range is determined by the keys.** No numbers to fill in. As far as the keys go is as far as you can play. When function keys are off, the octave keys and the semitone-up key do not participate.
 
-**Scheme files.** The four built-in schemes cannot be renamed or deleted. To change one, click "New Scheme…" (新建方案…) first to copy it.
+**Scheme files.** The built-in schemes cannot be renamed or deleted. To change one, click "New Scheme…" (新建方案…) first to copy it.
 Custom schemes live under `%LOCALAPPDATA%\MidiKeyPlayer\schemes\` and remain in the list after a restart. "Import Scheme…" (导入方案…) and "Export Scheme…" (导出方案…) work with a single JSON file, convenient for sharing with each other.
 
 **Per-scheme memory.** Tempo, transposition, and the input compatibility level are saved separately by key layout scheme name.
