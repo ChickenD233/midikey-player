@@ -47,7 +47,7 @@ check_source() {
   src_path="$1"
   res_name="$2"
   if [ ! -f "$src_path" ]; then
-    echo "!! 缺少要嵌入 exe 的源文件 $src_path（对应资源 $res_name），终止打包。" >&2
+    echo "!! 缺少要嵌入 exe 的源文件 ${src_path}（对应资源 ${res_name}），终止打包。" >&2
     exit 1
   fi
   echo "   $res_name -> avares://MidiKeyPlayer/$res_name"
@@ -61,7 +61,7 @@ check_source "../LICENSE"                              "Docs/LICENSE"
 # 累积更新日志：进 zip，不嵌 exe。缺它就终止，避免出一个没有日志的包。
 CHANGELOG="docs/更新日志.txt"
 if [ ! -f "$CHANGELOG" ]; then
-  echo "!! 缺少累积更新日志 $CHANGELOG，终止打包。" >&2
+  echo "!! 缺少累积更新日志 ${CHANGELOG}，终止打包。" >&2
   exit 1
 fi
 if ! grep -q "^v$VERSION" "$CHANGELOG"; then
@@ -69,7 +69,7 @@ if ! grep -q "^v$VERSION" "$CHANGELOG"; then
   echo "   发新版前先在最上面加一节，写清这一版改了什么。" >&2
   exit 1
 fi
-echo ">> 待进 zip 的更新日志：$CHANGELOG（含 v$VERSION 一节）"
+echo ">> 待进 zip 的更新日志：${CHANGELOG}（含 v$VERSION 一节）"
 
 # 挑一个真的能跑的 python：不能只看 command -v。
 # Windows 的 App Execution Alias（...\WindowsApps\python3，0 字节）会被 command -v 命中，
@@ -119,7 +119,7 @@ rm -rf "$OUT"
 
 EXE="$OUT/MidiKeyPlayer.exe"
 if [ ! -f "$EXE" ]; then
-  echo "!! 发布没有产出单文件 $EXE，终止打包。" >&2
+  echo "!! 发布没有产出单文件 ${EXE}，终止打包。" >&2
   exit 1
 fi
 if [ ! -s "$EXE" ]; then
@@ -142,12 +142,12 @@ fi
 #      配合 set -o pipefail 会让脚本什么都没打印就退出。
 STRAY="$(cd "$OUT" && ls -A | grep -v '^MidiKeyPlayer\.exe$' | head -1 || true)"
 if [ -n "$STRAY" ]; then
-  echo "!! 发布目录 $OUT 里除 MidiKeyPlayer.exe 之外还有：$STRAY，终止打包。" >&2
+  echo "!! 发布目录 $OUT 里除 MidiKeyPlayer.exe 之外还有：${STRAY}，终止打包。" >&2
   exit 1
 fi
 
 EXE_SIZE="$(wc -c < "$EXE" | tr -d ' ')"
-echo ">> 单文件 exe：$EXE（$EXE_SIZE 字节）"
+echo ">> 单文件 exe：${EXE}（$EXE_SIZE 字节）"
 
 ZIP="release/MidiKeyPlayer-win-x64-$VERSION.zip"
 echo ">> 打包 $ZIP （打 exe 与 更新日志.txt 两项）..."
