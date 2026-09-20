@@ -42,7 +42,19 @@ public sealed class KeyBinding
     /// </summary>
     public int Row { get; set; }
 
-    public override string ToString() => $"{Key}{(Offset >= 0 ? "+" : "")}{Offset}@第{Row}行";
+    /// <summary>
+    /// true → 按这个主键之前先按住 Shift，出来的字符是这个键的「上位字符」：
+    /// <c>1</c> → <c>!</c>、<c>q</c> → <c>Q</c>、<c>,</c> → <c>&lt;</c>（显示名见 <see cref="KeymapProfile.ShiftedNameOf"/>）。
+    ///
+    /// 给「一个半音一个键」的方案用：目标程序认的是 Shift 出来的字符（键盘上没有独立的黑键），
+    /// 所以黑键写成「下面那个白键 + Shift」，<see cref="Offset"/> 直接写黑键自己的半音偏移。
+    /// 这类键位不靠功能键区的「升半音键」，功能键总开关可以是关的。
+    /// 老方案文件没有这个字段，读进来是 false。
+    /// </summary>
+    public bool Shift { get; set; }
+
+    public override string ToString()
+        => $"{Key}{(Shift ? "+Shift" : "")}{(Offset >= 0 ? "+" : "")}{Offset}@第{Row}行";
 }
 
 /// <summary>方案 JSON 读不动时的异常。消息是给人看的中文。</summary>
@@ -330,22 +342,23 @@ public sealed class KeymapProfile
     }
 
     /// <summary>
-    /// 第 6 套（Roblox 钢琴键位）：Roblox 里那套通用的虚拟钢琴键位，四排 36 个白键 + 按住 Shift 的 25 个黑键，一共 61 键。
+    /// 第 6 套（Roblox 钢琴键位）：Roblox 虚拟钢琴那套 61 键，**一个半音一条键位**。
+    /// 黑键写成「下面那个白键 + Shift」（<see cref="KeyBinding.Shift"/>），界面上显示成 ! @ $ % ^ * ( 与 Q W E …
+    /// 这套不用功能键区：<see cref="ModifiersEnabled"/> = false，升半音键留空。
     ///
-    /// 白键（不按修饰键，低音到高音），行内从左到右升序：
-    ///   数字排 1 2 3 4 5 6 7 8 9 0   = C2 D2 E2 F2 G2 A2 B2 C3 D3 E3
-    ///   QWERTY 排 Q W E R T Y U I O P = F3 G3 A3 B3 C4 D4 E4 F4 G4 A4
-    ///   ASDF 排 A S D F G H J K L     = B4 C5 D5 E5 F5 G5 A5 B5 C6
-    ///   ZXCV 排 Z X C V B N M         = D6 E6 F6 G6 A6 B6 C7
-    /// 黑键：按住 Shift 再按同一个键（Shift+1 = C#2、Shift+Q = F#3 依此类推），共 25 个。
-    /// E、B 与最高的 C7 上面本来就没有黑键，正好对上：Shift+3 / Shift+7 / Shift+0 / Shift+M 不发新音。
-    /// 能弹 36..96（C2..C7）。基准音是中音 C4 = 60，八度键与降半音键都不绑。
+    ///   数字排：1=C2  !=C#2  2=D2  @=D#2  3=E2  4=F2  $=F#2  5=G2  %=G#2  6=A2  ^=A#2  7=B2  8=C3  *=C#3  9=D3  (=D#3  0=E3
+    ///   QWERTY：q=F3  Q=F#3  w=G3  W=G#3  e=A3  E=A#3  r=B3  t=C4  T=C#4  y=D4  Y=D#4  u=E4  i=F4  I=F#4  o=G4  O=G#4  p=A4  P=A#4
+    ///   ASDF 排：a=B4  s=C5  S=C#5  d=D5  D=D#5  f=E5  g=F5  G=F#5  h=G5  H=G#5  j=A5  J=A#5  k=B5  l=C6  L=C#6
+    ///   ZXCV 排：z=D6  Z=D#6  x=E6  c=F6  C=F#6  v=G6  V=G#6  b=A6  B=A#6  n=B6  m=C7
+    ///
+    /// E、B 与最高的 C7 上面没有黑键，所以是 36 个白键 + 25 个黑键 = 61 条。
+    /// 能弹 36..96（C2..C7）。基准音是中音 C4 = 60。
     /// </summary>
     private static KeymapProfile BuildRobloxPiano()
     {
         var keys = new List<KeyBinding>();
-        // (行号, 该行的键, 该行第一个音相对 C4 的偏移)：行内从左到右按音高升序。
-        foreach (var (row, rowKeys, offsets) in new (int, string[], int[])[]
+        // (行号, 该行的白键, 该行第一个白键相对 C4 的偏移)：行内从左到右按音高升序。
+        (int Row, string[] Whites, int[] Offsets)[] rows =
         {
             (0, new[] { "1", "2", "3", "4", "5", "6", "7", "8", "9", "0" },
                 new[] { -24, -22, -20, -19, -17, -15, -13, -12, -10, -8 }),      // C2..E3
@@ -355,23 +368,35 @@ public sealed class KeymapProfile
                 new[] { 11, 12, 14, 16, 17, 19, 21, 23, 24 }),                    // B4..C6
             (3, new[] { "Z", "X", "C", "V", "B", "N", "M" },
                 new[] { 26, 28, 29, 31, 33, 35, 36 }),                            // D6..C7
-        })
-            for (int c = 0; c < rowKeys.Length; c++)
-                keys.Add(new KeyBinding { Key = rowKeys[c], Offset = offsets[c], Row = row });
+        };
+
+        foreach (var (row, whites, offsets) in rows)
+            for (int c = 0; c < whites.Length; c++)
+            {
+                keys.Add(new KeyBinding { Key = whites[c], Offset = offsets[c], Row = row });
+                // 这个白键上面还有黑键时，补一条「同一个键 + Shift」的黑键键位（最高音 C7 上面没有黑键）。
+                int pitch = 60 + offsets[c];
+                if (HasSharpAbove(pitch) && pitch + 1 <= 96)
+                    keys.Add(new KeyBinding { Key = whites[c], Offset = offsets[c] + 1, Row = row, Shift = true });
+            }
 
         return new KeymapProfile
         {
             Version = CurrentVersion,
-            Description = "Roblox 钢琴键位（61 键）：白键是 1 2 3 4 5 6 7 8 9 0 / Q W E R T Y U I O P / "
-                        + "A S D F G H J K L / Z X C V B N M，按住 Shift 弹黑键。能弹 C2 到 C7",
+            Description = "Roblox 钢琴键位（61 键）：一个半音一条键位，白键是 1 2 3 4 5 6 7 8 9 0 / "
+                        + "Q W E R T Y U I O P / A S D F G H J K L / Z X C V B N M，"
+                        + "黑键是同一个键加 Shift（显示成 ! @ $ % ^ * ( 与 Q W E …）。能弹 C2 到 C7",
             BaseNote = 60,
             Keys = keys,
-            ModifiersEnabled = true,
+            ModifiersEnabled = false,
             OctaveUp = null,
             OctaveDown = null,
-            Sharp = "Shift",
+            Sharp = null,
         };
     }
+
+    /// <summary>这个音高上面有没有黑键：C D F G A 有，E 与 B 没有。参数是 MIDI 音高（非负）。</summary>
+    private static bool HasSharpAbove(int pitch) => pitch % 12 is 0 or 2 or 5 or 7 or 9;
 
     /// <summary>
     /// 方案名：「N 键 M 排 K 个八度」。
@@ -903,6 +928,21 @@ public sealed class KeymapProfile
     public bool CanUseSharp => ModifiersEnabled && !string.IsNullOrWhiteSpace(Sharp);
     public bool CanUseFlat => ModifiersEnabled && !string.IsNullOrWhiteSpace(Flat);
 
+    /// <summary>
+    /// 方案里有没有「自带 Shift」的主键（<see cref="KeyBinding.Shift"/>）。
+    /// 有就说明这套方案把黑键写成了一个半音一条的独立键位，不靠功能键区的升半音键。
+    /// </summary>
+    public bool HasSelfShiftKeys => Keys.Any(k => k != null && k.Shift);
+
+    /// <summary>
+    /// 演奏时要按住的半音键名。两个来源，顺序固定：
+    /// 先看方案绑的 <see cref="Sharp"/>；没绑但键位自带 Shift（<see cref="HasSelfShiftKeys"/>）时用 <c>Shift</c>。
+    /// 都没有返回 null = 这套方案不按任何半音修饰键。
+    /// 功能键总开关不参与判断：自带 Shift 的键位本来就不依赖功能键。
+    /// </summary>
+    public string? SharpKeyToHold
+        => !string.IsNullOrWhiteSpace(Sharp) ? Sharp : (HasSelfShiftKeys ? "Shift" : null);
+
     /// <summary>可演奏最低音：所有键位配上八度键能到的最低音。</summary>
     public int ResolveMinNote() => ReachableExtent().Lo;
 
@@ -1066,6 +1106,7 @@ public sealed class KeymapProfile
         string bestKey = "";
         int bestMod = 0;
         int bestS = 0;
+        bool bestSelfShift = false;
 
         for (int mod = -1; mod <= 1; mod++)
         {
@@ -1103,6 +1144,7 @@ public sealed class KeymapProfile
                     bestKey = kb.Key;
                     bestMod = mod;
                     bestS = s;
+                    bestSelfShift = kb.Shift;
                 }
             }
         }
@@ -1111,7 +1153,8 @@ public sealed class KeymapProfile
 
         key = bestKey;
         octaveOffset = bestMod;
-        sharp = bestS > 0;
+        // 「自带 Shift」的键位（黑键一个键一条）也要按住 Shift，与走功能键升半音的那条路等价。
+        sharp = bestS > 0 || bestSelfShift;
         flat = bestS < 0;
         soundingPitch = want;
         return true;
@@ -1139,7 +1182,7 @@ public sealed class KeymapProfile
         foreach (var k in Keys)
         {
             if (k == null) continue;
-            copy.Keys.Add(new KeyBinding { Key = k.Key, Offset = k.Offset, Row = k.Row });
+            copy.Keys.Add(new KeyBinding { Key = k.Key, Offset = k.Offset, Row = k.Row, Shift = k.Shift });
         }
         return copy;
     }
@@ -1220,6 +1263,39 @@ public sealed class KeymapProfile
 
     /// <summary>键名是否可用（单字符键或已知命名键）。</summary>
     public static bool IsKnownKeyName(string? keyName) => CanonicalKeyName(keyName).Length > 0;
+
+    /// <summary>按住 Shift 之后，数字行与标点键出来的字符（与键盘上的实际字符一致）。</summary>
+    private static readonly Dictionary<char, char> ShiftedChars = new()
+    {
+        ['1'] = '!', ['2'] = '@', ['3'] = '#', ['4'] = '$', ['5'] = '%',
+        ['6'] = '^', ['7'] = '&', ['8'] = '*', ['9'] = '(', ['0'] = ')',
+        ['-'] = '_', ['='] = '+', ['['] = '{', [']'] = '}', ['\\'] = '|',
+        [';'] = ':', ['\''] = '"', [','] = '<', ['.'] = '>', ['/'] = '?', ['`'] = '~',
+    };
+
+    /// <summary>
+    /// 自带 Shift 的主键显示成什么：<c>1</c> → <c>!</c>、<c>q</c> → <c>Q</c>、<c>,</c> → <c>&lt;</c>。
+    /// 认不出的键名（PageUp 这类）退回 <c>Shift+键名</c>。
+    /// </summary>
+    public static string ShiftedNameOf(string? keyName)
+    {
+        string name = CanonicalKeyName(keyName);
+        if (name.Length == 0) return "";
+        if (name.Length > 1) return $"Shift+{name}";
+        char c = name[0];
+        if (c is >= 'A' and <= 'Z') return c.ToString();                 // 字母：大写就是这个键的上位字符
+        if (ShiftedChars.TryGetValue(c, out char shifted)) return shifted.ToString();
+        return $"Shift+{name}";
+    }
+
+    /// <summary>
+    /// 一条键位在界面上显示的键名：自带 Shift 的显示上位字符（<c>!</c>、<c>Q</c>），
+    /// 其余还是键名本身。界面的键帽、导出说明、日志都用它，口径一致。
+    /// </summary>
+    public static string DisplayNameOf(KeyBinding? binding)
+        => binding == null || string.IsNullOrWhiteSpace(binding.Key)
+            ? ""
+            : (binding.Shift ? ShiftedNameOf(binding.Key) : CanonicalKeyName(binding.Key));
 
     /// <summary>
     /// 键名 → 单字符。单字符键返回自身；命名键返回哨兵字符；认不出返回 '\0'。
@@ -1364,6 +1440,23 @@ internal sealed class KeyBindingConverter : JsonConverter<KeyBinding>
                 throw new JsonException($"键「{name}」的行号要写整数。");
         }
 
+        // 第四项是「要不要按住 Shift」。老文件没有这一项，读成 false。
+        // 写成 1 / 0 或 true / false 都认；再往后多写的项忽略。
+        bool shift = false;
+        if (reader.TokenType != JsonTokenType.EndArray)
+        {
+            if (!reader.Read())
+                throw new JsonException("keys 里的项不完整。");
+            if (reader.TokenType == JsonTokenType.True) shift = true;
+            else if (reader.TokenType == JsonTokenType.False) shift = false;
+            else if (reader.TokenType == JsonTokenType.Number)
+            {
+                if (!reader.TryGetInt32(out int shiftValue))
+                    throw new JsonException($"键「{name}」的 Shift 标记要写整数或 true / false。");
+                shift = shiftValue != 0;
+            }
+        }
+
         if (reader.TokenType != JsonTokenType.EndArray)
         {
             if (!reader.Read())
@@ -1374,7 +1467,7 @@ internal sealed class KeyBindingConverter : JsonConverter<KeyBinding>
             }
         }
 
-        return new KeyBinding { Key = name, Offset = offset, Row = row };
+        return new KeyBinding { Key = name, Offset = offset, Row = row, Shift = shift };
     }
 
     public override void Write(Utf8JsonWriter writer, KeyBinding value, JsonSerializerOptions options)
@@ -1383,6 +1476,8 @@ internal sealed class KeyBindingConverter : JsonConverter<KeyBinding>
         writer.WriteStringValue(value.Key);
         writer.WriteNumberValue(value.Offset);
         writer.WriteNumberValue(value.Row);
+        // 第四项只在要按住 Shift 时才写：老方案文件写出来还是三元素，一个字都不变。
+        if (value.Shift) writer.WriteBooleanValue(true);
         writer.WriteEndArray();
     }
 }

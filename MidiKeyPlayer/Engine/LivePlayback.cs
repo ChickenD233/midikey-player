@@ -198,9 +198,12 @@ public sealed class LivePlayback : IDisposable
     /// <summary>
     /// 方案里写的修饰键名，功能键总开关关掉或没绑时返回 null。
     /// 调用方拿到 null 就等于「这个修饰键不存在」，不会往输出队列里排空键名。
+    /// 例外：键位自带 Shift 的方案（<see cref="KeymapProfile.HasSelfShiftKeys"/>）虽然功能键是关的，
+    /// 但半音键仍然要按（<see cref="KeymapProfile.SharpKeyToHold"/>）。
     /// </summary>
     private static string? ModKeyOrNull(string? keyName, KeymapProfile profile)
-        => profile.ModifiersEnabled && !string.IsNullOrWhiteSpace(keyName) ? keyName : null;
+        => (profile.ModifiersEnabled || profile.HasSelfShiftKeys) && !string.IsNullOrWhiteSpace(keyName)
+            ? keyName : null;
 
     /// <summary>
     /// 从一组音高挑基准八度：先让"超出音域"的音最少，再让音域最贴合唱到的音
@@ -359,7 +362,7 @@ public sealed class LivePlayback : IDisposable
                 if (wantMod is { Length: > 0 } neu) { PurgePending(neu); Enqueue(Math.Max(now, minDown - modLead), neu, true); }
                 _modKey = wantMod;
             }
-            string? sharpKey = ModKeyOrNull(profile.Sharp, profile);
+            string? sharpKey = ModKeyOrNull(profile.SharpKeyToHold, profile);
             if (_modSharp != map.Sharp && sharpKey != null)
             {
                 PurgePending(sharpKey);
@@ -420,7 +423,7 @@ public sealed class LivePlayback : IDisposable
         lock (_gate)
         {
             foreach (var s in _sounding.Where(x => !x.Released).ToList()) ReleaseNote(s, now, retrigger: false);
-            string? sharpKey = ModKeyOrNull(Keymap.Sharp, Keymap);
+            string? sharpKey = ModKeyOrNull(Keymap.SharpKeyToHold, Keymap);
             if (_modSharp && sharpKey != null) { Enqueue(now, sharpKey, false); _modSharp = false; }
             string? flatKey = ModKeyOrNull(Keymap.Flat, Keymap);
             if (_modFlat && flatKey != null) { Enqueue(now, flatKey, false); _modFlat = false; }

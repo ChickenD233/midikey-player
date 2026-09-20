@@ -131,14 +131,16 @@ internal static class GameSelfTest
         int emptyKeys = 0;
         foreach (var p in presets)
         {
+            // 口径是「按键 + 要不要 Shift」：自带 Shift 的键位（Roblox 钢琴的黑键）
+            // 与它下面那个白键共用一个物理键，但发出去的字符不同，不算重键。
             var keys = p.Keys.Where(k => k != null && !string.IsNullOrWhiteSpace(k.Key))
-                             .Select(k => KeymapProfile.CanonicalKeyName(k.Key))
+                             .Select(k => (k.Shift ? "Shift+" : "") + KeymapProfile.CanonicalKeyName(k.Key))
                              .ToList();
             if (keys.Count == 0) emptyKeys++;
             if (keys.Distinct(StringComparer.Ordinal).Count() != keys.Count) dupKey++;
         }
         Check("预设：每套都有按键", emptyKeys == 0, $"空方案 {emptyKeys} 套");
-        Check("预设：每套的键名都不重复", dupKey == 0, $"重键 {dupKey} 套");
+        Check("预设：每套的键名都不重复（带 Shift 的另算一条）", dupKey == 0, $"重键 {dupKey} 套");
 
         // 界面换方案走的就是这条查表路径：名字取得回来，才能真的切过去
         var notFound = names.Where(n => KeymapProfile.PresetByName(n) == null).ToList();
@@ -317,17 +319,20 @@ internal static class GameSelfTest
     // ================= Roblox 钢琴键位 =================
 
     /// <summary>
-    /// Roblox 钢琴键位（v1.0.27 新增）：四排 36 个白键（C2..C7）+ 25 个黑键，
-    /// 黑键固定是「按住 Shift + 下面那个白键」，与目标程序的虚拟钢琴一致。
+    /// Roblox 钢琴键位（v1.0.27 新增，v1.0.28 改成「一个半音一条键位」）：
+    /// 36 个白键 + 25 个黑键 = 61 条，黑键是「下面那个白键 + Shift」，显示成 ! @ $ % ^ * ( 与 Q W E …。
+    /// 不用功能键区（开关关、四个功能键全空），但 Shift 仍然要按。
     /// 白键表与黑键表逐条写在这里：偏移改错一个音，这一条就红。
     /// </summary>
     private static void TestRobloxPiano()
     {
         var p = KeymapProfile.PresetByName("Roblox 钢琴键位");
-        Check("Roblox 钢琴：预设存在、36 个白键、Shift 升半音、不绑八度键",
-              p != null && p.Keys.Count == 36 && p.Sharp == "Shift" && p.Flat == null
-              && p.ModifiersEnabled && p.OctaveUp == null && p.OctaveDown == null,
-              p == null ? "取不到" : $"键 {p.Keys.Count} 个；Sharp=「{p.Sharp}」");
+        Check("Roblox 钢琴：61 条键位、功能键全关、不用升半音键",
+              p != null && p.Keys.Count == 61 && p.Keys.Count(k => k.Shift) == 25
+              && !p.ModifiersEnabled && p.Sharp == null && p.OctaveUp == null
+              && p.OctaveDown == null && p.Flat == null,
+              p == null ? "取不到" : $"键 {p.Keys.Count} 条（带 Shift {p.Keys.Count(k => k.Shift)} 条）"
+                                      + $"；开关={p.ModifiersEnabled} Sharp=「{p.Sharp}」");
         if (p == null) return;
 
         // 白键：键名 → 音高。C2 = 36 起，自然音逐个往上，四排连成一条。
@@ -345,10 +350,10 @@ internal static class GameSelfTest
         foreach (var (key, pitch) in white)
             if (!p.TryKeyOfPitch(pitch, out string got, out _, out bool sharp)
                 || got != key || sharp)
-                badWhite += $"{pitch}→「{got}」(升={sharp}) 应为「{key}」 ";
+                badWhite += $"{pitch}→「{got}」(Shift={sharp}) 应为「{key}」 ";
         Check("Roblox 钢琴：36 个白键都对上", badWhite.Length == 0, badWhite);
 
-        // 黑键：Shift + 下面那个白键。E、B 与最高的 C7 上面没有黑键，所以是 25 个而不是 36 个。
+        // 黑键：同一个白键 + Shift。E、B 与最高的 C7 上面没有黑键，所以是 25 条。
         var black = new (string Key, int Pitch)[]
         {
             ("1", 37), ("2", 39), ("4", 42), ("5", 44), ("6", 46), ("8", 49), ("9", 51),
@@ -360,12 +365,39 @@ internal static class GameSelfTest
         foreach (var (key, pitch) in black)
             if (!p.TryKeyOfPitch(pitch, out string got, out _, out bool sharp)
                 || got != key || !sharp)
-                badBlack += $"{pitch}→「{got}」(升={sharp}) 应为「{key}」+Shift ";
+                badBlack += $"{pitch}→「{got}」(Shift={sharp}) 应为「{key}」+Shift ";
         Check("Roblox 钢琴：25 个黑键都是下面白键 + Shift", badBlack.Length == 0, badBlack);
 
-        Check("Roblox 钢琴：音域 36..97（97 是 C7 上面那个半音，琴上没有键）",
-              p.ResolveMinNote() == 36 && p.ResolveMaxNote() == 97,
+        // 显示名：黑键在界面上要写成游戏里的那个字符。
+        Check("Roblox 钢琴：黑键显示名是 ! @ * Q 这种上位字符",
+              KeymapProfile.ShiftedNameOf("1") == "!" && KeymapProfile.ShiftedNameOf("8") == "*"
+              && KeymapProfile.ShiftedNameOf("q") == "Q" && KeymapProfile.ShiftedNameOf(",") == "<",
+              $"1→{KeymapProfile.ShiftedNameOf("1")} 8→{KeymapProfile.ShiftedNameOf("8")} "
+              + $"q→{KeymapProfile.ShiftedNameOf("q")} ,→{KeymapProfile.ShiftedNameOf(",")}");
+
+        Check("Roblox 钢琴：音域 36..96（C2..C7）",
+              p.ResolveMinNote() == 36 && p.ResolveMaxNote() == 96,
               $"实际 {p.ResolveMinNote()}..{p.ResolveMaxNote()}");
+
+        Check("Roblox 钢琴：演奏时要按住 Shift",
+              p.SharpKeyToHold == "Shift" && p.HasSelfShiftKeys,
+              $"SharpKeyToHold=「{p.SharpKeyToHold}」 自带 Shift={p.HasSelfShiftKeys}");
+
+        // 方案 JSON 的第四项是 Shift 标记：写出去要写、读回来要还原，老文件（没有第四项）读成 false。
+        var round = KeymapProfile.FromJson(p.ToJson());
+        bool same = round.Keys.Count == p.Keys.Count;
+        for (int i = 0; same && i < p.Keys.Count; i++)
+            same = round.Keys[i].Key == p.Keys[i].Key
+                && round.Keys[i].Offset == p.Keys[i].Offset
+                && round.Keys[i].Row == p.Keys[i].Row
+                && round.Keys[i].Shift == p.Keys[i].Shift;
+        Check("Roblox 钢琴：方案 JSON 往返后 61 条键位一字不差", same,
+              same ? "" : $"原 {p.Keys.Count} 条 / 回读 {round.Keys.Count} 条");
+
+        var legacy = KeymapProfile.FromJson("{\"name\":\"老方案\",\"keys\":[[\"Z\",0,0],[\"X\",2,0]]}");
+        Check("键位 JSON：没有第四项的老文件读成不按 Shift",
+              legacy.Keys.Count == 2 && legacy.Keys.All(k => !k.Shift),
+              string.Join(" | ", legacy.Keys.Select(k => k.ToString())));
     }
 
     // ================= 断言 =================

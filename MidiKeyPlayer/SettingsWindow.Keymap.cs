@@ -181,7 +181,7 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
 
             // 错位核对：屏上每一颗键帽的键名，必须等于它自己 Source 那条键位写在方案里的键名
             int mismatched = _rows.Count(r => !string.Equals(
-                r.KeyText, DisplayKey(r.Source?.Key), StringComparison.Ordinal));
+                r.KeyText, DisplayKey(r.Source), StringComparison.Ordinal));
             W($"7) 键帽与方案的对应：{_rows.Count} 颗键帽，键名对不上的有 {mismatched} 颗；"
               + $"屏幕第 1 行 = 「{string.Join(" ", _groups.FirstOrDefault()?.Cells.Select(c => c.KeyText) ?? Array.Empty<string>())}」");
 
@@ -406,7 +406,7 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         Source = kb,
         RowNo = rowNo,
         Pitch = PitchOf(kb),
-        KeyText = DisplayKey(kb.Key),
+        KeyText = DisplayKey(kb),
     };
 
     private int PitchOf(KeyBinding kb) => Math.Clamp(_keymap.BaseNote + kb.Offset, 0, 127);
@@ -438,6 +438,24 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
     /// 逗号的说明改放进方块按钮的提示气泡（<see cref="RowVM.CapTip"/>）。
     /// </summary>
     private static string DisplayKey(string? key) => string.IsNullOrEmpty(key) ? "" : DisplayKeyText(key);
+
+    /// <summary>
+    /// 一条键位在方块上的显示名。
+    /// 自带 Shift 的键位（<see cref="KeyBinding.Shift"/>）显示上位字符：1 → !、q → Q、, → &lt;。
+    /// 「一个半音一条键位」的方案（<see cref="KeymapProfile.HasSelfShiftKeys"/>，Roblox 钢琴就是）
+    /// 里，白键字母按游戏写谱子的习惯显示小写（q），与黑键的大写（Q）区分开；
+    /// 其余方案照旧显示大写键名，一个字都不变。
+    /// </summary>
+    private string DisplayKey(KeyBinding? binding)
+    {
+        if (binding == null || string.IsNullOrEmpty(binding.Key)) return "";
+        if (binding.Shift) return DisplayKeyText(KeymapProfile.ShiftedNameOf(binding.Key));
+
+        string name = KeymapProfile.CanonicalKeyName(binding.Key);
+        if (_keymap.HasSelfShiftKeys && name.Length == 1 && name[0] is >= 'A' and <= 'Z')
+            return name.ToLowerInvariant();
+        return DisplayKeyText(name);
+    }
 
     private static string DisplayKeyText(string key) => key switch
     {
@@ -778,8 +796,8 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         // 只改它的文字。不改旧对象：旧对象已经不在界面上，改了也看不见（内容与位置就不同步了）。
         RebuildRows();
         var live = _rows.FirstOrDefault(r => ReferenceEquals(r.Source, source));
-        if (live != null) live.KeyText = DisplayKeyText(canonical);
-        Apply($"{Music.SolfegeName(row.Pitch)} 已绑到 {DisplayKeyText(canonical)}"
+        if (live != null) live.KeyText = DisplayKey(source);
+        Apply($"{Music.SolfegeName(row.Pitch)} 已绑到 {KeymapProfile.DisplayNameOf(source)}"
               + (same.Count > 0 ? "。这个键还绑在别的音上，两个音都会响。" : "。"));
     }
 
@@ -866,7 +884,7 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
             _keymap.Keys.Add(kb);
             var row = NewPendingCell(pitches[i]);
             row.Source = kb;
-            row.KeyText = DisplayKey(kb.Key);
+            row.KeyText = DisplayKey(kb);
             row.Parent = group;
             group.Cells.Add(row);
             _rows.Add(row);
@@ -1525,18 +1543,25 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
     /// <summary>同一个物理键绑到多个音：涉及的键帽都描红边，但不阻止保存。</summary>
     private void ApplyDuplicates()
     {
+        // 重复的口径是「按键 + 要不要 Shift」：自带 Shift 的键位（Roblox 钢琴的黑键）
+        // 与它下面那个白键用的是同一个物理键，但发出去的字符不同，不算重复。
+        static string IdOf(KeyBinding? kb)
+            => kb == null || string.IsNullOrEmpty(kb.Key)
+                ? ""
+                : (kb.Shift ? "Shift+" : "") + kb.Key;
+
         var count = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         foreach (var r in _rows)
         {
-            string key = r.Source?.Key ?? "";
-            if (key.Length == 0) continue;
-            count.TryGetValue(key, out int c);
-            count[key] = c + 1;
+            string id = IdOf(r.Source);
+            if (id.Length == 0) continue;
+            count.TryGetValue(id, out int c);
+            count[id] = c + 1;
         }
         foreach (var r in _rows)
         {
-            string key = r.Source?.Key ?? "";
-            r.IsDuplicate = key.Length > 0 && count.TryGetValue(key, out int c) && c > 1;
+            string id = IdOf(r.Source);
+            r.IsDuplicate = id.Length > 0 && count.TryGetValue(id, out int c) && c > 1;
         }
     }
 

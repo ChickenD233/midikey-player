@@ -789,7 +789,7 @@ public sealed class PlaybackEngine : IDisposable
         var profile = KeymapProfile.Current;
         string? octUpKey = KeyOrNull(profile.OctaveUp);
         string? octDownKey = KeyOrNull(profile.OctaveDown);
-        string? sharpKey = KeyOrNull(profile.Sharp);
+        string? sharpKey = KeyOrNull(profile.SharpKeyToHold);   // 自带 Shift 的键位（Roblox 钢琴）没绑功能键时也按 Shift
         string? flatKey = KeyOrNull(profile.Flat);
         string? heldOct = startMods.OctaveKey;
         string? heldSharp = startMods.SharpKey;
