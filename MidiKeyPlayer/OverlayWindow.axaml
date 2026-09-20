@@ -56,14 +56,15 @@
 
     </StackPanel>
 
-    <!-- 悬浮窗自己的开关：点 ✕ 直接关掉，等同设置里取消勾选（设置里也写回去了）。
+    <!-- 悬浮窗自己的开关：点 ✕ 只让本次播放不再弹它（设置里的开关不动，下次播放自动恢复）。
+         要永久关掉，去设置 → 常规 → 界面里取消「播放悬浮窗」。
          挂在卡片右上角外沿；Button 自己会吃掉指针事件，不会触发卡片拖动。
          不抢焦点（Focusable=False），点完焦点留在目标程序。 -->
     <Button x:Name="BtnOverlayOff" Content="✕" Click="BtnOverlayOff_Click"
             HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-8,-11,0"
             Padding="5,1" FontSize="10" Focusable="False"
             Background="Transparent" BorderThickness="0" Foreground="#80FFFFFF"
-            ToolTip.Tip="关掉悬浮窗（设置 → 常规 → 界面里可以重新打开）"/>
+            ToolTip.Tip="本次播放不再显示悬浮窗（下次播放自动回来；要永久关掉：设置 → 常规 → 界面）"/>
     </Grid>
   </Border>
 </Window>

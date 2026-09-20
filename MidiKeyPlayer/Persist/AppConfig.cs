@@ -58,6 +58,9 @@ public sealed class AppConfig
 
     // —— 播放悬浮窗（倒计时 / 进度 / 当前音，置顶显示在目标程序上）——
     public bool OverlayEnabled { get; set; } = true;    // 悬浮窗开关（默认开）
+    // 暂停时把悬浮窗收起来（默认开）：暂停多半是要看别的东西，浮窗挡着画面；
+    // 继续演奏时自动弹回来，不用去设置里重开。老设置文件没有这一项，读进来是 true。
+    public bool OverlayHideOnPause { get; set; } = true;
     public int OverlayX { get; set; } = -1;             // 悬浮窗位置（-1 = 默认屏幕右上角）
     public int OverlayY { get; set; } = -1;
 

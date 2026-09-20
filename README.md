@@ -39,6 +39,7 @@
 
 1. 点「打开 MIDI 文件 / 文件夹」，选一个文件，或选一个文件夹让程序列出里面的曲目。支持 `.mid`、`.midi`、`.kar`、`.rmi`。
 2. 选了文件夹之后，左栏在声轨列表上方会多出一块「文件夹曲目」区域，列出这个文件夹里的 MIDI，点哪首载入哪首，右上角「关闭」收起。按钮右边的箭头菜单里还有「最近打开」。
+   曲目多时默认只列 50 行，末尾一条「显示其余 N 项」点一下就把这一份列表整份列出来；上面还有一个搜索框，按名字过滤（只搜当前文件夹，不进子文件夹）。
 3. 在左侧点一行，作为主旋律（选中的行带 ● 标记）。打击乐轨也可以选：有的目标乐器自带鼓组。想一起出声，就在左侧勾多个声部。
 4. 需要改谱时，在卷帘上直接改。做法见下。
 5. 调速度、移调、倒计时。
@@ -101,7 +102,11 @@
 - **播放悬浮窗**。默认开。倒计时与演奏期间在屏幕右上角显示一个置顶小窗：倒计时是大号秒数，
   开始演奏后是**滚动迷你卷帘**——可见窗口 8 秒，黄色播放头固定在四分之一处，
   音符从右向左滚过去（右边是马上要弹的音）。下方是进度条与时间；暂停、循环遍数标在右下角。
-  切到目标程序后也看得到。悬浮窗可拖动，位置自动记忆。不想要就在 设置 → 常规 → 界面 里关掉。
+  切到目标程序后也看得到。悬浮窗可拖动，位置自动记忆。
+- **暂停后关闭悬浮窗**。默认开。暂停（F6 或焦点离开目标程序自动暂停）时把悬浮窗收起来，不再挡着画面；
+  继续演奏时自动弹回来，不用去设置里重开。不想要就在 设置 → 常规 → 界面 里取消勾选。
+  悬浮窗右上角的 ✕ 只让**本次播放**不再弹它，设置里的开关不动，下次播放自动恢复。
+  想永久关掉，仍然在 设置 → 常规 → 界面 里取消「播放悬浮窗」。
 - **导出按键表**。导出 G HUB 脚本（.lua），或通用 CSV。内容跟随当前键位方案，与实际演奏一致。
 - **循环**。默认关。勾上后一遍播完就从头再来，日志里写明当前是第几遍。
 - **数值范围**。速度 10%–400%，默认 100%。移调 ±24 半音，默认 0。倒计时 0 / 3 / 5 / 10 秒，默认 3 秒。
@@ -438,6 +443,7 @@ To see what changed in a version, open this file. The source file is `MidiKeyPla
 
 1. Click "Open MIDI File / Folder" (打开 MIDI 文件 / 文件夹), pick a file, or pick a folder to have the program list the songs inside. Supports `.mid`, `.midi`, `.kar`, `.rmi`.
 2. After selecting a folder, a "Folder Songs" (文件夹曲目) area appears above the track list in the left column, listing the MIDI files in that folder — click one to load it; "Close" (关闭) at the top right collapses it. The arrow menu next to the button also has "Recently Opened" (最近打开).
+   With many songs, only 50 rows are listed by default; a "Show the remaining N" (显示其余 N 项) row at the end expands the whole list in one click. A search box above the list filters by name (current folder only, no recursion into subfolders).
 3. Click a row on the left as the main melody. The green dot marks the row recommended by the program. Percussion tracks can also be selected: some target instruments come with a drum kit. To sound multiple parts together, tick multiple tracks on the left.
 4. When you need to edit the score, edit it directly on the piano roll. See below for how.
 5. Adjust tempo, transposition, and countdown.
@@ -500,7 +506,11 @@ The bottom right of the main window is split into two cards. **Performance Param
 - **Playback overlay** (播放悬浮窗). Default on. During the countdown and the performance, a top-most small window shows at the top right of the screen: the countdown is a large second count;
   once playing it becomes a **scrolling mini piano roll** — a visible window of 8 seconds, a yellow playhead fixed at the quarter position,
   notes scrolling from right to left (the ones on the right are about to be played). Below are a progress bar and the time; pause and loop pass count are marked at the bottom right.
-  It stays visible after you switch to the target program. The overlay is draggable, and its position is remembered automatically. If you don't want it, turn it off in Settings → General → Interface (设置 → 常规 → 界面).
+  It stays visible after you switch to the target program. The overlay is draggable, and its position is remembered automatically.
+- **Close the overlay on pause** (暂停后关闭悬浮窗). Default on. Pausing (F6, or the automatic pause when focus leaves the target program) puts the overlay away so it stops covering the screen;
+  it comes back by itself when the performance resumes, with no trip to Settings. Untick it in Settings → General → Interface (设置 → 常规 → 界面) to keep it on screen while paused.
+  The ✕ on the overlay only hides it for the **current playback**; the setting is untouched and the overlay returns on the next playback.
+  To turn it off for good, still untick "Playback overlay" (播放悬浮窗) in Settings → General → Interface.
 - **Export key table** (导出按键表). Export a G HUB script (.lua), or a generic CSV. The content follows the current key layout scheme and matches the actual performance.
 - **Loop** (循环). Default off. When ticked, playback restarts from the beginning after one pass, and the log states which pass it is on.
 - **Value ranges.** Tempo 10%–400%, default 100%. Transposition ±24 semitones, default 0. Countdown 0 / 3 / 5 / 10 seconds, default 3 seconds.

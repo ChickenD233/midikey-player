@@ -74,6 +74,7 @@ public partial class MainWindow : Window
     private bool _updateBusy;              // 正在下载或正在应用更新
     private CancellationTokenSource? _updateCts;
     private OverlayWindow? _overlay;        // 播放悬浮窗（倒计时 / 进度 / 当前音）
+    private bool _overlayMuted;             // 用户点过浮窗上的 ✕：本次播放不再弹它（设置里的开关不动，下次播放恢复）
     private double _overlayLastElapsed = -1;   // 上次推给悬浮窗的进度（节流用；-1 = 还没推过）
     private bool _overlayLastPaused;
     private int _overlayLastLoop = -1;
@@ -136,6 +137,7 @@ public partial class MainWindow : Window
         ChkShowPreflight.IsChecked = _cfg.ShowPreflight;
         PreflightRow.IsVisible = _cfg.ShowPreflight;   // 默认开：自检常驻主界面状态卡
         ChkOverlay.IsChecked = _cfg.OverlayEnabled;    // 悬浮窗默认开
+        ChkOverlayHideOnPause.IsChecked = _cfg.OverlayHideOnPause;   // 暂停后收起来（默认开）
         TxtAboutVersion.Text = $"MIDI 按键播放器 v{AutoUpdate.CurrentVersion}";
         if (_cfg.DisclaimerAccepted) DisclaimerBar.IsVisible = false;   // 确认过一次就不再显示
         ThemeCombo.ItemsSource = ThemeSwitch.Names;    // 自动 / 浅色 / 深色，下标就是设置里的取值
@@ -454,6 +456,14 @@ public partial class MainWindow : Window
         LblStatus.FontSize = ResourceFontSize("FontDisplay", 22);
         LblStatus.Text = paused ? "已暂停 —— 按 F6 或点「▶ 继续」" : "演奏中…";
         UpdateTransportUi();
+
+        // 暂停后关闭悬浮窗（默认开）：暂停即收起，继续即弹回，什么都不用去设置里改。
+        // 手动 F6 与焦点守卫自动暂停都走这里，所以两条路径行为一致。
+        if (_cfg?.OverlayHideOnPause == true)
+        {
+            if (paused) HideOverlay();
+            else if (_engine is { IsRunning: true } eng) ShowOverlayProgress(eng);
+        }
     }
 
     // ================= 焦点守卫：按键只进游戏 =================
@@ -1319,7 +1329,9 @@ public partial class MainWindow : Window
     private readonly List<string> _folderFiles = new();   // 当前文件夹里的 MIDI（完整路径）
     private readonly List<string> _folderDirs = new();    // 当前文件夹里的子文件夹（完整路径），排在文件前面
     private string _folderPath = "";                      // 当前目录；每次扫描都写进 AppConfig.FolderPath
-    private const int FolderMenuMax = 50;                 // 卡片最多列多少行（子文件夹 + MIDI），其余用一条说明占位
+    private const int FolderMenuMax = 50;                 // 卡片默认最多列多少行（子文件夹 + MIDI），点「显示其余 N 项」就全列出来
+    private bool _folderShowAll;                          // 用户点过「显示其余 N 项」：这一份列表整份列出，不再封顶
+    private string _folderQuery = "";                     // 搜索框里的词（空 = 不过滤）；只比显示名，不递归
     private static readonly string[] MidiExtensions = { ".mid", ".midi", ".kar", ".rmi" };
 
     /// <summary>
@@ -1396,6 +1408,11 @@ public partial class MainWindow : Window
         ScheduleSave();
         _folderDirs.Clear();
         _folderFiles.Clear();
+        // 换了目录：搜索词与「显示全部」都清零，新目录从完整列表开始（搜索框里的字也一起清掉）。
+        _folderShowAll = false;
+        _folderQuery = "";
+        if (TxtFolderSearch != null && TxtFolderSearch.Text is { Length: > 0 })
+            TxtFolderSearch.Text = "";   // 触发 FolderSearch_Changed，那里会再刷一次，无害
 
         var dir = new System.IO.DirectoryInfo(path);
         bool failed = false;
@@ -1479,8 +1496,18 @@ public partial class MainWindow : Window
         TxtFolderName.Text = leaf.Length > 0 ? leaf : _folderPath;
         Avalonia.Controls.ToolTip.SetTip(TxtFolderName, _folderPath);   // 附加属性，必须走 SetTip
 
-        // 子文件夹在前、MIDI 文件在后，合计封顶 FolderMenuMax 行
-        int total = _folderDirs.Count + _folderFiles.Count;
+        // 先按搜索词过滤：只比显示名（文件名 / 子文件夹名），不递归进子文件夹。
+        string query = _folderQuery.Trim();
+        List<string> dirs = query.Length == 0
+            ? _folderDirs
+            : _folderDirs.Where(d => NameMatches(System.IO.Path.GetFileName(d), query)).ToList();
+        List<string> files = query.Length == 0
+            ? _folderFiles
+            : _folderFiles.Where(f => NameMatches(System.IO.Path.GetFileName(f), query)).ToList();
+
+        // 子文件夹在前、MIDI 文件在后。默认封顶 FolderMenuMax 行，点过「显示其余 N 项」就整份列出。
+        int total = dirs.Count + files.Count;
+        int shown = _folderShowAll ? total : Math.Min(total, FolderMenuMax);
 
         _folderSyncing = true;   // 下面改选中项会触发 SelectionChanged，那一次不是用户点击
         try
@@ -1490,31 +1517,23 @@ public partial class MainWindow : Window
             // 抛 ArgumentOutOfRangeException（用户报的「选了一首之后别的点不动」）。
             FolderList.SelectedItem = null;
             FolderList.Items.Clear();
-            int shown = Math.Min(total, FolderMenuMax);
             for (int i = 0; i < shown; i++)
             {
-                FolderList.Items.Add(i < _folderDirs.Count
-                    ? BuildFolderDirRow(_folderDirs[i])
-                    : BuildFolderRow(_folderFiles[i - _folderDirs.Count]));
+                FolderList.Items.Add(i < dirs.Count
+                    ? BuildFolderDirRow(dirs[i])
+                    : BuildFolderRow(files[i - dirs.Count]));
             }
 
+            // 截断时末尾放一条**可点**的「显示其余 N 项」：点一下就把这一份列表整份列出来。
             if (total > shown)
-            {
-                var more = new ListBoxItem
-                {
-                    Content = new TextBlock
-                    {
-                        Text = $"还有 {total - shown} 项未列出",
-                        FontSize = 12.5,
-                        Foreground = ResourceBrush("BrushTextMuted"),
-                    },
-                    IsEnabled = false,
-                    IsHitTestVisible = false,   // 占位说明，点不动
-                    Focusable = false,
-                };
-                FolderList.Items.Add(more);
-            }
+                FolderList.Items.Add(BuildFolderShowMoreRow(total - shown, total));
 
+            if (total == 0)
+            {
+                TxtFolderEmpty.Text = query.Length == 0
+                    ? "这个文件夹里没有找到 MIDI 文件或子文件夹。"
+                    : $"没有名字里带「{query}」的曲目或子文件夹。";
+            }
             TxtFolderEmpty.IsVisible = total == 0;
 
             // 载入过的那一首保持选中：换歌后高亮跟着走，用户一眼看到当前是哪首。
@@ -1540,6 +1559,52 @@ public partial class MainWindow : Window
 
     /// <summary>曲目卡里一行的身份：路径 + 是不是子文件夹（两类行的点击行为不同）。</summary>
     private sealed record FolderRow(string Path, bool IsDir);
+
+    /// <summary>
+    /// 曲目卡里「显示其余 N 项」那一行的标记。它没有 Tag = FolderRow，
+    /// 所以选中它不会去载入曲子，只在 <see cref="FolderList_SelectionChanged"/> 里把列表整份展开。
+    /// </summary>
+    private sealed record FolderShowMore(int Hidden, int Total);
+
+    /// <summary>
+    /// 搜索框变了：重新过滤列表。搜索词只比显示名（文件名 / 子文件夹名），
+    /// 不递归进子文件夹，也不看路径 —— 否则父目录名会命中一整批无关的曲目。
+    /// </summary>
+    private void FolderSearch_Changed(object? sender, TextChangedEventArgs e)
+    {
+        string text = TxtFolderSearch?.Text ?? "";
+        if (string.Equals(text, _folderQuery, StringComparison.Ordinal)) return;   // 扫描时清空搜索框会绕回来，去重
+        _folderQuery = text;
+        _folderShowAll = false;   // 换了搜索词：列表重新按默认行数显示，需要就再点「显示其余 N 项」
+        RefreshFolderUi();
+    }
+
+    /// <summary>显示名里含这个词就算命中（忽略大小写）。</summary>
+    private static bool NameMatches(string name, string query)
+        => name.Contains(query, StringComparison.CurrentCultureIgnoreCase);
+
+    /// <summary>
+    /// 「显示其余 N 项」那一行：可点、可键盘选中，第 2 行灰字写总数。
+    /// Tag 用 <see cref="FolderShowMore"/> 标记，避免被当成曲目处理。
+    /// </summary>
+    private ListBoxItem BuildFolderShowMoreRow(int hidden, int total)
+    {
+        var stack = new StackPanel { Spacing = 0 };
+        stack.Children.Add(new TextBlock { Text = "显示其余 " + hidden + " 项", FontSize = 12.5 });
+        stack.Children.Add(new TextBlock
+        {
+            Text = $"这个文件夹一共 {total} 项",
+            FontSize = 11,
+            Foreground = ResourceBrush("BrushTextMuted"),
+        });
+        var item = new ListBoxItem
+        {
+            Content = stack,
+            Tag = new FolderShowMore(hidden, total),
+        };
+        Avalonia.Controls.ToolTip.SetTip(item, "点这一行把剩下的曲目也列出来（只影响这一份列表；换目录或改搜索词会回到默认行数）");
+        return item;
+    }
 
     /// <summary>曲目卡里的 MIDI 行：只显示文件名，完整路径放在 Tag 与悬浮提示里。</summary>
     private ListBoxItem BuildFolderRow(string path)
@@ -1577,7 +1642,12 @@ public partial class MainWindow : Window
     {
         if (_folderSyncing) return;                                        // 程序化选中，不是用户点的
         if (FolderList?.SelectedItem is not ListBoxItem it) return;
-        if (it.Tag is not FolderRow row) return;                           // 「还有 N 项未列出」占位行
+        if (it.Tag is FolderShowMore more)                                 // 「显示其余 N 项」：点开就整份列出
+        {
+            Dispatcher.UIThread.Post(() => { _folderShowAll = true; RefreshFolderUi(); });
+            return;
+        }
+        if (it.Tag is not FolderRow row) return;
         if (row.IsDir) return;                                             // 子文件夹：等双击
         // 抑制标记复位之后仍可能到达的重复选中事件：已经是当前这首就返回，别重复载入
         if (row.Path == _parsed?.FilePath) return;
@@ -2659,6 +2729,30 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// 「暂停后关闭悬浮窗」开关。勾上时：暂停就把浮窗收掉（不再挡画面），继续演奏时自动弹回来。
+    /// 改完立刻按新规则对齐一次，不用等下一次暂停。
+    /// </summary>
+    private void OverlayHideOnPause_Changed(object? sender, RoutedEventArgs e)
+    {
+        if (_cfg != null) _cfg.OverlayHideOnPause = ChkOverlayHideOnPause.IsChecked == true;
+        ScheduleSave();
+        if (!_uiReady) return;
+        if (_engine is not { IsRunning: true } eng) return;
+        if (eng.IsPaused && _cfg?.OverlayHideOnPause == true) HideOverlay();
+        else ShowOverlayProgress(eng);
+    }
+
+    /// <summary>
+    /// 悬浮窗现在该不该显示。三条一起看：
+    /// 设置里的总开关、用户点过 ✕（本次播放静音）、以及「暂停后关闭悬浮窗」。
+    /// 所有显示路径都过这一道，避免别的刷新路径把刚收起来的浮窗又弹出来。
+    /// </summary>
+    private bool ShouldShowOverlay(bool paused)
+        => ChkOverlay.IsChecked == true
+           && !_overlayMuted
+           && !(paused && _cfg?.OverlayHideOnPause == true);
+
     /// <summary>创建（或取出）悬浮窗，并接上位置记忆。</summary>
     private OverlayWindow EnsureOverlay()
     {
@@ -2671,27 +2765,27 @@ public partial class MainWindow : Window
             _cfg.OverlayY = y;
             ScheduleSave();
         };
-        // 浮窗上的 ✕：直接拨掉设置里的开关。走 Overlay_Changed 一条链路：
-        // 写设置、落盘、立刻关窗，与在设置窗口里取消勾选完全同一行为。
-        w.CloseRequested += () => { ChkOverlay.IsChecked = false; };
+        // 浮窗上的 ✕：只让**本次播放**不再弹它，设置里的开关一动不动 ——
+        // 用户点 ✕ 是想让开画面，不想为了再看一次进度跑一趟设置。下次播放自动恢复。
+        w.CloseRequested += () => { _overlayMuted = true; HideOverlay(); };
         w.Closed += (_, _) => { if (ReferenceEquals(_overlay, w)) _overlay = null; };
         _overlay = w;
         return w;
     }
 
-    /// <summary>倒计时期间的悬浮窗（开关关掉时不显示）。</summary>
+    /// <summary>倒计时期间的悬浮窗（开关关掉、或本次播放被 ✕ 静音时不显示）。</summary>
     private void ShowOverlayCountdown(int secondsLeft)
     {
-        if (ChkOverlay.IsChecked != true) return;
+        if (!ShouldShowOverlay(paused: false)) return;
         var w = EnsureOverlay();
         w.ShowCountdown(secondsLeft);
         w.RestorePosition(_cfg?.OverlayX ?? -1, _cfg?.OverlayY ?? -1);
     }
 
-    /// <summary>演奏期间的悬浮窗（开关关掉时不显示）。</summary>
+    /// <summary>演奏期间的悬浮窗（开关关掉、被 ✕ 静音、或暂停且勾了「暂停后关闭」时不显示）。</summary>
     private void ShowOverlayProgress(PlaybackEngine eng)
     {
-        if (ChkOverlay.IsChecked != true) return;
+        if (!ShouldShowOverlay(eng.IsPaused)) return;
         var w = EnsureOverlay();
         w.ShowProgress(eng.ElapsedSeconds, eng.TotalSeconds, eng.LoopCount, eng.IsPaused);
         w.RestorePosition(_cfg?.OverlayX ?? -1, _cfg?.OverlayY ?? -1);
@@ -2711,9 +2805,9 @@ public partial class MainWindow : Window
     /// </summary>
     private void PushOverlayThrottled(PlaybackEngine eng)
     {
-        if (ChkOverlay.IsChecked != true) { _overlayLastElapsed = -1; return; }
         double elapsed = eng.ElapsedSeconds;
         bool paused = eng.IsPaused;
+        if (!ShouldShowOverlay(paused)) { _overlayLastElapsed = -1; return; }
         int loop = eng.LoopCount;
         bool dirty = _overlayLastElapsed < 0
                      || Math.Abs(elapsed - _overlayLastElapsed) >= 0.15
@@ -3307,6 +3401,7 @@ public partial class MainWindow : Window
         _playNotes = map.Notes.Where(n => n.InRange).ToList();
 
         SetBusy(true);
+        _overlayMuted = false;   // 新一次播放：✕ 的「本次不显示」作废，浮窗该出还出
         // 切歌热键已经守在目标程序里，不走倒计时，直接开弹
         int cd = skipCountdown ? 0 : SelectedCountdownSeconds;
         if (cd > 0)

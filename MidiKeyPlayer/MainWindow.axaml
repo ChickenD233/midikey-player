@@ -128,16 +128,23 @@
                     ToolTip.Tip="收起这块区域，并清掉设置里记住的目录（下次启动不再出现）。磁盘上的文件不会被动"/>
           </Grid>
 
+          <!-- 搜索：只按显示名（文件名 / 子文件夹名）匹配，不递归进子文件夹。清空就恢复整份列表。 -->
+          <TextBox x:Name="TxtFolderSearch" FontSize="{DynamicResource FontCaption}"
+                   Padding="6,3" Watermark="搜索曲目…"
+                   TextChanged="FolderSearch_Changed"
+                   ToolTip.Tip="按名字过滤下面的列表，留空显示全部。只搜当前文件夹，不进子文件夹"/>
+
           <!-- 固定高度 150：文件少时也留一块稳定区域，卡片高度不随曲目数量跳动。 -->
           <Grid Height="150">
             <!-- 列表：子文件夹在前（📁 前缀，双击进入），MIDI 文件在后（单击载入）。
-                 条目由代码建，双击处理器只挂在子文件夹行上（见 BuildFolderItem）。 -->
+                 条目由代码建，双击处理器只挂在子文件夹行上（见 BuildFolderItem）。
+                 超过 FolderMenuMax 行时末尾有一条可点的「显示其余 N 项」，点开就全列出来。 -->
             <ListBox x:Name="FolderList" SelectionMode="Single" Background="Transparent"
                      SelectionChanged="FolderList_SelectionChanged"
                      ScrollViewer.VerticalScrollBarVisibility="Auto"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                      BorderThickness="0" Padding="0"/>
-            <!-- 空文件夹：这块卡仍然可见，方便用户直接换一个目录 -->
+            <!-- 空文件夹（或搜索没命中）：这块卡仍然可见，方便用户直接换一个目录 -->
             <TextBlock x:Name="TxtFolderEmpty" IsVisible="False"
                        HorizontalAlignment="Center" VerticalAlignment="Center" Margin="12,10"
                        Classes="caption" TextWrapping="Wrap" TextAlignment="Center"
@@ -689,9 +696,13 @@
                       FontSize="{DynamicResource FontSmall}" IsChecked="True" VerticalAlignment="Center"
                       IsCheckedChanged="Overlay_Changed"
                       ToolTip.Tip="勾选时，倒计时与演奏期间在屏幕右上角显示一个置顶悬浮窗：倒计时秒数、进度条与当前音。浮窗可拖动，位置自动记忆"/>
+            <CheckBox x:Name="ChkOverlayHideOnPause" Content="暂停后关闭悬浮窗"
+                      FontSize="{DynamicResource FontSmall}" IsChecked="True" VerticalAlignment="Center"
+                      IsCheckedChanged="OverlayHideOnPause_Changed"
+                      ToolTip.Tip="勾选时，暂停也把悬浮窗收起来（不再挡着画面），继续演奏时自动弹回来，不用去设置里重开"/>
           </WrapPanel>
           <TextBlock Classes="caption" TextWrapping="Wrap" LineHeight="19"
-                     Text="皮肤分浅色（白）与深色（黑），也可以跟随系统。自检常驻在主界面右上方的状态卡里，这里关掉就不再显示。悬浮窗浮在目标程序画面上，倒计时与演奏进度不用切回来看；点悬浮窗右上角的 ✕ 也能直接关掉它。"/>
+                     Text="皮肤分浅色（白）与深色（黑），也可以跟随系统。自检常驻在主界面右上方的状态卡里，这里关掉就不再显示。悬浮窗浮在目标程序画面上，倒计时与演奏进度不用切回来看；暂停时默认把它收起来，继续时自动弹回，不想要可以在上面取消勾选。点悬浮窗右上角的 ✕ 只让本次播放不再弹它，设置里的开关不动。"/>
         </StackPanel>
       </Border>
 
