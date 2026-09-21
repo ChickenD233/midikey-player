@@ -19,9 +19,11 @@ public static class MidiExporter
         foreach (var n in notes)
         {
             int pitch = Math.Clamp(n.Pitch, 0, 127);
+            // 用力度的调用方（音频转写）会带上真实力度；没带就沿用旧的固定值
+            int velocity = Math.Clamp(n.Velocity > 0 ? n.Velocity : 90, 1, 127);
             long on = Tick(n.Start);
             long off = Math.Max(on + 1, Tick(n.End));   // 至少 1 tick，否则是零长度音
-            events.Add((on, new NoteOnEvent((SevenBitNumber)pitch, (SevenBitNumber)90)));
+            events.Add((on, new NoteOnEvent((SevenBitNumber)pitch, (SevenBitNumber)velocity)));
             events.Add((off, new NoteOffEvent((SevenBitNumber)pitch, (SevenBitNumber)0)));
         }
         // 同刻先关后开：同音重叠时不会把前一个音提前掐掉

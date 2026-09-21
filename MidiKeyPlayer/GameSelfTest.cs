@@ -79,6 +79,7 @@ internal static class GameSelfTest
             TestRobloxPiano();
             TestFf14Piano();
             TestChordScheduling();
+            TestAudioToMidi();
         }
         catch (Exception ex)
         {
@@ -548,6 +549,132 @@ internal static class GameSelfTest
             if (held > max) max = held;
         }
         return max;
+    }
+
+    // ================= 音频转 MIDI =================
+
+    /// <summary>
+    /// 音频转 MIDI 自检：WAV 解析、重采样、模型推理、音符解码四段各来一条。
+    /// 全部自造数据，不依赖任何外部文件；跑一次约 0.2 秒（一次模型推理）。
+    /// </summary>
+    private static void TestAudioToMidi()
+    {
+        TestWavParsing();
+        TestResampler();
+        TestTranscribe();
+    }
+
+    /// <summary>自己拼一个 16 位立体声 WAV，再读回来比对（覆盖块偏移与声道降混）。</summary>
+    private static void TestWavParsing()
+    {
+        string path = Path.Combine(Path.GetTempPath(), "midikey-selftest.wav");
+        const int frames = 1000;
+        var bytes = new List<byte>();
+        void Ascii(string s) { foreach (char c in s) bytes.Add((byte)c); }
+        void U32(uint v) => bytes.AddRange(BitConverter.GetBytes(v));
+        void U16(ushort v) => bytes.AddRange(BitConverter.GetBytes(v));
+
+        Ascii("RIFF");
+        U32((uint)(36 + frames * 4));
+        Ascii("WAVE");
+        Ascii("fmt ");
+        U32(16);
+        U16(1);            // PCM
+        U16(2);            // 立体声
+        U32(44100);
+        U32(44100 * 4);
+        U16(4);
+        U16(16);
+        Ascii("data");
+        U32((uint)(frames * 4));
+        for (int i = 0; i < frames; i++)
+        {
+            short v = (short)(i * 30 - 15000);   // 左声道
+            bytes.AddRange(BitConverter.GetBytes(v));
+            bytes.AddRange(BitConverter.GetBytes((short)0));   // 右声道固定 0
+        }
+        File.WriteAllBytes(path, bytes.ToArray());
+
+        bool ok = Audio.AudioDecoder.TryReadWav(path, out var wav);
+        Check("音频：WAV 解析通过", ok, Audio.AudioDecoder.LastWavError);
+        Check("音频：采样率 44100、2 声道", wav.Rate == 44100 && wav.Channels == 2,
+            $"{wav.Rate} Hz {wav.Channels} 声道");
+        Check("音频：采样数正确", wav.Samples.Length == frames * 2, $"实际 {wav.Samples.Length}");
+        var mono = Audio.AudioDecoder.ToMono(wav.Samples, wav.Channels);
+        Check("音频：立体声降混取平均",
+            mono.Length == frames && Math.Abs(mono[10] - (10 * 30 - 15000) / 32768.0 / 2) < 1e-6,
+            $"mono[10]={mono[10]:F6}");
+        try { File.Delete(path); } catch { }
+    }
+
+    /// <summary>44.1 kHz 正弦降到 22.05 kHz：长度减半，能量不塌（窗函数写错会掉到零头）。</summary>
+    private static void TestResampler()
+    {
+        const int rate = 44100;
+        int n = rate / 4;                       // 0.25 秒
+        var input = new float[n];
+        for (int i = 0; i < n; i++)
+            input[i] = (float)(0.5 * Math.Sin(2 * Math.PI * 440 * i / rate));
+        var output = Audio.Resampler.Resample(input, rate, Audio.BasicPitch.SampleRate);
+        Check("音频：重采样长度减半", Math.Abs(output.Length - n / 2) <= 1,
+            $"输入 {n}，输出 {output.Length}");
+
+        double inRms = Rms(input), outRms = Rms(output);
+        Check("音频：重采样后能量保持（±5%）", Math.Abs(outRms - inRms) / inRms < 0.05,
+            $"输入 RMS {inRms:F4}，输出 {outRms:F4}");
+
+        // 同采样率不做任何处理
+        var same = Audio.Resampler.Resample(input, rate, rate);
+        Check("音频：同采样率原样返回", ReferenceEquals(same, input));
+    }
+
+    /// <summary>合成一个 C 大三和弦，走完整条链路，断言三个音高都被认出来。</summary>
+    private static void TestTranscribe()
+    {
+        const int rate = Audio.BasicPitch.SampleRate;
+        int n = rate * 2;                       // 2 秒
+        var audio = new float[n];
+        int[] chord = { 60, 64, 67 };
+        for (int i = 0; i < n; i++)
+        {
+            double t = i / (double)rate;
+            double env = Math.Exp(-2.0 * t) * (t > 0.05 ? 1.0 : t / 0.05);
+            double sum = 0;
+            foreach (int pitch in chord)
+            {
+                double f = 440.0 * Math.Pow(2, (pitch - 69) / 12.0);
+                sum += Math.Sin(2 * Math.PI * f * t) + 0.3 * Math.Sin(4 * Math.PI * f * t);
+            }
+            audio[i] = (float)(sum / 3.0 * 0.3 * env);
+        }
+
+        var bp = Audio.BasicPitch.Load();
+        var result = bp.Predict(audio);
+        // 2 秒音频 = 2 个窗口：每窗 172 帧、去掉首尾各 15 帧重叠得 142 帧，
+        // 再按「原长 / 窗跳」截断 → 173 帧。写死这个数，窗跳与拼接算法一改就会红。
+        Check("音频：模型输出帧数符合预期", result.Frames == 173, $"实际 {result.Frames} 帧");
+        float max = 0;
+        foreach (float v in result.Note) if (v > max) max = v;
+        Check("音频：音高激活值在 0..1 之间", max > 0.1f && max <= 1.0001f, $"最大值 {max:F3}");
+
+        var notes = Audio.NoteDecoder.Decode(result.Note, result.Onset, result.Frames);
+        var pitches = new HashSet<int>();
+        foreach (var e in notes) pitches.Add(e.Pitch);
+        int found = 0;
+        foreach (int pitch in chord) if (pitches.Contains(pitch)) found++;
+        Check("音频：和弦三个音都识别出来", found == 3,
+            $"识别到 {string.Join(",", pitches.OrderBy(p => p))}");
+        Check("音频：音符时值都为正",
+            notes.All(e => e.EndFrame > e.StartFrame && e.Amplitude > 0),
+            $"共 {notes.Count} 个音");
+    }
+
+    private static double Rms(float[] data)
+    {
+        if (data.Length == 0) return 0;
+        double sum = 0;
+        foreach (float v in data) sum += v * (double)v;
+        return Math.Sqrt(sum / data.Length);
     }
 
     // ================= 断言 =================

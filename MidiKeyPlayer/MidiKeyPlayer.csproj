@@ -46,6 +46,12 @@
          复现步骤与完整记录见 midikey-audit\fixes\58-trim-verify.md。 -->
     <PublishTrimmed>true</PublishTrimmed>
     <TrimMode>partial</TrimMode>
+    <!-- 音频转 MIDI 要用 Media Foundation 的 COM 接口（Audio\AudioDecoder.cs 里那组
+         IMFSourceReader / IMFMediaType 声明）。开裁剪时 SDK 会把
+         System.Runtime.InteropServices.BuiltInComInterop.IsSupported 这个功能开关置为 false，
+         一旦置 false，任何 [ComImport] 调用都会抛「Built-in COM has been disabled」。
+         打开它才能让 COM 互操作在裁剪版里可用（代价是保留互操作支撑代码，几百 KB）。 -->
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
   </PropertyGroup>
 
   <!-- 裁剪时钉住的程序集：这些程序集的类型与成员必须全部保留。
@@ -76,6 +82,14 @@
   <!-- 原 App 图标资源。 -->
   <ItemGroup>
     <AvaloniaResource Include="Assets\app.ico" />
+  </ItemGroup>
+
+  <!-- 音频转 MIDI 的模型：Spotify basic-pitch（ICASSP 2022，Apache-2.0），230 KB。
+       这里用 EmbeddedResource 而不是 AvaloniaResource，理由与下面那组合规文本相反：
+       自检进程在任何界面框架初始化之前就跑，而 AvaloniaResource 只能经 AssetLoader 读，
+       没有 Avalonia 就取不到。固定 LogicalName，代码按常量读（见 Audio\BasicPitch.cs）。 -->
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\nmp.onnx" LogicalName="MidiKeyPlayer.Assets.nmp.onnx" />
   </ItemGroup>
 
   <!-- 合规文本：不再作为松散文件进包，一律嵌进 exe，随程序一起分发。

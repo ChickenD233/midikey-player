@@ -34,7 +34,30 @@ Avalonia 资源地址是 `avares://MidiKeyPlayer/Docs/THIRD-PARTY-NOTICES.md`。
 释放到 `%LOCALAPPDATA%\MidiKeyPlayer\` 再加载。来源：
 https://github.com/Chaoses-Ib/IbInputSimulator/releases 。
 
-## 3. 传递依赖
+## 3. 内置的音频转 MIDI 模型与算法（basic-pitch）
+
+「从音频转 MIDI」用 Spotify 的 basic-pitch 模型。模型文件以嵌入资源进 exe，不落松散文件。
+
+| 组件 | 版本 | 许可 | 版权行 |
+|---|---|---|---|
+| basic-pitch 模型（ICASSP 2022，`nmp.onnx`，230 KB） | 0.4.0 的模型 | Apache-2.0 | Copyright 2022 Spotify AB |
+| basic-pitch 音符解码算法（`note_creation.py` 的移植） | 0.4.0 | Apache-2.0 | Copyright 2022 Spotify AB |
+
+来源：https://github.com/spotify/basic-pitch 。
+
+本程序里的对应实现：
+
+- `MidiKeyPlayer/Assets/nmp.onnx` — 模型本体，原封不动的官方导出。
+  嵌入名 `MidiKeyPlayer.Assets.nmp.onnx`（见 `Audio\BasicPitch.cs`）。
+- `MidiKeyPlayer/Audio/Onnx/` — 自写的极简 ONNX 执行器，只实现这个模型用到的 23 个算子，
+  不含任何 basic-pitch 源码。
+- `MidiKeyPlayer/Audio/NoteDecoder.cs` — 把 `basic_pitch/note_creation.py` 的
+  `output_to_notes_polyphonic` 改写成 C#。相对上游删掉了弯音（pitch bend）一支：
+  按键播放器发不出弯音，卷帘也不显示它。
+
+推理参考实现（上游口径）与逐窗口数值比对脚本不在发布包里，只在开发机上用。
+
+## 4. 传递依赖
 
 还原结果里还有下列组件。Windows x64 单文件产物会带上其中的托管程序集与原生库。
 构建期工具 `Microsoft.NET.ILLink.Tasks 8.0.31` 不进包，故不列。
@@ -57,7 +80,7 @@ https://github.com/Chaoses-Ib/IbInputSimulator/releases 。
 | Tmds.DBus.Protocol | 0.21.3 | MIT | Copyright Tom Deseyn |
 | Avalonia.Angle.Windows.Natives（ANGLE） | 2.1.25547.20250602 | BSD 3-Clause | Copyright 2018 The ANGLE Project Authors |
 
-## 4. .NET 8 运行时（随 exe 分发）
+## 5. .NET 8 运行时（随 exe 分发）
 
 发布 exe 是自包含单文件（`MidiKeyPlayer.csproj` 里 `SelfContained` + `PublishSingleFile`）。
 .NET 8 运行时已内嵌在这个 exe 里，并随包分发。
@@ -76,7 +99,7 @@ Zlib、Mono（MIT）、W3C 文档许可、LLVM（Apache-2.0 with LLVM Exceptions
 
 本文件不逐条抄录这份清单。该清单也没有嵌进 exe。
 
-## 5. MIT 许可全文（适用于第 1、2、3、4 节里标 MIT 的组件）
+## 6. MIT 许可全文（适用于第 1、2、4、5 节里标 MIT 的组件）
 
 ```
 MIT License
@@ -100,9 +123,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-每个 MIT 组件的版权行见第 1、2、3 节表格。
+每个 MIT 组件的版权行见第 1、2、4 节表格。
 
-## 6. BSD 3-Clause 许可全文（ANGLE）
+## 7. BSD 3-Clause 许可全文（ANGLE）
 
 ```
 // Copyright 2018 The ANGLE Project Authors.
@@ -144,3 +167,214 @@ SOFTWARE.
 `Avalonia.Angle.Windows.Natives` 是例外：它的 `.nuspec` 写 `<license type="file">LICENSE</license>`，
 `<copyright>` 是 `Copyright 2013-2025 © The AvaloniaUI Project`。
 ANGLE 的许可全文与版权行 `Copyright 2018 The ANGLE Project Authors` 取自包内 `LICENSE` 文件。
+
+## 8. Apache-2.0 许可全文（basic-pitch）
+
+```
+Copyright 2022 Spotify AB
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
+
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
+
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
+
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
+
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
+
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
+
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
+
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
+
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
+
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
+
+      (b) You must cause any modified files to carry prominent notices
+          stating that You changed the files; and
+
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
+
+      (d) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
+
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
+
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
+
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
+
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
+
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
+
+   9. Accepting Warranty or Additional Liability. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or additional liability.
+
+   END OF TERMS AND CONDITIONS
+
+   APPENDIX: How to apply the Apache License to your work.
+
+      To apply the Apache License to your work, attach the following
+      boilerplate notice, with the fields enclosed by brackets "[]"
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
+
+   Copyright [yyyy] [name of copyright owner]
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+```
+
+许可原文取自 basic-pitch 仓库根 `LICENSE`（https://github.com/spotify/basic-pitch/blob/main/LICENSE ），
+版权行是 `Copyright 2022 Spotify AB`。
