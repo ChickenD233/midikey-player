@@ -269,46 +269,63 @@ public partial class MainWindow : Window
             SetupTray();
             Opened += (_, _) => EnsureTray();
         }
-        Opened += (_, _) => ShowQuickStartOnce();
-        Opened += (_, _) => ShowFirstRunGateOnce();
+        Opened += (_, _) => ShowStartupOnce();
 
         InstallDevSnapshot(this);   // 【开发用，可删】设了 MIDIKEY_UI_SNAPSHOT 才生效，见 DevUISnapshot.cs
         InstallPreviewProbe(this);  // 【开发用，可删】设了 MIDIKEY_PREVIEW_PROBE=1 才生效，见 DevPreviewProbe.cs
     }
 
-    // ================= 首次启动“快速上手” / 关于卡里的「使用教程」 =================
+    // ================= 启动浮层（免费声明 + 验证题 + 快速上手，合成一层） =================
 
     /// <summary>
-    /// 首次启动弹一次快速上手。设置里记过 FirstRunDone 就不再弹。
-    /// 「关于」卡里的「使用教程」按钮走 <see cref="Tutorial_Click"/>，随时可以再看一遍。
+    /// 启动浮层：首次启动、免费声明文案换过、或还没答过验证题时弹一次。
+    /// 三层合成一层，只有一个「知道了」。「关于」卡里的「使用教程」也走这里。
+    /// 无人值守的探针不弹。
     /// </summary>
-    private void ShowQuickStartOnce()
+    private void ShowStartupOnce()
     {
-        if (_cfg == null || _cfg.FirstRunDone || QuickStartOverlay == null) return;
-        QuickStartOverlay.IsVisible = true;
+        if (_cfg == null || StartupOverlay == null) return;
+        bool firstRun = !_cfg.FirstRunDone;
+        bool noticeDue = !string.Equals(_cfg.NoticeShownVersion, AutoUpdate.NoticeVersion,
+                                        StringComparison.Ordinal);
+        if (!firstRun && !noticeDue && _cfg.AuthorQuizPassed) return;
+        ShowStartupOverlay();
     }
 
-    /// <summary>「使用教程」：再弹一遍快速上手。不写 FirstRunDone（它只是记录首次启动跑过了）。</summary>
+    /// <summary>把启动浮层铺出来。验证题只在没答对过时显示。</summary>
+    private void ShowStartupOverlay()
+    {
+        if (StartupOverlay == null) return;
+        if (TxtStartupVersion != null)
+            TxtStartupVersion.Text = $"v{AutoUpdate.CurrentVersion}　免费开源";
+        if (PanelStartupQuiz != null)
+            PanelStartupQuiz.IsVisible = _cfg != null && !_cfg.AuthorQuizPassed;
+        if (TxtQuizError != null) TxtQuizError.IsVisible = false;
+        if (TxtQuizAnswer != null) TxtQuizAnswer.Text = "";
+        StartupOverlay.IsVisible = true;
+    }
+
+    /// <summary>「使用教程」：再弹一遍启动浮层（验证题已答过就不再显示）。</summary>
     private void Tutorial_Click(object? sender, RoutedEventArgs e)
     {
-        if (QuickStartOverlay == null) return;
-        QuickStartOverlay.IsVisible = true;
-        BtnQuickStartOk?.Focus();
+        ShowStartupOverlay();
+        BtnStartupOk?.Focus();
     }
 
     /// <summary>【开发用】浮层快照走这条：与「使用教程」按钮同一条链路。</summary>
     internal void ShowTutorialForDev() => Tutorial_Click(null, new RoutedEventArgs());
 
-    private void QuickStartOk_Click(object? sender, RoutedEventArgs e)
+    /// <summary>启动浮层上的「知道了」：记下已看过，关掉浮层。</summary>
+    private void StartupDone_Click(object? sender, RoutedEventArgs e)
     {
-        if (QuickStartOverlay != null) QuickStartOverlay.IsVisible = false;
-        if (_cfg != null && !_cfg.FirstRunDone)
+        if (StartupOverlay != null) StartupOverlay.IsVisible = false;
+        if (_cfg != null)
         {
             _cfg.FirstRunDone = true;
+            _cfg.NoticeShownVersion = AutoUpdate.NoticeVersion;
             _cfg.Save();
         }
-        // 首次启动时两层的顺序：先关「快速上手」，再弹「第一次」的闸门（不叠在一起）
-        if (_startupGatePending) ShowFirstRunGateOnce();
+        InsertLog($"本程序免费开源，作者是 B 站 {AutoUpdate.AuthorName}。");
     }
 
     // ================= 全局热键 =================
@@ -2797,63 +2814,23 @@ public partial class MainWindow : Window
     // ================= 免费声明 / 作者链接 / 强制更新 =================
 
     private bool _forcedUpdateOn;      // 强制更新浮层正在显示：所有「开始播放」的入口都挡住
-    private bool _startupGatePending;   // 「第一次」的浮层要等「快速上手」关掉之后再弹
     private int _quizFails;             // 验证题答错次数：第一次只提示，第二次才把答案说出来
 
     /// <summary>把免费声明与作者链接从常量填进界面（常量只有一份，见 AutoUpdate）。</summary>
     private void FillAboutLinks()
     {
-        string links = $"作者：B 站 {AutoUpdate.AuthorSpaceUrlShort}\n"
-            + $"反馈与更新：QQ 群 {AutoUpdate.QqGroupNumber}　下载页：{AutoUpdate.ReleasesUrl}";
-
         if (TxtFreeNotice != null) TxtFreeNotice.Text = AutoUpdate.FreeNoticeShort;
         if (BtnAuthorSpace != null) ToolTip.SetTip(BtnAuthorSpace, AutoUpdate.AuthorSpaceUrl);
         if (BtnCopyQq != null) BtnCopyQq.Content = $"复制 QQ 群号 {AutoUpdate.QqGroupNumber}";
+        // 启动浮层里的免费声明：用正式版全文，不用常规页那两行缩写
         if (TxtFreeNoticeBody != null) TxtFreeNoticeBody.Text = AutoUpdate.FreeNotice;
-        if (TxtFreeNoticeWhere != null) TxtFreeNoticeWhere.Text = links;
         if (TxtForcedNotice != null) TxtForcedNotice.Text = AutoUpdate.FreeNotice;
-        if (TxtQuizRefund != null) TxtQuizRefund.Text = AutoUpdate.QuizRefundNote;
     }
 
     /// <summary>
-    /// 启动时的「第一次」闸门，只会挡一次：
-    /// - 没有答过作者 B 站 ID（老用户更新上来、新用户第一次用）→ 弹验证题，题里有免费声明与退款提示；
-    ///   答对写进设置（<see cref="Persist.AppConfig.AuthorQuizPassed"/>），以后每次更新都不再弹。
-    /// - 已经答过、但免费声明的文案版本变了 → 只弹一次免费声明。
-    /// 无人值守的探针不弹。
+    /// 验证题：第一次使用时问一次作者的 B 站 ID。答对写进设置，以后不再问。
+    /// 它只是一道题，不是进门的锁：启动浮层上的「知道了」随时能关掉。
     /// </summary>
-    private void ShowFirstRunGateOnce()
-    {
-        if (_cfg == null) return;
-        if (PreviewProbeMode.On || DevSnapshotMode.On) return;
-        if (_forcedUpdateOn) return;   // 强制更新优先：先更新，更新完再走这道闸门
-
-        bool quizDue = !_cfg.AuthorQuizPassed;
-        bool noticeDue = !string.Equals(_cfg.NoticeShownVersion, AutoUpdate.NoticeVersion,
-                                        StringComparison.Ordinal);
-        if (!quizDue && !noticeDue) return;
-
-        if (QuickStartOverlay is { IsVisible: true })
-        {
-            _startupGatePending = true;   // 首次启动：先关「快速上手」
-            return;
-        }
-        _startupGatePending = false;
-        if (quizDue) ShowQuizOverlay(); else ShowFreeNoticeOverlay();
-    }
-
-    /// <summary>验证浮层：第一次使用时问一次作者的 B 站 ID。</summary>
-    private void ShowQuizOverlay()
-    {
-        _quizFails = 0;
-        TxtQuizError.IsVisible = false;
-        TxtQuizRefund.Text = AutoUpdate.QuizRefundNote;
-        TxtQuizAnswer.Text = "";
-        QuizOverlay.IsVisible = true;
-        TxtQuizAnswer.Focus();
-        InsertLog("第一次使用：请输入作者的 B 站 ID。");
-    }
-
     private void QuizConfirm_Click(object? sender, RoutedEventArgs e) => SubmitQuizAnswer();
 
     /// <summary>验证题输入框：直接回车等于点「确认」。</summary>
@@ -2880,25 +2857,13 @@ public partial class MainWindow : Window
         }
 
         _cfg.AuthorQuizPassed = true;
-        _cfg.NoticeShownVersion = AutoUpdate.NoticeVersion;   // 题里已经写了免费声明，不再单独弹
-        _cfg.Save();
-        QuizOverlay.IsVisible = false;
-        InsertLog($"验证通过：本程序免费开源，作者是 B 站 {AutoUpdate.AuthorName}。");
-        InsertLog($"作者 B 站：{AutoUpdate.AuthorSpaceUrlShort}　反馈 QQ 群：{AutoUpdate.QqGroupNumber}");
-    }
-
-    private void ShowFreeNoticeOverlay()
-    {
-        if (_cfg == null) return;
-        _startupGatePending = false;
+        _cfg.FirstRunDone = true;
         _cfg.NoticeShownVersion = AutoUpdate.NoticeVersion;
         _cfg.Save();
-        FreeNoticeOverlay.IsVisible = true;
-    }
-
-    private void FreeNoticeOk_Click(object? sender, RoutedEventArgs e)
-    {
-        FreeNoticeOverlay.IsVisible = false;
+        if (PanelStartupQuiz != null) PanelStartupQuiz.IsVisible = false;
+        if (StartupOverlay != null) StartupOverlay.IsVisible = false;   // 答对就进主界面
+        InsertLog($"验证通过：本程序免费开源，作者是 B 站 {AutoUpdate.AuthorName}。");
+        InsertLog($"作者 B 站：{AutoUpdate.AuthorSpaceUrlShort}　反馈 QQ 群：{AutoUpdate.QqGroupNumber}");
     }
 
     private void OpenAuthorSpace_Click(object? sender, RoutedEventArgs e)

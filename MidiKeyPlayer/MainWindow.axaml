@@ -774,85 +774,52 @@
     </StackPanel>
   </Border>
 
-  <!-- 首次启动浮层。点「知道了」后写入设置，之后不再弹出。 -->
-  <Border x:Name="QuickStartOverlay" IsVisible="False" Background="#66101828" CornerRadius="0">
-    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520" Margin="24">
-      <Border Classes="card" Padding="24,20">
-        <StackPanel Spacing="9">
-          <TextBlock Text="快速上手" FontSize="17" FontWeight="Bold"/>
-          <TextBlock TextWrapping="Wrap" FontSize="{DynamicResource FontBody}" LineHeight="21"
-                     Text="1. 打开 MIDI。在左侧点一行作为主旋律轨（选中的行带 ● 标记）。"/>
-          <TextBlock TextWrapping="Wrap" FontSize="{DynamicResource FontBody}" LineHeight="21"
-                     Text="2. 按 F6 播放。倒计时结束前切到目标程序，装备乐器。"/>
-          <TextBlock TextWrapping="Wrap" FontSize="{DynamicResource FontBody}" LineHeight="21"
-                     Text="3. F6 一个键四用：空闲开始，播放暂停，再按继续，倒计时取消。"/>
-          <Border Background="{DynamicResource BrushWarnSoft}" BorderBrush="{DynamicResource BrushWarnBorder}"
-                  BorderThickness="1" CornerRadius="8" Padding="12,9" Margin="0,3,0,0">
-            <TextBlock TextWrapping="Wrap" FontSize="{DynamicResource FontSmall}" LineHeight="19"
-                       Text="目标程序用窗口化。输入法切英文。没反应就先点一下目标窗口。"/>
-          </Border>
-          <Button x:Name="BtnQuickStartOk" Content="知道了" Classes="accent"
-                  HorizontalAlignment="Right" Padding="18,7" FontSize="{DynamicResource FontTitle}" Margin="0,4,0,0"
-                  Click="QuickStartOk_Click"/>
-        </StackPanel>
-      </Border>
-    </StackPanel>
-  </Border>
-
-  <!-- 免费声明浮层：文案版本变了才弹一次（见 AutoUpdate.NoticeVersion 与设置里的 NoticeShownVersion）。
-       正文与群号由代码从常量填。 -->
-  <Border x:Name="FreeNoticeOverlay" IsVisible="False" Background="#66101828" CornerRadius="0">
-    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="580" Margin="24">
+  <!-- 启动浮层：首次启动、换过免费声明文案、或还没答过验证题时弹一次。
+       免费声明、验证题、快速上手合成这一层，只有一个「知道了」。
+       点它写入 FirstRunDone 与 NoticeShownVersion，之后不再弹；
+       「关于」卡里的「使用教程」可以随时把它叫回来。 -->
+  <Border x:Name="StartupOverlay" IsVisible="False" Background="#66101828" CornerRadius="0">
+    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="560" Margin="24">
       <Border Classes="card" Padding="24,20">
         <StackPanel Spacing="10">
-          <TextBlock Text="本程序免费，别花钱买" FontSize="17" FontWeight="Bold"/>
-          <TextBlock x:Name="TxtFreeNoticeBody" TextWrapping="Wrap"
-                     FontSize="{DynamicResource FontBody}" LineHeight="21"/>
-          <TextBlock x:Name="TxtFreeNoticeWhere" TextWrapping="Wrap"
-                     FontSize="{DynamicResource FontSmall}" LineHeight="19"
+          <TextBlock Text="MIDI 按键播放器" FontSize="17" FontWeight="Bold"/>
+          <TextBlock x:Name="TxtStartupVersion" FontSize="{DynamicResource FontSmall}"
                      Foreground="{DynamicResource BrushTextSecondary}"/>
-          <WrapPanel ItemSpacing="10" LineSpacing="8">
-            <Button Content="爱发电（赞助）" FontSize="{DynamicResource FontSmall}" Padding="12,5"
-                    Classes="secondary" Click="OpenAfdian_Click"
-                    ToolTip.Tip="赞助完全自愿：程序一直免费，赞不赞助功能都一样。入口也在 设置 → 赞助"/>
-            <Button Content="B 站主页" FontSize="{DynamicResource FontSmall}" Padding="12,5"
-                    Classes="secondary" Click="OpenAuthorSpace_Click"/>
-            <Button Content="复制 QQ 群号" FontSize="{DynamicResource FontSmall}" Padding="12,5"
-                    Classes="secondary" Click="CopyQq_Click"/>
-            <Button Content="打开下载页" FontSize="{DynamicResource FontSmall}" Padding="12,5"
-                    Classes="secondary" Click="OpenReleases_Click"/>
-          </WrapPanel>
-          <Button x:Name="BtnFreeNoticeOk" Content="知道了" Classes="accent"
-                  HorizontalAlignment="Right" Padding="18,7" FontSize="{DynamicResource FontTitle}" Margin="0,4,0,0"
-                  Click="FreeNoticeOk_Click"/>
-        </StackPanel>
-      </Border>
-    </StackPanel>
-  </Border>
 
-  <!-- 第一次使用的验证浮层：填对作者的 B 站 ID 才能进。
-       题面上不出现作者名字（名字就是答案）；链接只留下面三个按钮，不再重复列文字。
-       只在设置里没答对过时弹一次（AppConfig.AuthorQuizPassed），以后每次更新都不再弹。 -->
-  <Border x:Name="QuizOverlay" IsVisible="False" Background="#66101828" CornerRadius="0">
-    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="460" Margin="24">
-      <Border Classes="card" Padding="22,18">
-        <StackPanel Spacing="10">
-          <TextBlock FontSize="16" FontWeight="Bold" Text="请输入作者的 B 站 ID"/>
-          <WrapPanel ItemSpacing="8" LineSpacing="8">
-            <TextBox x:Name="TxtQuizAnswer" Width="230" FontSize="{DynamicResource FontBody}"
-                     Watermark="作者的 B 站 ID" KeyDown="QuizAnswer_KeyDown"/>
-            <Button x:Name="BtnQuizOk" Content="确认" Classes="accent" Padding="18,6"
-                    FontSize="{DynamicResource FontTitle}" Click="QuizConfirm_Click"/>
-          </WrapPanel>
-          <TextBlock x:Name="TxtQuizError" TextWrapping="Wrap" IsVisible="False"
-                     FontSize="{DynamicResource FontSmall}" LineHeight="19"
-                     Foreground="{DynamicResource BrushDangerText}"/>
-          <TextBlock x:Name="TxtQuizRefund" TextWrapping="Wrap"
-                     FontSize="{DynamicResource FontSmall}" LineHeight="19"
-                     Foreground="{DynamicResource BrushDangerText}"/>
-          <TextBlock Text="祝倒狗冚家富貴=）" FontSize="{DynamicResource FontSmall}"
-                     LineHeight="19" Foreground="{DynamicResource BrushTextSecondary}"/>
-          <WrapPanel ItemSpacing="8" LineSpacing="8">
+          <Border Background="{DynamicResource BrushWarnSoft}" BorderBrush="{DynamicResource BrushWarnBorder}"
+                  BorderThickness="1" CornerRadius="8" Padding="12,9">
+            <TextBlock x:Name="TxtFreeNoticeBody" TextWrapping="Wrap"
+                       FontSize="{DynamicResource FontSmall}" LineHeight="19"/>
+          </Border>
+
+          <TextBlock Text="三步上手" FontSize="{DynamicResource FontSmall}" FontWeight="SemiBold" Margin="0,2,0,0"/>
+          <TextBlock TextWrapping="Wrap" FontSize="{DynamicResource FontBody}" LineHeight="21"
+                     Text="1. 打开 MIDI，在左侧点一行作为主旋律轨。"/>
+          <TextBlock TextWrapping="Wrap" FontSize="{DynamicResource FontBody}" LineHeight="21"
+                     Text="2. 按 F6 播放。倒计时内切到目标程序并装备乐器。"/>
+          <TextBlock TextWrapping="Wrap" FontSize="{DynamicResource FontBody}" LineHeight="21"
+                     Text="3. F6 四用：空闲开始，播放暂停，再按继续，倒计时取消。"/>
+          <TextBlock TextWrapping="Wrap" FontSize="{DynamicResource FontSmall}" LineHeight="19"
+                     Foreground="{DynamicResource BrushTextSecondary}"
+                     Text="目标程序用窗口化，输入法切英文。没反应就先点一下目标窗口。"/>
+
+          <!-- 验证题：没答对过才显示（AppConfig.AuthorQuizPassed）。答对并选「验证」。
+               答之前「知道了」也能关掉浮层：它只是一道题，不是进门的锁。 -->
+          <StackPanel x:Name="PanelStartupQuiz" Spacing="8" Margin="0,4,0,0">
+            <TextBlock FontSize="{DynamicResource FontSmall}" FontWeight="SemiBold"
+                       Text="作者的 B 站 ID（答对只记一次，不挡使用）"/>
+            <WrapPanel ItemSpacing="8" LineSpacing="8">
+              <TextBox x:Name="TxtQuizAnswer" Width="240" FontSize="{DynamicResource FontBody}"
+                       Watermark="作者的 B 站 ID" KeyDown="QuizAnswer_KeyDown"/>
+              <Button x:Name="BtnQuizOk" Content="验证" Classes="secondary" Padding="18,6"
+                      FontSize="{DynamicResource FontTitle}" Click="QuizConfirm_Click"/>
+            </WrapPanel>
+            <TextBlock x:Name="TxtQuizError" TextWrapping="Wrap" IsVisible="False"
+                       FontSize="{DynamicResource FontSmall}" LineHeight="19"
+                       Foreground="{DynamicResource BrushDangerText}"/>
+          </StackPanel>
+
+          <WrapPanel ItemSpacing="10" LineSpacing="8">
             <Button Content="B 站主页" FontSize="{DynamicResource FontSmall}" Padding="12,5"
                     Classes="secondary" Click="OpenAuthorSpace_Click"/>
             <Button Content="复制 QQ 群号" FontSize="{DynamicResource FontSmall}" Padding="12,5"
@@ -860,6 +827,10 @@
             <Button Content="打开下载页" FontSize="{DynamicResource FontSmall}" Padding="12,5"
                     Classes="secondary" Click="OpenReleases_Click"/>
           </WrapPanel>
+
+          <Button x:Name="BtnStartupOk" Content="知道了" Classes="accent"
+                  HorizontalAlignment="Right" Padding="18,7" FontSize="{DynamicResource FontTitle}" Margin="0,4,0,0"
+                  Click="StartupDone_Click"/>
         </StackPanel>
       </Border>
     </StackPanel>

@@ -82,7 +82,7 @@ public partial class MainWindow
         prep.Tick += (_, _) =>
         {
             prep.Stop();
-            if (QuickStartOverlay != null) QuickStartOverlay.IsVisible = false;
+            if (StartupOverlay != null) StartupOverlay.IsVisible = false;
             if (!string.IsNullOrWhiteSpace(file))
             {
                 bool ok = LoadMidiFile(file);

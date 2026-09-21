@@ -108,7 +108,7 @@ public partial class MainWindow
             var overlayMode = Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_OVERLAY");
             if (!string.IsNullOrWhiteSpace(overlayMode))
             {
-                if (window.QuickStartOverlay != null) window.QuickStartOverlay.IsVisible = false;
+                if (window.StartupOverlay != null) window.StartupOverlay.IsVisible = false;
                 ShowOverlayForDev(window, overlayMode!);
                 Log($"浮层快照场景：{overlayMode}");
             }
@@ -146,13 +146,13 @@ public partial class MainWindow
                     // “快速上手”浮层会盖住主界面：先关掉拍主界面，再开它拍浮层
                     if (!string.IsNullOrWhiteSpace(path))
                     {
-                        if (window.QuickStartOverlay != null)
-                            window.QuickStartOverlay.IsVisible = false;
+                        if (window.StartupOverlay != null)
+                            window.StartupOverlay.IsVisible = false;
                         CaptureMain(window, path!);
 
-                        if (window.QuickStartOverlay != null)
+                        if (window.StartupOverlay != null)
                         {
-                            window.QuickStartOverlay.IsVisible = true;
+                            window.StartupOverlay.IsVisible = true;
                             CaptureMain(window, Suffix(path!, "-quickstart"));
                         }
                         Console.WriteLine($"UI snapshot saved: {path}");
@@ -160,8 +160,8 @@ public partial class MainWindow
 
                     if (!string.IsNullOrWhiteSpace(keymapPath))
                     {
-                        if (window.QuickStartOverlay != null)
-                            window.QuickStartOverlay.IsVisible = false;
+                        if (window.StartupOverlay != null)
+                            window.StartupOverlay.IsVisible = false;
                         // 键位窗口的拍照与退出都在它自己的计时器里做：
                         // 这里绝不能立刻 Environment.Exit，否则那个计时器根本跑不到。
                         CaptureKeymap(window, keymapPath!);
@@ -182,19 +182,21 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// 【开发用，可删】浮层快照：用真实代码把免费声明 / 强制更新浮层铺出来拍图。
-    /// 强制更新那条故意传空资产地址，所以不会真的联网下载，只走文案与失败提示。
+    /// 【开发用，可删】浮层快照：用真实代码把启动浮层铺出来拍图。
+    /// v1.3.0 起免费声明、验证题、快速上手合成一层：notice / quiz / tutorial 都拍这一层。
+    /// 强制更新是另一个浮层，传空资产地址，不会真的联网下载。
     /// </summary>
     private static void ShowOverlayForDev(MainWindow w, string mode)
     {
         if (string.Equals(mode, "forced", StringComparison.OrdinalIgnoreCase))
+        {
             w.ShowForcedUpdate("1.0.30", AutoUpdate.ReleasesUrl, "");
-        else if (string.Equals(mode, "quiz", StringComparison.OrdinalIgnoreCase))
-            w.ShowQuizOverlay();
-        else if (string.Equals(mode, "tutorial", StringComparison.OrdinalIgnoreCase))
-            w.ShowTutorialForDev();     // 「关于」卡里的「使用教程」按钮走的同一条链路
-        else
-            w.ShowFreeNoticeOverlay();
+            return;
+        }
+        w.ShowTutorialForDev();     // 「关于」卡里的「使用教程」按钮走的同一条链路
+        // quiz：把验证题那一块强制显示出来（跑脚本这台机器答过题时，设置里会把它藏掉）
+        if (string.Equals(mode, "quiz", StringComparison.OrdinalIgnoreCase) && w.PanelStartupQuiz != null)
+            w.PanelStartupQuiz.IsVisible = true;
     }
 
     /// <summary>
