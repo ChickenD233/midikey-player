@@ -24,34 +24,6 @@ internal static class Program
             return;
         }
 
-        // 音频转 MIDI 数值探针（MIDIKEY_BP_PROBE，见 Audio\AudioProbe.cs）：同样纯逻辑。
-        if (MidiKeyPlayer.Audio.AudioProbe.Requested)
-        {
-            Environment.Exit(MidiKeyPlayer.Audio.AudioProbe.Run());
-            return;
-        }
-
-        // 音频转 MIDI 整链路探针（MIDIKEY_BP_CONVERT=<音频路径>）：解码 → 推理 → 写 MIDI。
-        if (MidiKeyPlayer.Audio.AudioProbe.ConvertRequested)
-        {
-            Environment.Exit(MidiKeyPlayer.Audio.AudioProbe.RunConvert());
-            return;
-        }
-
-        // 人声 / 伴奏分离探针（MIDIKEY_STEM_PROBE=<模型目录>）：见 Audio\StemProbe.cs。
-        if (MidiKeyPlayer.Audio.StemProbe.Requested)
-        {
-            Environment.Exit(MidiKeyPlayer.Audio.StemProbe.Run());
-            return;
-        }
-
-        // 人声 / 伴奏分离模型探针（MIDIKEY_SPLEETER_PROBE=<模型目录>）：见 Audio\SpleeterProbe.cs。
-        if (MidiKeyPlayer.Audio.SpleeterProbe.Requested)
-        {
-            Environment.Exit(MidiKeyPlayer.Audio.SpleeterProbe.Run());
-            return;
-        }
-
         // 试听探针（MIDIKEY_PREVIEW_PROBE=1，见 DevPreviewProbe.cs）只放音频、不发按键、
         // 不注册全局热键，允许与用户正在用的实例并存。
         // 界面快照与文件夹换歌回归（MIDIKEY_UI_SNAPSHOT*，见 DevUISnapshot.cs）同理：
