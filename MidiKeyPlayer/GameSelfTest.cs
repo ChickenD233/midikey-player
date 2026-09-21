@@ -1,4 +1,6 @@
 using System.Text;
+using Melanchall.DryWetMidi.Common;
+using Melanchall.DryWetMidi.Core;
 using MidiKeyPlayer.Engine;
 using MidiKeyPlayer.Midi;
 
@@ -79,6 +81,7 @@ internal static class GameSelfTest
             TestRobloxPiano();
             TestFf14Piano();
             TestChordScheduling();
+            TestChordMerge();
             TestAudioToMidi();
             TestTrackRoles();
         }
@@ -536,6 +539,140 @@ internal static class GameSelfTest
         SoundingPitch = pitch,
         InRange = true,
     };
+
+    // ================= 和弦保留（谱面合并） =================
+
+    /// <summary>
+    /// 谱面合并自检：同一条声轨（同一个 Rank）同一时刻的音是和弦，必须**一个不丢**。
+    /// 用户报过「导入带和弦的 MIDI，和弦只剩一个音」，根因就在这里。
+    /// 另外钉住合奏的既有规则：不同声部同刻相撞时，编号小的优先。
+    /// </summary>
+    private static void TestChordMerge()
+    {
+        // 1) 一个声部里的三音和弦：一个音都不许少
+        var kept = NoteMapper.MergeVoicesByPriority(new List<(int, RawNote)>
+        {
+            (0, MergeNote(60, 0.0, 1.0)),
+            (0, MergeNote(64, 0.0, 1.2)),
+            (0, MergeNote(67, 0.0, 1.0)),
+        });
+        Check("和弦保留：一个声部的三音和弦全部留下", kept.Count == 3,
+              $"实际 {kept.Count} 个音：" + string.Join(",", kept.Select(n => Music.NoteName(n.Pitch))));
+
+        // 2) 和弦里各音长短不同：长音不能被截断，时值原样保留
+        var longNote = kept.FirstOrDefault(n => n.Pitch == 64);
+        Check("和弦保留：和弦里的长音时值不变（0.0000~1.2000）",
+              longNote != null && Math.Abs(longNote.Start) < 1e-9 && Math.Abs(longNote.End - 1.2) < 1e-9,
+              longNote == null ? "64 号音不见了" : $"{longNote.Start:F4}~{longNote.End:F4}");
+
+        // 3) 更宽的叠置和弦同样一个不落
+        var wide = new List<(int, RawNote)>();
+        foreach (int p in new[] { 55, 59, 62, 65, 69 }) wide.Add((0, MergeNote(p, 2.0, 2.5)));
+        int wideKept = NoteMapper.MergeVoicesByPriority(wide).Count;
+        Check("和弦保留：五音和弦全部留下", wideKept == 5, $"实际 {wideKept} 个音");
+
+        // 4) 同一音轨里「长音 + 和弦」同时响：也不能少
+        var layered = NoteMapper.MergeVoicesByPriority(new List<(int, RawNote)>
+        {
+            (0, MergeNote(48, 0.0, 4.0)),   // 低音长音
+            (0, MergeNote(60, 1.0, 1.5)),
+            (0, MergeNote(64, 1.0, 1.5)),
+            (0, MergeNote(67, 1.0, 1.5)),
+        });
+        Check("和弦保留：长音上叠三音和弦共 4 个音", layered.Count == 4, $"实际 {layered.Count} 个音");
+
+        // 5) 合奏规则不变：不同声部同刻相撞，只留编号小的那个
+        var clash = NoteMapper.MergeVoicesByPriority(new List<(int, RawNote)>
+        {
+            (0, MergeNote(60, 0.0, 1.0)),
+            (1, MergeNote(67, 0.0, 1.0)),
+        });
+        Check("合奏：不同声部同刻相撞时低编号优先",
+              clash.Count == 1 && clash[0].Pitch == 60,
+              $"实际 {clash.Count} 个音：" + string.Join(",", clash.Select(n => Music.NoteName(n.Pitch))));
+
+        // 6) 合奏：低优先级长音被压掉的前段让位，超出的尾巴要补回来
+        var tail = NoteMapper.MergeVoicesByPriority(new List<(int, RawNote)>
+        {
+            (0, MergeNote(60, 0.0, 1.0)),
+            (1, MergeNote(67, 0.0, 2.0)),
+        });
+        var tailNote = tail.FirstOrDefault(n => n.Pitch == 67);
+        Check("合奏：低优先级音的尾巴从 1.0000 补到 2.0000",
+              tailNote != null && Math.Abs(tailNote.Start - 1.0) < 1e-9 && Math.Abs(tailNote.End - 2.0) < 1e-9,
+              tailNote == null ? "补的尾巴不见了" : $"{tailNote.Start:F4}~{tailNote.End:F4}");
+
+        // 7) 整条导入链路：写一份带和弦的 MIDI，解析后按界面口径（每行一个 Rank）合并
+        string path = Path.Combine(Path.GetTempPath(), "midikey-chord-selftest.mid");
+        try
+        {
+            WriteChordMidi(path);
+            var parsed = MidiLoader.Parse(path);
+            Check("和弦保留：和弦 MIDI 解析出一条声轨", parsed.Candidates.Count == 1,
+                  $"实际 {parsed.Candidates.Count} 条");
+
+            var voices = new List<(int, RawNote)>();
+            for (int k = 0; k < parsed.Candidates.Count; k++)
+                foreach (var n in parsed.Candidates[k].Notes) voices.Add((k, n));
+            var merged = NoteMapper.MergeVoicesByPriority(voices);
+
+            var atZero = merged.Where(n => Math.Abs(n.Start) < 0.001)
+                               .Select(n => n.Pitch).OrderBy(p => p).ToList();
+            Check("和弦保留：导入后 0 秒处三个音都在", atZero.Count == 3,
+                  $"实际 {atZero.Count} 个音：" + string.Join(",", atZero.Select(Music.NoteName)));
+            Check("和弦保留：三个音高是 C4 / E4 / G4",
+                  atZero.SequenceEqual(new[] { 60, 64, 67 }),
+                  string.Join(",", atZero.Select(Music.NoteName)));
+
+            // 单声部演奏时合并不许丢音：出来的音数必须与原谱一样多
+            int rawCount = parsed.Candidates.Sum(c => c.Notes.Count);
+            Check("和弦保留：合并后的音数与原谱一致", merged.Count == rawCount,
+                  $"原谱 {rawCount} 个音，合并后 {merged.Count} 个音");
+        }
+        finally
+        {
+            try { File.Delete(path); } catch { /* 临时文件删不掉不影响结论 */ }
+        }
+    }
+
+    /// <summary>自检用：造一个音符（合并用例只关心音高、时刻与声部归属）。</summary>
+    private static RawNote MergeNote(int pitch, double start, double end) => new()
+    {
+        Pitch = pitch,
+        Start = start,
+        End = end,
+        Velocity = 90,
+        Channel = 0,
+    };
+
+    /// <summary>
+    /// 自检用：写一份格式 0 的 MIDI，一条轨道一个声道，开头是 C 大三和弦（C4 / E4 / G4）。
+    /// 手工拼事件，不依赖 DryWetMidi 的写接口。
+    /// </summary>
+    private static void WriteChordMidi(string path)
+    {
+        var events = new List<MidiEvent>
+        {
+            new SequenceTrackNameEvent("和弦"),
+            new ProgramChangeEvent((SevenBitNumber)0) { Channel = (FourBitNumber)0 },
+        };
+        foreach (int p in new[] { 60, 64, 67 })
+            events.Add(new NoteOnEvent((SevenBitNumber)p, (SevenBitNumber)90) { Channel = (FourBitNumber)0 });
+        // 和弦一起按下，一起抬起：长度 480 刻 = 一个四分音符（默认 480 刻/四分）
+        for (int i = 0; i < 3; i++)
+        {
+            var off = new NoteOffEvent((SevenBitNumber)new[] { 60, 64, 67 }[i], (SevenBitNumber)0)
+            {
+                Channel = (FourBitNumber)0
+            };
+            if (i == 0) off.DeltaTime = 480;
+            events.Add(off);
+        }
+
+        var file = new MidiFile();
+        file.Chunks.Add(new TrackChunk(events));
+        file.Write(path, overwriteFile: true);
+    }
 
     /// <summary>自检用：扫事件流求"同时按住的音键"峰值（同一时刻先算抬起、再算按下）。</summary>
     private static int MaxHeldKeyCount(List<PlaybackEngine.ScheduledEvent> evs)

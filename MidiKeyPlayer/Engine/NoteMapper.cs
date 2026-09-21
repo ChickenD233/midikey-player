@@ -219,9 +219,13 @@ public static class NoteMapper
     };
 
     /// <summary>
-    /// 多声部合奏按优先级合并成一条谱面：同刻多个声部一起响时只保留编号最小（Rank 最小）的声部；
-    /// 低优先级音压在高优先级音尾音上 → 该段让位。
-    /// 它不改音高、不丢旋律音，只裁决同时发声的声部。
+    /// 多声部合奏按优先级合并成一条谱面。
+    ///
+    /// **同一条声轨（同一个 Rank）同一时刻的音是和弦，一个不丢，全部保留。**
+    /// 只有**不同声部**同刻相撞时才按优先级裁决：只保留编号最小（Rank 最小）的声部，
+    /// 低优先级音压在高优先级音尾音上的那一段让位。
+    /// 它不改音高，也不丢同声部的和弦音。
+    ///
     /// 输出的每个音都写上 <see cref="RawNote.Voice"/> = 它的 Rank（声部序号），
     /// 这样卷帘才知道「这个音属于哪条声轨」，不必再按音高猜。
     /// </summary>
@@ -235,7 +239,8 @@ public static class NoteMapper
         if (ordered.Count == 0) return new List<RawNote>();
 
         const double eps = 0.025;
-        // 1) 同刻组内选 Rank 最小者；被压掉的低优先级音若更长，"超出主声部结束"的尾巴稍后补回。
+        // 1) 同刻组内选 Rank 最小的声部：**该声部这一组的音全部留下**（它就是这一轨的和弦），
+        //    其余声部让位；被压掉的低优先级音若更长，"超出主声部结束"的尾巴稍后补回。
         var items = new List<(int Rank, RawNote Note)>();
         int i = 0;
         while (i < ordered.Count)
@@ -244,21 +249,31 @@ public static class NoteMapper
             double s0 = ordered[i].Note.Start;
             while (j + 1 < ordered.Count && ordered[j + 1].Note.Start - s0 <= eps) j++;
 
-            var best = ordered[i];
+            // 这一组归 Rank 最小的声部
+            int keepRank = ordered[i].Rank;
             for (int k = i + 1; k <= j; k++)
-            {
-                if (ordered[k].Rank < best.Rank) best = ordered[k];
-            }
-            items.Add(best);
+                if (ordered[k].Rank < keepRank) keepRank = ordered[k].Rank;
+
+            // 该声部这一组最晚响到几点：和弦里各音长短可以不同，要看最长的那个
+            double keepEnd = double.MinValue;
+            for (int k = i; k <= j; k++)
+                if (ordered[k].Rank == keepRank && ordered[k].Note.End > keepEnd)
+                    keepEnd = ordered[k].Note.End;
+
             for (int k = i; k <= j; k++)
             {
                 var o = ordered[k];
-                if (o.Note.End > best.Note.End && o.Rank > best.Rank)
+                if (o.Rank == keepRank)
+                {
+                    items.Add(o);       // 和弦音：同一声部同刻的音全部保留
+                    continue;
+                }
+                if (o.Note.End > keepEnd)
                 {
                     items.Add((o.Rank, new RawNote
                     {
                         Pitch = o.Note.Pitch,
-                        Start = best.Note.End,          // 主声部结束后才轮到它
+                        Start = keepEnd,                // 主声部结束后才轮到它
                         End = o.Note.End,
                         Velocity = o.Note.Velocity,
                         Channel = o.Note.Channel,       // 打击乐判定要用声道，不能丢
@@ -269,37 +284,41 @@ public static class NoteMapper
             i = j + 1;
         }
 
-        // 2) 排序后统一压制：低优先级音落在高优先级音持续期间 → 让位（超出部分补尾巴）
+        // 2) 排序后统一压制：低优先级音落在**优先级更高的音**持续期间 → 让位（超出部分补尾巴）。
+        //    这里按声部记「还响到几点」，不能只看上一个音：保留下来的和弦音长短不一，
+        //    只看最后一个会把长音后面的空档算错，低优先级音就会挤进来。
         items = items.OrderBy(v => v.Note.Start).ThenBy(v => v.Rank).ThenBy(v => v.Note.Pitch).ToList();
         var result = new List<RawNote>();
-        RawNote? lastNote = null;
-        int lastRank = int.MaxValue;
+        var endByRank = new Dictionary<int, double>();
         foreach (var c in items)
         {
-            if (lastNote != null && c.Note.Start < lastNote.End && c.Rank > lastRank)
+            // 比它优先（Rank 更小）而且还在响的声部，最晚响到几点
+            double blocker = double.MinValue;
+            foreach (var kv in endByRank)
+                if (kv.Key < c.Rank && kv.Value > blocker) blocker = kv.Value;
+
+            if (blocker > c.Note.Start)
             {
-                if (c.Note.End > lastNote.End)
+                if (c.Note.End > blocker)
                 {
-                    // 部分被吞：补回超出主声部的尾巴段，并把它登记为新的「最后一个音」——
+                    // 部分被吞：补回超出主声部的尾巴段，并登记它的结束时刻——
                     // 不登记的话，落在尾巴区间里的后一个音会被整条加入，输出就重叠了。
                     var tail = new RawNote
                     {
                         Pitch = c.Note.Pitch,
-                        Start = lastNote.End,
+                        Start = blocker,
                         End = c.Note.End,
                         Velocity = c.Note.Velocity,
                         Channel = c.Note.Channel,
                         Voice = c.Rank
                     };
                     result.Add(tail);
-                    lastNote = tail;
-                    lastRank = c.Rank;
+                    endByRank[c.Rank] = tail.End;
                 }
                 continue;
             }
             result.Add(WithVoice(c.Note, c.Rank));
-            lastNote = c.Note;
-            lastRank = c.Rank;
+            endByRank[c.Rank] = c.Note.End;
         }
 
         return result.OrderBy(n => n.Start).ToList();
