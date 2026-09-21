@@ -2,7 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:MidiKeyPlayer"
         x:Class="MidiKeyPlayer.MainWindow"
-        Title="MIDI 按键播放器"
+        Title="MIDI 按键播放器（免费开源）"
         Width="1120" Height="960"
         MinWidth="980" MinHeight="880"
         WindowStartupLocation="CenterScreen"
@@ -51,7 +51,7 @@
   <Grid>
 
     <!-- 左：文件/轨道；右：演奏控制 -->
-    <DockPanel Margin="14">
+    <DockPanel x:Name="MainBody" Margin="14">
 
     <!-- 最近一条消息。原来的一整块日志列表已经去掉：占地，且用户基本不看。
          完整历史仍然写进 %LOCALAPPDATA%\MidiKeyPlayer\play.log。 -->
@@ -728,6 +728,26 @@
           </WrapPanel>
           <TextBlock Classes="caption" TextWrapping="Wrap" LineHeight="19"
                      Text="发现新版本时主界面顶部会出现提示条：点它自动下载并更新，右键跳过本版本。累积更新日志在发布包的 更新日志.txt 里。"/>
+          <!-- 免费声明与作者链接：文案由代码从 AutoUpdate 的常量填（见 FillAboutLinks），
+               避免同一个群号/链接在 XAML 与代码里各写一遍。 -->
+          <Border Background="{DynamicResource BrushDangerSoft}" BorderBrush="{DynamicResource BrushDangerBorder}"
+                  BorderThickness="1" CornerRadius="8" Padding="12,9" Margin="0,3,0,0">
+            <StackPanel Spacing="7">
+              <TextBlock x:Name="TxtFreeNotice" TextWrapping="Wrap" FontSize="{DynamicResource FontSmall}"
+                         LineHeight="19" Foreground="{DynamicResource BrushDangerText}"/>
+              <TextBlock x:Name="TxtAboutLinks" TextWrapping="Wrap" FontSize="{DynamicResource FontSmall}"
+                         LineHeight="19" Foreground="{DynamicResource BrushTextSecondary}"/>
+              <WrapPanel ItemSpacing="10" LineSpacing="6">
+                <Button x:Name="BtnAuthorSpace" Content="B 站主页" FontSize="{DynamicResource FontSmall}"
+                        Padding="12,5" Classes="secondary" VerticalAlignment="Center"
+                        Click="OpenAuthorSpace_Click"/>
+                <Button x:Name="BtnCopyQq" Content="复制 QQ 群号" FontSize="{DynamicResource FontSmall}"
+                        Padding="12,5" Classes="secondary" VerticalAlignment="Center"
+                        Click="CopyQq_Click"/>
+                <TextBlock x:Name="TxtQqCopied" Classes="caption" VerticalAlignment="Center" Text=""/>
+              </WrapPanel>
+            </StackPanel>
+          </Border>
         </StackPanel>
       </Border>
 
@@ -754,6 +774,70 @@
           <Button x:Name="BtnQuickStartOk" Content="知道了" Classes="accent"
                   HorizontalAlignment="Right" Padding="18,7" FontSize="{DynamicResource FontTitle}" Margin="0,4,0,0"
                   Click="QuickStartOk_Click"/>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </Border>
+
+  <!-- 免费声明浮层：文案版本变了才弹一次（见 AutoUpdate.NoticeVersion 与设置里的 NoticeShownVersion）。
+       正文与群号由代码从常量填。 -->
+  <Border x:Name="FreeNoticeOverlay" IsVisible="False" Background="#66101828" CornerRadius="0">
+    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="580" Margin="24">
+      <Border Classes="card" Padding="24,20">
+        <StackPanel Spacing="10">
+          <TextBlock Text="本程序免费，别花钱买" FontSize="17" FontWeight="Bold"/>
+          <TextBlock x:Name="TxtFreeNoticeBody" TextWrapping="Wrap"
+                     FontSize="{DynamicResource FontBody}" LineHeight="21"/>
+          <TextBlock x:Name="TxtFreeNoticeWhere" TextWrapping="Wrap"
+                     FontSize="{DynamicResource FontSmall}" LineHeight="19"
+                     Foreground="{DynamicResource BrushTextSecondary}"/>
+          <WrapPanel ItemSpacing="10" LineSpacing="8">
+            <Button Content="B 站主页" FontSize="{DynamicResource FontSmall}" Padding="12,5"
+                    Classes="secondary" Click="OpenAuthorSpace_Click"/>
+            <Button Content="复制 QQ 群号" FontSize="{DynamicResource FontSmall}" Padding="12,5"
+                    Classes="secondary" Click="CopyQq_Click"/>
+            <Button Content="打开下载页" FontSize="{DynamicResource FontSmall}" Padding="12,5"
+                    Classes="secondary" Click="OpenReleases_Click"/>
+          </WrapPanel>
+          <Button x:Name="BtnFreeNoticeOk" Content="知道了" Classes="accent"
+                  HorizontalAlignment="Right" Padding="18,7" FontSize="{DynamicResource FontTitle}" Margin="0,4,0,0"
+                  Click="FreeNoticeOk_Click"/>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </Border>
+
+  <!-- 强制更新浮层：当前版本低于 AutoUpdate.RequiredVersion 时盖住整个窗口。
+       更新包自动开始下载；下载好之后点「重启并完成更新」。没有「稍后」「跳过」这类出路。 -->
+  <Border x:Name="ForcedUpdateOverlay" IsVisible="False" Background="#CC0B1420" CornerRadius="0">
+    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="640" Margin="24">
+      <Border Classes="card" Padding="24,20">
+        <StackPanel Spacing="10">
+          <TextBlock x:Name="TxtForcedTitle" FontSize="18" FontWeight="Bold"
+                     Text="必须更新到最新版本"/>
+          <TextBlock x:Name="TxtForcedBody" TextWrapping="Wrap"
+                     FontSize="{DynamicResource FontBody}" LineHeight="21"/>
+          <TextBlock x:Name="TxtForcedProgress" TextWrapping="Wrap"
+                     FontSize="{DynamicResource FontSmall}" LineHeight="20"
+                     Foreground="{DynamicResource BrushTextSecondary}"/>
+          <Border Background="{DynamicResource BrushDangerSoft}" BorderBrush="{DynamicResource BrushDangerBorder}"
+                  BorderThickness="1" CornerRadius="8" Padding="12,9" Margin="0,3,0,0">
+            <TextBlock x:Name="TxtForcedNotice" TextWrapping="Wrap"
+                       FontSize="{DynamicResource FontSmall}" LineHeight="19"
+                       Foreground="{DynamicResource BrushDangerText}"/>
+          </Border>
+          <WrapPanel ItemSpacing="10" LineSpacing="8" Margin="0,2,0,0">
+            <Button x:Name="BtnForcedApply" Content="重启并完成更新" Classes="accent"
+                    Padding="18,7" FontSize="{DynamicResource FontTitle}" Click="ForcedApply_Click"/>
+            <Button Content="手动下载（浏览器）" FontSize="{DynamicResource FontSmall}" Padding="12,5"
+                    Classes="secondary" Click="ForcedManual_Click"/>
+            <Button Content="B 站主页" FontSize="{DynamicResource FontSmall}" Padding="12,5"
+                    Classes="secondary" Click="OpenAuthorSpace_Click"/>
+            <Button Content="复制 QQ 群号" FontSize="{DynamicResource FontSmall}" Padding="12,5"
+                    Classes="secondary" Click="CopyQq_Click"/>
+            <Button Content="退出程序" FontSize="{DynamicResource FontSmall}" Padding="12,5"
+                    Classes="secondary" Click="ForcedExit_Click"/>
+          </WrapPanel>
         </StackPanel>
       </Border>
     </StackPanel>

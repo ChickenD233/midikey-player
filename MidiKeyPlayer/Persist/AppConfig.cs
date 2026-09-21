@@ -55,6 +55,8 @@ public sealed class AppConfig
     public string SkippedUpdateTag { get; set; } = "";   // 用户选择“跳过”的版本号（空=不跳过）
     public bool DisclaimerAccepted { get; set; } = false;  // 免责声明确认过一次后不再显示
     public string LastRunVersion { get; set; } = "";    // 上次运行的版本号（自动更新成功确认用）
+    // 已经看过哪一版的免费声明（AutoUpdate.NoticeVersion）：与当前文案版本不同才再弹一次。
+    public string NoticeShownVersion { get; set; } = "";
 
     // —— 播放悬浮窗（倒计时 / 进度 / 当前音，置顶显示在目标程序上）——
     public bool OverlayEnabled { get; set; } = true;    // 悬浮窗开关（默认开）

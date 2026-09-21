@@ -39,7 +39,7 @@ public partial class SettingsWindow : Window
         MinWidth = keymapPage ? 720 : 560;
         MinHeight = keymapPage ? 560 : 520;
         Width = keymapPage ? 900 : 640;
-        Height = keymapPage ? 680 : 600;   // 常规页多了「关于」卡：默认高度要让四张卡都露出来
+        Height = keymapPage ? 680 : 660;   // 常规页四张卡都露出来（「关于」卡里还有免费声明与作者链接）
     }
 
     private void CloseSettings_Click(object? sender, RoutedEventArgs e) => Close();

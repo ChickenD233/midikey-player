@@ -42,6 +42,9 @@ internal static class DevSnapshotMode
 ///     拍图前把「左侧每行文字颜色 ↔ 卷帘每个音符颜色」的对照表写成文本，便于逐行核对。
 /// MIDIKEY_UI_SNAPSHOT_THEME=0|1|2
 ///     拍图前先切皮肤（0 自动 / 1 浅色 / 2 深色），走的是设置里那个下拉框的同一条链路。
+/// MIDIKEY_UI_SNAPSHOT_OVERLAY=notice|forced
+///     配合 MIDIKEY_UI_SNAPSHOT 用：把「免费声明」或「强制更新」浮层打开再拍图。
+///     强制更新那条传空资产地址，所以不会真的联网下载。
 ///
 /// 各变量可以只设一个；全都不设则本文件无任何行为。
 /// 删本文件时记得同时删 MainWindow 里的 InstallDevSnapshot(this)。
@@ -91,6 +94,17 @@ public partial class MainWindow
             if (string.Equals(mixMode, "all", StringComparison.OrdinalIgnoreCase))
             {
                 window.MixAllPlayableTracksForDev();
+            }
+
+            // 浮层快照（MIDIKEY_UI_SNAPSHOT_OVERLAY=notice|forced）：必须在这里挂上。
+            // 900ms 那个计时器是在同一帧里改可见性再拍图，拍到的还是上一帧的画面，
+            // 所以浮层要提前开，等下一次渲染完再拍。
+            var overlayMode = Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_OVERLAY");
+            if (!string.IsNullOrWhiteSpace(overlayMode))
+            {
+                if (window.QuickStartOverlay != null) window.QuickStartOverlay.IsVisible = false;
+                ShowOverlayForDev(window, overlayMode!);
+                Log($"浮层快照场景：{overlayMode}");
             }
 
             // 文件夹曲目卡换歌回归场景：这条链路自己收尾并退出，不跟快照计时器混在一起
@@ -153,6 +167,18 @@ public partial class MainWindow
             };
             timer.Start();
         };
+    }
+
+    /// <summary>
+    /// 【开发用，可删】浮层快照：用真实代码把免费声明 / 强制更新浮层铺出来拍图。
+    /// 强制更新那条故意传空资产地址，所以不会真的联网下载，只走文案与失败提示。
+    /// </summary>
+    private static void ShowOverlayForDev(MainWindow w, string mode)
+    {
+        if (string.Equals(mode, "forced", StringComparison.OrdinalIgnoreCase))
+            w.ShowForcedUpdate("1.0.30", AutoUpdate.ReleasesUrl, "");
+        else
+            w.ShowFreeNoticeOverlay();
     }
 
     /// <summary>
@@ -271,6 +297,11 @@ public partial class MainWindow
             Environment.Exit(1);
         }
         win.SelectPageForDev(0);   // 常规页
+
+        // MIDIKEY_UI_SNAPSHOT_ADVANCED_BOTTOM=1：拍图前把「关于」卡滚到底。
+        // 常规页比窗口高时默认只能拍到上面几张卡，免费声明与作者链接（卡片最下面）就拍不到。
+        if (Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_ADVANCED_BOTTOM") == "1")
+            owner.TxtQqCopied?.BringIntoView();
 
         // 与键位页快照同一个做法：计时器里拍照再退出；另配一个兜底计时器
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(800) };

@@ -13,6 +13,13 @@
 
 > ⚠️ 虚拟输入可能违反第三方软件的使用规则，有账号封禁风险。请只在练习、测试或单机场景使用。后果由使用者承担。
 
+> **免费声明**：本程序完全免费、开源，没有收费版本，作者也从没卖过它。
+> **如果你是「购买」的此软件，立刻退款，你被骗了。**
+>
+> - 作者 B 站：<https://space.bilibili.com/28440883>
+> - 反馈 QQ 群：**1042477909**
+> - 源码与全部版本：<https://github.com/ChickenD233/midikey-player>
+
 ## 下载
 
 1. 打开右侧 **Releases**。
@@ -418,6 +425,13 @@ A built-in score editor lets you edit the score before playing.
 - UI language: Chinese
 
 > ⚠️ Simulated input may violate the terms of use of third-party software and carries a risk of account bans. Use it only for practice, testing, or single-machine scenarios. You assume all consequences.
+
+> **Free software notice**: This program is completely free and open source. There is no paid edition, and the author has never sold it.
+> **If you "bought" this software, ask for a refund immediately — you were scammed.**
+>
+> - Author on Bilibili: <https://space.bilibili.com/28440883>
+> - Feedback QQ group: **1042477909**
+> - Source and all releases: <https://github.com/ChickenD233/midikey-player>
 
 ## Download
 

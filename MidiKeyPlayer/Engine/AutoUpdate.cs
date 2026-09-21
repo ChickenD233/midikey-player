@@ -22,6 +22,47 @@ public static class AutoUpdate
     /// <summary>最新 Release 页面（用于跳转下载）。</summary>
     public static string ReleasesUrl => $"https://github.com/{Owner}/{Repo}/releases";
 
+    // ================= 作者链接与免费声明 =================
+
+    /// <summary>作者 B 站主页（点按钮打开的就是这个地址）。</summary>
+    public const string AuthorSpaceUrl = "https://space.bilibili.com/28440883?spm_id_from=333.1007.0.0";
+
+    /// <summary>界面上显示用的主页地址：去掉分享带的 ?spm… 尾巴，短一点、不换行。</summary>
+    public static string AuthorSpaceUrlShort => AuthorSpaceUrl.Split('?')[0];
+
+    /// <summary>反馈 QQ 群号。</summary>
+    public const string QqGroupNumber = "1042477909";
+
+    /// <summary>
+    /// 免费声明。有人把这个免费开源的程序拿去卖（闲鱼上一个 8.8 元，卖了几百上千单），
+    /// 所以每个版本都要把这句话摆出来，并写清楚唯一发布渠道。
+    /// </summary>
+    public const string FreeNotice =
+        "本程序完全免费、开源，没有收费版本，作者也从没卖过它。"
+        + "唯一发布渠道：B 站（Chicken丁）、GitHub Releases、QQ 群 " + QqGroupNumber + "。"
+        + "如果你是「购买」的此软件，立刻退款，你被骗了：到购买平台的订单里申请退款，并举报卖家。";
+
+    /// <summary>
+    /// 强制更新标记：最新 Release 的标题或说明里带这个串，就表示「低于该版本的程序必须更新」。
+    /// 这样任何一版都能把「强制」发给还在用旧版的用户 —— 硬编码的强制线只能约束装着那条线的版本，
+    /// 管不了更老的版本（老版本里根本没有这段代码）。
+    /// 发版时在 Release 说明里加一行 [强制更新] 即可，见 tools\release.ps1 的 -Mandatory。
+    /// </summary>
+    public const string MandatoryMarker = "[强制更新]";
+
+    /// <summary>免费声明与链接的展示版本号：改这段文案时一起改，程序据此只弹一次通知。</summary>
+    public const string NoticeVersion = "1.0.30";
+
+    /// <summary>
+    /// 强制更新线：低于这个版本的实例必须更新到最新版才能继续用。
+    /// 判定是「本常量比当前版本新」，所以装着本常量版本或更新版本的实例不受影响。
+    /// 想解除强制更新：把本常量改成当前版本号，重新发一版即可。
+    /// </summary>
+    public const string RequiredVersion = "1.0.30";
+
+    /// <summary>当前版本是否低于强制更新线（低 = 必须更新）。</summary>
+    public static bool IsRequiredVersion(string current) => IsNewer(RequiredVersion, current);
+
     /// <summary>允许跳转的地址前缀。只有本仓库的页面才交给系统浏览器打开。</summary>
     private static readonly string[] AllowedUrlPrefixes =
     {
@@ -63,6 +104,8 @@ public static class AutoUpdate
         /// <summary>更新包（zip）直链；找不到或地址不在白名单时为空串，界面退回手动下载。</summary>
         public string AssetUrl { get; init; } = "";
         public bool Skipped { get; init; }       // 用户选了"跳过这个版本"
+        /// <summary>最新版要求强制更新：说明里带 <see cref="MandatoryMarker"/>，跳过选项不生效。</summary>
+        public bool Mandatory { get; init; }
         public string? Error { get; init; }      // 网络失败等（静默处理，不打扰用户）
     }
 
@@ -90,6 +133,7 @@ public static class AutoUpdate
 
             string tag = root.TryGetProperty("tag_name", out var t) ? (t.GetString() ?? "") : "";
             string name = root.TryGetProperty("name", out var nm) ? (nm.GetString() ?? "") : "";
+            string body = root.TryGetProperty("body", out var bd) ? (bd.GetString() ?? "") : "";
             string html = root.TryGetProperty("html_url", out var h) ? (h.GetString() ?? "") : "";
 
             // 地址白名单：接口返回的 html_url 只认本仓库前缀，其它一律退回固定的 Releases 页，
@@ -118,6 +162,9 @@ public static class AutoUpdate
             }
 
             bool newer = IsNewer(tag, CurrentVersion);
+            // 强制更新：最新版说明（或标题）里带标记 → 低于它的版本必须更新，跳过选项作废
+            bool mandatory = newer && (body.Contains(MandatoryMarker, StringComparison.Ordinal)
+                                       || name.Contains(MandatoryMarker, StringComparison.Ordinal));
             return new Result
             {
                 HasUpdate = newer,
@@ -126,6 +173,7 @@ public static class AutoUpdate
                 ReleaseName = name,
                 ReleaseUrl = IsAllowedUrl(html) ? html : ReleasesUrl,
                 AssetUrl = assetUrl,
+                Mandatory = mandatory,
                 Skipped = newer && !string.IsNullOrEmpty(skippedTag) &&
                           string.Equals(tag.TrimStart('v', 'V'), skippedTag.TrimStart('v', 'V'),
                                         StringComparison.OrdinalIgnoreCase)

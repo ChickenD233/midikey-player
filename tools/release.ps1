@@ -29,6 +29,9 @@
 .PARAMETER SkipPush
     构建与验证照做，但不提交、不推送、不发 Release。改过的文件留在工作区，供人工检查。
 
+.PARAMETER Mandatory
+    把这一版标成强制更新（Release 说明里写 [强制更新]）。旧版用户检查到它会先更新才能继续用。
+
 .PARAMETER TrimParity
     额外构建一份不裁剪的 exe，把两张界面快照逐字节比对。
     动过裁剪设置或升级依赖之后跑一次。
@@ -48,7 +51,10 @@ param(
     [ValidateSet('Patch', 'Minor', 'Major')][string]$Bump = 'Patch',
     [switch]$DryRun,
     [switch]$SkipPush,
-    [switch]$TrimParity
+    [switch]$TrimParity,
+    # 强制更新：在 Release 说明里写上 [强制更新] 标记。装着旧版的用户检查更新时会被要求先更新
+    # （跳过选项作废）。老版本里没有这段逻辑，所以标记只对 v1.0.30 起、带强制更新代码的版本有效。
+    [switch]$Mandatory
 )
 
 Set-StrictMode -Version Latest
@@ -292,10 +298,11 @@ function Get-GitHubToken {
     return $token
 }
 
-function New-ReleaseBody([string]$version, [string]$section) {
+function New-ReleaseBody([string]$version, [string]$section, [bool]$mandatory = $false) {
     $sb = New-Object System.Text.StringBuilder
     [void]$sb.AppendLine("# MidiKeyPlayer v$version")
     [void]$sb.AppendLine()
+    if ($mandatory) { [void]$sb.AppendLine('[强制更新] 这一版必须更新：低于 v' + $version + ' 的程序会先更新才能继续用。'); [void]$sb.AppendLine() }
     [void]$sb.AppendLine($section.TrimEnd())
     [void]$sb.AppendLine()
     [void]$sb.AppendLine('## 下载与运行')
@@ -319,6 +326,15 @@ function New-ReleaseBody([string]$version, [string]$section) {
     [void]$sb.AppendLine('## 免责声明')
     [void]$sb.AppendLine()
     [void]$sb.AppendLine('虚拟输入可能违反第三方软件的使用规则，有账号封禁风险。请只在练习、测试或单机场景使用。后果由使用者承担。')
+    [void]$sb.AppendLine()
+    [void]$sb.AppendLine('## 免费声明与反馈')
+    [void]$sb.AppendLine()
+    [void]$sb.AppendLine('本程序完全免费、开源，没有收费版本，作者也从没卖过它。')
+    [void]$sb.AppendLine('**如果你是「购买」的此软件，立刻退款，你被骗了。**')
+    [void]$sb.AppendLine()
+    [void]$sb.AppendLine('- 作者 B 站：https://space.bilibili.com/28440883')
+    [void]$sb.AppendLine('- 反馈 QQ 群：1042477909')
+    [void]$sb.AppendLine('- 源码与全部版本：https://github.com/ChickenD233/midikey-player')
     [void]$sb.AppendLine()
     [void]$sb.AppendLine('每个版本改了什么，见发布包里的 `更新日志.txt`，或仓库的 `MidiKeyPlayer/docs/更新日志.txt`。')
     return $sb.ToString()
@@ -490,7 +506,7 @@ try {
     [void](Invoke-Git push origin $tag)
 
     Write-Step '发 Release'
-    $body = New-ReleaseBody $next $section
+    $body = New-ReleaseBody $next $section $Mandatory.IsPresent
     try {
         $url = Publish-Release $next $zip $body
     }

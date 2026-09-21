@@ -139,6 +139,7 @@ public partial class MainWindow : Window
         ChkOverlay.IsChecked = _cfg.OverlayEnabled;    // 悬浮窗默认开
         ChkOverlayHideOnPause.IsChecked = _cfg.OverlayHideOnPause;   // 暂停后收起来（默认开）
         TxtAboutVersion.Text = $"MIDI 按键播放器 v{AutoUpdate.CurrentVersion}";
+        FillAboutLinks();
         if (_cfg.DisclaimerAccepted) DisclaimerBar.IsVisible = false;   // 确认过一次就不再显示
         ThemeCombo.ItemsSource = ThemeSwitch.Names;    // 自动 / 浅色 / 深色，下标就是设置里的取值
         ThemeCombo.SelectedIndex = ThemeSwitch.Clamp(_cfg.ThemeMode);
@@ -257,6 +258,11 @@ public partial class MainWindow : Window
             global::MidiKeyPlayer.Persist.LogFile.Append($"[更新] 已从 v{_cfg.LastRunVersion} 更新到 v{curVer}");
         }
         if (_cfg.LastRunVersion != curVer) { _cfg.LastRunVersion = curVer; _cfg.Save(); }
+
+        // 免费声明：文案版本变了就弹一次（老用户更新上来也会看到）。链接顺手写进日志。
+        InsertLog($"本程序免费开源。{AutoUpdate.FreeNotice}");
+        InsertLog($"作者 B 站：{AutoUpdate.AuthorSpaceUrlShort}　反馈 QQ 群：{AutoUpdate.QqGroupNumber}");
+
         // 探针模式不建托盘图标：无人值守跑测，不往用户托盘里塞东西
         if (OperatingSystem.IsWindows() && !PreviewProbeMode.On)
         {
@@ -264,6 +270,7 @@ public partial class MainWindow : Window
             Opened += (_, _) => EnsureTray();
         }
         Opened += (_, _) => ShowQuickStartOnce();
+        Opened += (_, _) => ShowFreeNoticeOnce();
 
         InstallDevSnapshot(this);   // 【开发用，可删】设了 MIDIKEY_UI_SNAPSHOT 才生效，见 DevUISnapshot.cs
         InstallPreviewProbe(this);  // 【开发用，可删】设了 MIDIKEY_PREVIEW_PROBE=1 才生效，见 DevPreviewProbe.cs
@@ -285,6 +292,8 @@ public partial class MainWindow : Window
             _cfg.FirstRunDone = true;
             _cfg.Save();
         }
+        // 首次启动时两层的顺序：先关「快速上手」，再弹「免费声明」（不叠在一起）
+        if (_freeNoticePending) ShowFreeNoticeOverlay();
     }
 
     // ================= 全局热键 =================
@@ -411,6 +420,12 @@ public partial class MainWindow : Window
     /// <summary>统一控制键（默认 F6）：空闲=开始、倒计时中=取消、播放中=暂停、暂停中=继续；按钮与托盘项共用。</summary>
     private void ToggleControl()
     {
+        if (_forcedUpdateOn)
+        {
+            InsertLog("必须先更新到最新版本，更新完就能照常用。");
+            ForcedUpdateOverlay.IsVisible = true;
+            return;
+        }
         var eng = _engine;
         if (eng is { IsRunning: true })
         {
@@ -2491,14 +2506,25 @@ public partial class MainWindow : Window
             if (PreviewProbeMode.On || DevSnapshotMode.On) return;
 
             var r = await AutoUpdate.CheckAsync(_cfg?.SkippedUpdateTag);
-            if (r.Error != null || !r.HasUpdate || r.Skipped) return;
+            if (r.Error != null || !r.HasUpdate) return;
 
-            _updateUrl = r.ReleaseUrl;
-            _updateTag = r.LatestTag;
-            _updateAssetUrl = r.AssetUrl;
+            // 强制更新：最新版说明里写了 [强制更新]，或当前版本低于硬编码的强制线。
+            // 两种情况都不吃「跳过」，直接进强制更新浮层。
+            bool required = r.Mandatory || AutoUpdate.IsRequiredVersion(r.CurrentTag);
+            if (r.Skipped && !required) return;
 
             UiPost(() =>
             {
+                if (required)
+                {
+                    ShowForcedUpdate(r.LatestTag, r.ReleaseUrl, r.AssetUrl);
+                    return;
+                }
+
+                _updateUrl = r.ReleaseUrl;
+                _updateTag = r.LatestTag;
+                _updateAssetUrl = r.AssetUrl;
+
                 TxtUpdate.Text = $"发现新版本 v{r.LatestTag}（当前 v{r.CurrentTag}）——" +
                                  "点此自动下载并更新；右键跳过本版本。";
                 UpdateBanner.IsVisible = true;
@@ -2565,7 +2591,7 @@ public partial class MainWindow : Window
     {
         _updateBusy = true;
         _updateCts = new CancellationTokenSource();
-        TxtUpdate.Text = $"正在下载 v{_updateTag} …… 0%";
+        SetUpdateText($"正在下载 v{_updateTag} …… 0%");
         InsertLog($"开始下载更新包：{_updateAssetUrl}");
 
         int lastPct = -1;
@@ -2574,7 +2600,7 @@ public partial class MainWindow : Window
             int pct = (int)Math.Round(p * 100);
             if (pct == lastPct) return;
             lastPct = pct;
-            TxtUpdate.Text = $"正在下载 v{_updateTag} …… {pct}%";
+            SetUpdateText($"正在下载 v{_updateTag} …… {pct}%");
         });
 
         string? zip = await AutoUpdate.DownloadAsync(_updateAssetUrl, progress, _updateCts.Token);
@@ -2584,7 +2610,7 @@ public partial class MainWindow : Window
             // 关程序触发的取消不刷新提示条（窗口已经在关）
             if (!_updateCts.IsCancellationRequested)
             {
-                TxtUpdate.Text = "更新包下载失败——点此重试；右键跳过本版本。";
+                SetUpdateText("更新包下载失败——点此重试；右键跳过本版本。");
                 InsertLog("更新包下载失败，详见 play.log。也可以点提示条重试，或去下载页手动下载。");
             }
             return;
@@ -2594,15 +2620,25 @@ public partial class MainWindow : Window
         if (newExe == null)
         {
             _updateBusy = false;
-            TxtUpdate.Text = "更新包校验失败——点此重试；右键跳过本版本。";
+            SetUpdateText("更新包校验失败——点此重试；右键跳过本版本。");
             InsertLog("更新包校验失败，详见 play.log。也可以点提示条重试，或去下载页手动下载。");
             return;
         }
 
         _updateNewExe = newExe;
         _updateBusy = false;
-        TxtUpdate.Text = $"v{_updateTag} 已下载完成——点此重启并完成更新；右键跳过本版本。";
+        SetUpdateText($"v{_updateTag} 已下载完成——点此重启并完成更新；右键跳过本版本。");
         InsertLog($"v{_updateTag} 更新包已就绪，重启程序后生效。");
+    }
+
+    /// <summary>
+    /// 更新状态文字：写进顶部提示条；强制更新浮层开着时同时写进浮层，
+    /// 否则用户被浮层盖住，看不到下载进度与失败原因。
+    /// </summary>
+    private void SetUpdateText(string text)
+    {
+        TxtUpdate.Text = text;
+        if (_forcedUpdateOn && TxtForcedProgress != null) TxtForcedProgress.Text = text;
     }
 
     /// <summary>启动更新脚本并退出程序：脚本等本进程退出后覆盖 exe 并重启到新版。</summary>
@@ -2611,7 +2647,7 @@ public partial class MainWindow : Window
         // 有未导出的卷帘改动时不直接退出（UI-02 的口径：改动只存在内存里，退出就没了）
         if (HasUnexportedEdits)
         {
-            TxtUpdate.Text = "有未导出的卷帘改动：请先「导出 MIDI…」保存，再点这里更新。";
+            SetUpdateText("有未导出的卷帘改动：请先「导出 MIDI…」保存，再点这里更新。");
             return;
         }
         _updateBusy = true;
@@ -2620,7 +2656,7 @@ public partial class MainWindow : Window
             _updateBusy = false;
             _updateNewExe = "";
             _updateAssetUrl = "";   // 自动更新走不通，退回手动：下次点击打开下载页
-            TxtUpdate.Text = "自动更新启动失败——点此打开下载页手动下载；右键跳过本版本。";
+            SetUpdateText("自动更新启动失败——点此打开下载页手动下载；右键跳过本版本。");
             InsertLog("自动更新启动失败，详见 play.log。");
             return;
         }
@@ -2647,6 +2683,13 @@ public partial class MainWindow : Window
             }
             if (r.HasUpdate)
             {
+                if (r.Mandatory || AutoUpdate.IsRequiredVersion(r.CurrentTag))
+                {
+                    // 手动检查也不例外：低于强制线的版本只能更新
+                    ShowForcedUpdate(r.LatestTag, r.ReleaseUrl, r.AssetUrl);
+                    return;
+                }
+
                 _updateUrl = r.ReleaseUrl;
                 _updateTag = r.LatestTag;
                 _updateAssetUrl = r.AssetUrl;
@@ -2685,6 +2728,159 @@ public partial class MainWindow : Window
             global::MidiKeyPlayer.Persist.LogFile.Append($"[关于] 读内置文档 {resName} 失败：{ex}");
         }
     }
+
+    // ================= 免费声明 / 作者链接 / 强制更新 =================
+
+    private bool _forcedUpdateOn;      // 强制更新浮层正在显示：所有「开始播放」的入口都挡住
+    private bool _freeNoticePending;   // 免费声明要等「快速上手」关掉之后再弹
+
+    /// <summary>把免费声明与作者链接从常量填进界面（常量只有一份，见 AutoUpdate）。</summary>
+    private void FillAboutLinks()
+    {
+        string space = AutoUpdate.AuthorSpaceUrl;
+        string spaceShow = AutoUpdate.AuthorSpaceUrlShort;
+        string qq = AutoUpdate.QqGroupNumber;
+        string links = $"作者：B 站 {spaceShow}\n反馈与更新：QQ 群 {qq}　下载页：{AutoUpdate.ReleasesUrl}";
+
+        if (TxtFreeNotice != null) TxtFreeNotice.Text = AutoUpdate.FreeNotice;
+        if (TxtAboutLinks != null) TxtAboutLinks.Text = links;
+        if (BtnAuthorSpace != null) ToolTip.SetTip(BtnAuthorSpace, space);
+        if (BtnCopyQq != null) BtnCopyQq.Content = $"复制 QQ 群号 {qq}";
+        if (TxtFreeNoticeBody != null) TxtFreeNoticeBody.Text = AutoUpdate.FreeNotice;
+        if (TxtFreeNoticeWhere != null) TxtFreeNoticeWhere.Text = links;
+        if (TxtForcedNotice != null) TxtForcedNotice.Text = AutoUpdate.FreeNotice;
+    }
+
+    /// <summary>
+    /// 免费声明浮层：文案版本（<see cref="AutoUpdate.NoticeVersion"/>）与设置里记的不同才弹一次。
+    /// 更新上来的老用户一定会看到一次；无人值守的探针不弹。
+    /// </summary>
+    private void ShowFreeNoticeOnce()
+    {
+        if (_cfg == null || FreeNoticeOverlay == null) return;
+        if (PreviewProbeMode.On || DevSnapshotMode.On) return;
+        if (string.Equals(_cfg.NoticeShownVersion, AutoUpdate.NoticeVersion, StringComparison.Ordinal)) return;
+        if (_forcedUpdateOn) return;   // 强制更新浮层里已经有同一句话，不重复弹
+        if (QuickStartOverlay is { IsVisible: true })
+        {
+            _freeNoticePending = true;   // 首次启动：先关「快速上手」
+            return;
+        }
+        ShowFreeNoticeOverlay();
+    }
+
+    private void ShowFreeNoticeOverlay()
+    {
+        if (_cfg == null) return;
+        _freeNoticePending = false;
+        _cfg.NoticeShownVersion = AutoUpdate.NoticeVersion;
+        _cfg.Save();
+        FreeNoticeOverlay.IsVisible = true;
+    }
+
+    private void FreeNoticeOk_Click(object? sender, RoutedEventArgs e)
+    {
+        FreeNoticeOverlay.IsVisible = false;
+    }
+
+    private void OpenAuthorSpace_Click(object? sender, RoutedEventArgs e)
+    {
+        AutoUpdate.OpenUrl(AutoUpdate.AuthorSpaceUrl);
+        InsertLog($"已打开作者 B 站主页：{AutoUpdate.AuthorSpaceUrl}");
+    }
+
+    private void OpenReleases_Click(object? sender, RoutedEventArgs e)
+    {
+        AutoUpdate.OpenUrl(AutoUpdate.ReleasesUrl);
+        InsertLog($"已打开下载页：{AutoUpdate.ReleasesUrl}");
+    }
+
+    /// <summary>复制 QQ 群号：新版本发布与问题排查都在群里。</summary>
+    private async void CopyQq_Click(object? sender, RoutedEventArgs e)
+    {
+        string qq = AutoUpdate.QqGroupNumber;
+        try
+        {
+            var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+            if (clipboard == null)
+            {
+                InsertLog($"剪贴板不可用，QQ 群号：{qq}");
+                return;
+            }
+            await clipboard.SetTextAsync(qq);
+            if (TxtQqCopied != null) TxtQqCopied.Text = $"已复制：{qq}";
+            InsertLog($"QQ 群号已复制：{qq}");
+        }
+        catch (Exception ex)
+        {
+            InsertLog($"复制 QQ 群号失败（{ex.GetType().Name}），群号：{qq}");
+        }
+    }
+
+    /// <summary>
+    /// 强制更新浮层：当前版本低于强制更新线（<see cref="AutoUpdate.RequiredVersion"/>）时盖住整个窗口，
+    /// 并自动开始下载更新包。没有「稍后」「跳过」：只有更新、手动下载、退出三条路。
+    /// </summary>
+    private void ShowForcedUpdate(string latestTag, string releaseUrl, string assetUrl)
+    {
+        _forcedUpdateOn = true;
+        _updateUrl = releaseUrl;
+        _updateTag = latestTag;
+        _updateAssetUrl = assetUrl;
+
+        TxtForcedTitle.Text = $"必须更新到 v{latestTag} 才能继续使用";
+        TxtForcedBody.Text =
+            $"你用的 v{AutoUpdate.CurrentVersion} 低于强制更新线 v{AutoUpdate.RequiredVersion}。"
+            + "更新包正在自动下载；下好之后点「重启并完成更新」，程序会退出并自动重启到新版。"
+            + "下载不动就点「手动下载（浏览器）」，或到 QQ 群里问。";
+        ForcedUpdateOverlay.IsVisible = true;
+        SetUpdateText($"正在下载 v{latestTag} …… 0%");
+        if (MainBody != null) MainBody.IsEnabled = false;    // 底下的界面一律不可操作
+        Input.GlobalHotkeys.SetActive(Array.Empty<int>());   // 热键也停掉：F6 不能再开弹
+        InsertLog($"[更新] v{AutoUpdate.CurrentVersion} 低于强制更新线 v{AutoUpdate.RequiredVersion}，"
+                  + $"必须先更新到 v{latestTag}。");
+        global::MidiKeyPlayer.Persist.LogFile.Append(
+            $"[更新] 强制更新：当前 v{AutoUpdate.CurrentVersion}，强制线 v{AutoUpdate.RequiredVersion}，最新 v{latestTag}");
+
+        _ = BeginForcedDownloadAsync();
+    }
+
+    private async Task BeginForcedDownloadAsync()
+    {
+        if (_updateAssetUrl.Length == 0)
+        {
+            SetUpdateText("这个版本没有自动更新包——请点「手动下载（浏览器）」。");
+            return;
+        }
+        await DownloadUpdateAsync();
+    }
+
+    /// <summary>强制更新浮层的「重启并完成更新」：还没下好就（重新）下载，下载中再点 = 取消。</summary>
+    private void ForcedApply_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_updateNewExe.Length > 0)
+        {
+            ApplyDownloadedUpdate();
+            return;
+        }
+        if (_updateBusy)
+        {
+            _updateCts?.Cancel();
+            _updateBusy = false;
+            SetUpdateText("已取消下载——点「重启并完成更新」重新下载。");
+            return;
+        }
+        _ = BeginForcedDownloadAsync();
+    }
+
+    private void ForcedManual_Click(object? sender, RoutedEventArgs e)
+    {
+        string url = string.IsNullOrEmpty(_updateUrl) ? AutoUpdate.ReleasesUrl : _updateUrl;
+        AutoUpdate.OpenUrl(url);
+        SetUpdateText($"已在浏览器里打开下载页：{url}　下载 zip、解出 MidiKeyPlayer.exe，覆盖当前程序即可。");
+    }
+
+    private void ForcedExit_Click(object? sender, RoutedEventArgs e) => QuitApp();
 
     // ================= 跳过音明细（LblWarn 点击查看） =================
 
@@ -3381,6 +3577,14 @@ public partial class MainWindow : Window
     {
         if (_busy || ActiveRows().Count == 0) return;
 
+        // 强制更新期间不给开弹：热键、按钮、托盘、切歌热键四条入口最后都走这里
+        if (_forcedUpdateOn)
+        {
+            InsertLog("必须先更新到最新版本，更新完就能照常用。");
+            ForcedUpdateOverlay.IsVisible = true;
+            return;
+        }
+
         // 选了罗技驱动但还没初始化成功（比如启动时 G HUB 没就绪）：开播前补一次，
         // 失败就不开弹（静默发不出键比直接报错更难排查）
         if (!Input.InputSender.EnsureBackend(out string backendErr, out string? backendWarn))
@@ -3702,7 +3906,7 @@ public partial class MainWindow : Window
 
             _tray = new TrayIcon
             {
-                ToolTipText = "MIDI 按键播放器",
+                ToolTipText = "MIDI 按键播放器（免费开源）",
                 Icon = icon,
                 Menu = menu,
                 IsVisible = true
