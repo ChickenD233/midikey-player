@@ -17,6 +17,11 @@
 - 发版走脚本：`powershell -File tools\release.ps1`。
 - 想先看会发什么：`powershell -File tools\release.ps1 -DryRun`。
 - 想只构建不发布：`powershell -File tools\release.ps1 -SkipPush`。
+- 想强制更新（装旧版的人必须先更新才能继续用）：加 `-Mandatory`，Release 说明里会写 `[强制更新]`。
+  只有带强制更新代码的版本（v1.0.30 起）会认这个标记；更老的版本里没有这段逻辑，挡不住。
+- 免费声明与作者入口写在 `Engine\AutoUpdate.cs` 的常量里（`FreeNotice` / `AuthorSpaceUrl` /
+  `QqGroupNumber` / `AuthorName`）。改文案时把 `NoticeVersion` 一起加一，界面会再弹一次声明。
+  第一次使用的验证题只弹一次，答对写进设置的 `AuthorQuizPassed`，不要改成每版都弹。
 - 动过裁剪设置或升级依赖之后，加 `-TrimParity`，比对裁剪版与不裁剪版的快照。
 
 ## 更新日志必须有历史记录

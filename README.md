@@ -19,6 +19,8 @@
 > - 作者 B 站：<https://space.bilibili.com/28440883>
 > - 反馈 QQ 群：**1042477909**
 > - 源码与全部版本：<https://github.com/ChickenD233/midikey-player>
+>
+> 第一次使用会问一次「作者的 B 站 ID」（答案就是作者在 B 站的名字，看看上面的主页就知道）。答对一次就不再问。
 
 ## 下载
 
@@ -432,6 +434,8 @@ A built-in score editor lets you edit the score before playing.
 > - Author on Bilibili: <https://space.bilibili.com/28440883>
 > - Feedback QQ group: **1042477909**
 > - Source and all releases: <https://github.com/ChickenD233/midikey-player>
+>
+> On first use, the program asks once for the author's Bilibili ID (the answer is the author's Bilibili name — the page above shows it). Answer once and it never asks again.
 
 ## Download
 
