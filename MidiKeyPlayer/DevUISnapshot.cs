@@ -42,7 +42,7 @@ internal static class DevSnapshotMode
 ///     拍图前把「左侧每行文字颜色 ↔ 卷帘每个音符颜色」的对照表写成文本，便于逐行核对。
 /// MIDIKEY_UI_SNAPSHOT_THEME=0|1|2
 ///     拍图前先切皮肤（0 自动 / 1 浅色 / 2 深色），走的是设置里那个下拉框的同一条链路。
-/// MIDIKEY_UI_SNAPSHOT_OVERLAY=notice|forced
+/// MIDIKEY_UI_SNAPSHOT_OVERLAY=notice|forced|quiz
 ///     配合 MIDIKEY_UI_SNAPSHOT 用：把「免费声明」或「强制更新」浮层打开再拍图。
 ///     强制更新那条传空资产地址，所以不会真的联网下载。
 ///
@@ -177,6 +177,8 @@ public partial class MainWindow
     {
         if (string.Equals(mode, "forced", StringComparison.OrdinalIgnoreCase))
             w.ShowForcedUpdate("1.0.30", AutoUpdate.ReleasesUrl, "");
+        else if (string.Equals(mode, "quiz", StringComparison.OrdinalIgnoreCase))
+            w.ShowQuizOverlay();
         else
             w.ShowFreeNoticeOverlay();
     }

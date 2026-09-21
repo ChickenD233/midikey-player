@@ -270,7 +270,7 @@ public partial class MainWindow : Window
             Opened += (_, _) => EnsureTray();
         }
         Opened += (_, _) => ShowQuickStartOnce();
-        Opened += (_, _) => ShowFreeNoticeOnce();
+        Opened += (_, _) => ShowFirstRunGateOnce();
 
         InstallDevSnapshot(this);   // 【开发用，可删】设了 MIDIKEY_UI_SNAPSHOT 才生效，见 DevUISnapshot.cs
         InstallPreviewProbe(this);  // 【开发用，可删】设了 MIDIKEY_PREVIEW_PROBE=1 才生效，见 DevPreviewProbe.cs
@@ -292,8 +292,8 @@ public partial class MainWindow : Window
             _cfg.FirstRunDone = true;
             _cfg.Save();
         }
-        // 首次启动时两层的顺序：先关「快速上手」，再弹「免费声明」（不叠在一起）
-        if (_freeNoticePending) ShowFreeNoticeOverlay();
+        // 首次启动时两层的顺序：先关「快速上手」，再弹「第一次」的闸门（不叠在一起）
+        if (_startupGatePending) ShowFirstRunGateOnce();
     }
 
     // ================= 全局热键 =================
@@ -2732,7 +2732,8 @@ public partial class MainWindow : Window
     // ================= 免费声明 / 作者链接 / 强制更新 =================
 
     private bool _forcedUpdateOn;      // 强制更新浮层正在显示：所有「开始播放」的入口都挡住
-    private bool _freeNoticePending;   // 免费声明要等「快速上手」关掉之后再弹
+    private bool _startupGatePending;   // 「第一次」的浮层要等「快速上手」关掉之后再弹
+    private int _quizFails;             // 验证题答错次数：第一次只提示，第二次才把答案说出来
 
     /// <summary>把免费声明与作者链接从常量填进界面（常量只有一份，见 AutoUpdate）。</summary>
     private void FillAboutLinks()
@@ -2749,30 +2750,86 @@ public partial class MainWindow : Window
         if (TxtFreeNoticeBody != null) TxtFreeNoticeBody.Text = AutoUpdate.FreeNotice;
         if (TxtFreeNoticeWhere != null) TxtFreeNoticeWhere.Text = links;
         if (TxtForcedNotice != null) TxtForcedNotice.Text = AutoUpdate.FreeNotice;
+        if (TxtQuizRefund != null) TxtQuizRefund.Text = AutoUpdate.FreeNotice;
+        if (TxtQuizWhere != null) TxtQuizWhere.Text = links;
     }
 
     /// <summary>
-    /// 免费声明浮层：文案版本（<see cref="AutoUpdate.NoticeVersion"/>）与设置里记的不同才弹一次。
-    /// 更新上来的老用户一定会看到一次；无人值守的探针不弹。
+    /// 启动时的「第一次」闸门，只会挡一次：
+    /// - 没有答过作者 B 站 ID（老用户更新上来、新用户第一次用）→ 弹验证题，题里有免费声明与退款提示；
+    ///   答对写进设置（<see cref="Persist.AppConfig.AuthorQuizPassed"/>），以后每次更新都不再弹。
+    /// - 已经答过、但免费声明的文案版本变了 → 只弹一次免费声明。
+    /// 无人值守的探针不弹。
     /// </summary>
-    private void ShowFreeNoticeOnce()
+    private void ShowFirstRunGateOnce()
     {
-        if (_cfg == null || FreeNoticeOverlay == null) return;
+        if (_cfg == null) return;
         if (PreviewProbeMode.On || DevSnapshotMode.On) return;
-        if (string.Equals(_cfg.NoticeShownVersion, AutoUpdate.NoticeVersion, StringComparison.Ordinal)) return;
-        if (_forcedUpdateOn) return;   // 强制更新浮层里已经有同一句话，不重复弹
+        if (_forcedUpdateOn) return;   // 强制更新优先：先更新，更新完再走这道闸门
+
+        bool quizDue = !_cfg.AuthorQuizPassed;
+        bool noticeDue = !string.Equals(_cfg.NoticeShownVersion, AutoUpdate.NoticeVersion,
+                                        StringComparison.Ordinal);
+        if (!quizDue && !noticeDue) return;
+
         if (QuickStartOverlay is { IsVisible: true })
         {
-            _freeNoticePending = true;   // 首次启动：先关「快速上手」
+            _startupGatePending = true;   // 首次启动：先关「快速上手」
             return;
         }
-        ShowFreeNoticeOverlay();
+        _startupGatePending = false;
+        if (quizDue) ShowQuizOverlay(); else ShowFreeNoticeOverlay();
+    }
+
+    /// <summary>验证浮层：第一次使用时问一次作者的 B 站 ID。</summary>
+    private void ShowQuizOverlay()
+    {
+        _quizFails = 0;
+        TxtQuizError.IsVisible = false;
+        TxtQuizRefund.Text = AutoUpdate.FreeNotice;
+        TxtQuizAnswer.Text = "";
+        QuizOverlay.IsVisible = true;
+        TxtQuizAnswer.Focus();
+        InsertLog($"第一次使用：请输入作者的 B 站 ID（提示见设置 → 关于）。");
+    }
+
+    private void QuizConfirm_Click(object? sender, RoutedEventArgs e) => SubmitQuizAnswer();
+
+    /// <summary>验证题输入框：直接回车等于点「确认」。</summary>
+    private void QuizAnswer_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+        e.Handled = true;
+        SubmitQuizAnswer();
+    }
+
+    private void SubmitQuizAnswer()
+    {
+        if (_cfg == null) return;
+        if (!AutoUpdate.IsAuthorAnswer(TxtQuizAnswer.Text))
+        {
+            _quizFails++;
+            TxtQuizError.Text = _quizFails == 1
+                ? "不对。作者就是 B 站上做这个程序的人，点下面的「看作者的 B 站主页」看一眼再填。"
+                : $"还是不对。答案是「{AutoUpdate.AuthorName}」（大小写都可以），"
+                  + "或者填作者 B 站主页地址里的数字 ID。";
+            TxtQuizError.IsVisible = true;
+            TxtQuizAnswer.SelectAll();
+            return;
+        }
+
+        _cfg.AuthorQuizPassed = true;
+        _cfg.NoticeShownVersion = AutoUpdate.NoticeVersion;   // 题里已经写了免费声明，不再单独弹
+        _cfg.Save();
+        QuizOverlay.IsVisible = false;
+        InsertLog($"验证通过：本程序免费开源，作者是 B 站 {AutoUpdate.AuthorName}。");
+        InsertLog($"作者 B 站：{AutoUpdate.AuthorSpaceUrlShort}　反馈 QQ 群：{AutoUpdate.QqGroupNumber}");
     }
 
     private void ShowFreeNoticeOverlay()
     {
         if (_cfg == null) return;
-        _freeNoticePending = false;
+        _startupGatePending = false;
         _cfg.NoticeShownVersion = AutoUpdate.NoticeVersion;
         _cfg.Save();
         FreeNoticeOverlay.IsVisible = true;

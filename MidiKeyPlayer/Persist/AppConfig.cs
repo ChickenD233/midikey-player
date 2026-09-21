@@ -57,6 +57,8 @@ public sealed class AppConfig
     public string LastRunVersion { get; set; } = "";    // 上次运行的版本号（自动更新成功确认用）
     // 已经看过哪一版的免费声明（AutoUpdate.NoticeVersion）：与当前文案版本不同才再弹一次。
     public string NoticeShownVersion { get; set; } = "";
+    // 第一次使用时那道「作者的 B 站 ID」验证题是否已经答对。答对一次就永远不再弹。
+    public bool AuthorQuizPassed { get; set; } = false;
 
     // —— 播放悬浮窗（倒计时 / 进度 / 当前音，置顶显示在目标程序上）——
     public bool OverlayEnabled { get; set; } = true;    // 悬浮窗开关（默认开）

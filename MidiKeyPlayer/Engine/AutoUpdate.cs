@@ -33,6 +33,28 @@ public static class AutoUpdate
     /// <summary>反馈 QQ 群号。</summary>
     public const string QqGroupNumber = "1042477909";
 
+    /// <summary>作者在 B 站的名字：第一次使用时的验证题答案。</summary>
+    public const string AuthorName = "Chicken丁";
+
+    /// <summary>
+    /// 第一次使用的验证题答案判定：忽略大小写与空白/分隔符，
+    /// 「Chicken丁」「chicken 丁」「CHICKEN丁」都算过；填作者 B 站的数字 ID（主页地址里的那串）也算。
+    /// 目的不是拦住谁，而是让盗卖者的买家停下来看到「这是免费软件」。
+    /// </summary>
+    public static bool IsAuthorAnswer(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        var sb = new StringBuilder();
+        foreach (char c in text)
+        {
+            if (char.IsWhiteSpace(c)) continue;
+            if (c is '-' or '_' or '·' or '.' or '。' or '、') continue;
+            sb.Append(char.ToLowerInvariant(c));
+        }
+        string s = sb.ToString();
+        return s == "chicken丁" || s == "28440883";
+    }
+
     /// <summary>
     /// 免费声明。有人把这个免费开源的程序拿去卖（闲鱼上一个 8.8 元，卖了几百上千单），
     /// 所以每个版本都要把这句话摆出来，并写清楚唯一发布渠道。
@@ -51,14 +73,14 @@ public static class AutoUpdate
     public const string MandatoryMarker = "[强制更新]";
 
     /// <summary>免费声明与链接的展示版本号：改这段文案时一起改，程序据此只弹一次通知。</summary>
-    public const string NoticeVersion = "1.0.30";
+    public const string NoticeVersion = "1.0.31";
 
     /// <summary>
     /// 强制更新线：低于这个版本的实例必须更新到最新版才能继续用。
     /// 判定是「本常量比当前版本新」，所以装着本常量版本或更新版本的实例不受影响。
     /// 想解除强制更新：把本常量改成当前版本号，重新发一版即可。
     /// </summary>
-    public const string RequiredVersion = "1.0.30";
+    public const string RequiredVersion = "1.0.31";
 
     /// <summary>当前版本是否低于强制更新线（低 = 必须更新）。</summary>
     public static bool IsRequiredVersion(string current) => IsNewer(RequiredVersion, current);
