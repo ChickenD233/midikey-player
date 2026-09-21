@@ -16,8 +16,9 @@ namespace MidiKeyPlayer;
 ///   现在直接声明在本窗口的 XAML 里，逻辑在同类的 SettingsWindow.Keymap.cs。
 ///   合过来以后键位录入仍然挂在窗口级的 KeyDown / KeyUp 与 PointerPressed 上，
 ///   行为与原来单独开窗时一致。
-/// - 赞助页：爱发电置顶，下面列作者的 B 站与 GitHub。这一页没有任何设置项，
+/// - 赞助页：爱发电排在最上面，下面列作者的 B 站、GitHub 与 QQ 群。这一页没有任何设置项，
 ///   文案与地址全从 <see cref="AutoUpdate"/> 的常量来（见 <see cref="FillSponsorPage"/>）。
+///   「程序完全免费」这类声明不重复放在这里：它留在「常规」页的关于卡里。
 ///
 /// 窗口大小跟着页签走：常规页小、键位页大。设置即时生效，没有「应用」按钮。
 /// </summary>
@@ -34,16 +35,17 @@ public partial class SettingsWindow : Window
         AdvancedHost.Content = body;
     }
 
-    /// <summary>赞助页：爱发电置顶，下面是 B 站与 GitHub。地址与免费声明都取自 AutoUpdate。</summary>
+    /// <summary>赞助页：爱发电在最上面，下面是 B 站、GitHub 与 QQ 群。地址与群号都取自 AutoUpdate。</summary>
     private void FillSponsorPage()
     {
         if (TxtSponsorAfdianUrl != null) TxtSponsorAfdianUrl.Text = AutoUpdate.AfdianUrlShort;
         if (TxtSponsorBiliUrl != null) TxtSponsorBiliUrl.Text = AutoUpdate.AuthorSpaceUrlShort;
         if (TxtSponsorGitHubUrl != null) TxtSponsorGitHubUrl.Text = AutoUpdate.GitHubUrlShort;
-        if (TxtSponsorFree != null) TxtSponsorFree.Text = AutoUpdate.FreeNotice;
+        if (TxtSponsorQq != null) TxtSponsorQq.Text = AutoUpdate.QqGroupNumber;
         if (BtnSponsorAfdian != null) ToolTip.SetTip(BtnSponsorAfdian, AutoUpdate.AfdianUrl);
         if (BtnSponsorBili != null) ToolTip.SetTip(BtnSponsorBili, AutoUpdate.AuthorSpaceUrlShort);
         if (BtnSponsorGitHub != null) ToolTip.SetTip(BtnSponsorGitHub, AutoUpdate.GitHubUrlShort);
+        if (BtnSponsorCopyQq != null) ToolTip.SetTip(BtnSponsorCopyQq, $"复制群号 {AutoUpdate.QqGroupNumber}");
     }
 
     /// <summary>赞助页的爱发电按钮。打开与记录日志都走主窗那条链路，行为与其它入口一致。</summary>
@@ -57,6 +59,15 @@ public partial class SettingsWindow : Window
     /// <summary>赞助页的 GitHub 按钮。</summary>
     private void OpenGitHub_Click(object? sender, RoutedEventArgs e)
         => _mainWindow?.OpenGitHubForSettings();
+
+    /// <summary>赞助页的复制群号按钮：复制走主窗那一份实现，这里只显示结果。</summary>
+    private async void CopyQq_Click(object? sender, RoutedEventArgs e)
+    {
+        string qq = AutoUpdate.QqGroupNumber;
+        bool ok = _mainWindow != null && await _mainWindow.CopyQqForSettingsAsync(this);
+        if (TxtSponsorQqCopied != null)
+            TxtSponsorQqCopied.Text = ok ? $"已复制：{qq}" : $"复制失败，群号是 {qq}";
+    }
 
     /// <summary>页签切换：窗口大小跟着页走，别让常规页撑成一大片空白。</summary>
     private void Pages_SelectionChanged(object? sender, SelectionChangedEventArgs e) => ApplyPageSize();

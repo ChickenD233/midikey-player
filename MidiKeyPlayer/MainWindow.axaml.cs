@@ -2944,24 +2944,34 @@ public partial class MainWindow : Window
     }
 
     /// <summary>复制 QQ 群号：新版本发布与问题排查都在群里。</summary>
-    private async void CopyQq_Click(object? sender, RoutedEventArgs e)
+    private async void CopyQq_Click(object? sender, RoutedEventArgs e) => await CopyQqToClipboard(this);
+
+    /// <summary>
+    /// 设置窗口「赞助」页里的复制群号按钮：复用同一份实现，窗口拿不到主窗的私有处理器。
+    /// 剪贴板从传进来的窗口取（设置窗口开着时主窗可能不在前台），返回值是真实结果。
+    /// </summary>
+    internal Task<bool> CopyQqForSettingsAsync(TopLevel owner) => CopyQqToClipboard(owner);
+
+    private async Task<bool> CopyQqToClipboard(Visual from)
     {
         string qq = AutoUpdate.QqGroupNumber;
         try
         {
-            var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+            var clipboard = TopLevel.GetTopLevel(from)?.Clipboard;
             if (clipboard == null)
             {
                 InsertLog($"剪贴板不可用，QQ 群号：{qq}");
-                return;
+                return false;
             }
             await clipboard.SetTextAsync(qq);
             if (TxtQqCopied != null) TxtQqCopied.Text = $"已复制：{qq}";
             InsertLog($"QQ 群号已复制：{qq}");
+            return true;
         }
         catch (Exception ex)
         {
             InsertLog($"复制 QQ 群号失败（{ex.GetType().Name}），群号：{qq}");
+            return false;
         }
     }
 

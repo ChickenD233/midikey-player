@@ -141,7 +141,7 @@
 - **设置…**。点这个按钮打开设置窗口，三页。
   **常规**页：设备接入、输入兼容、三个热键、导出按键表、界面（皮肤、自检开关）。
   **键位**页：方案、按键绑定、功能键。
-  **赞助**页：置顶爱发电，下面列作者的 B 站与 GitHub。赞助完全自愿，不影响功能。
+  **赞助**页：爱发电排在最上面，下面列作者的 B 站、GitHub 与 QQ 群（右边一个「复制群号」按钮）。赞助完全自愿，不影响功能。
   改动即时生效，关掉窗口不影响设置。主界面因此不再堆这些项，卷帘拿到的高度也更多。
 
 ## 皮肤
@@ -572,7 +572,7 @@ The bottom right of the main window is split into two cards. **Performance Param
 - **Settings…** (设置…). Click this button to open the Settings window, with three pages.
   The **General** (常规) page: device connection, input compatibility, three hotkeys, key table export, interface (skin, self-check switch).
   The **Keys** (键位) page: scheme, key bindings, function keys.
-  The **Sponsor** (赞助) page: Afdian (爱发电) pinned at the top, with the author's Bilibili and GitHub below. Sponsoring is optional and changes nothing about the program.
+  The **Sponsor** (赞助) page: Afdian (爱发电) first, with the author's Bilibili, GitHub, and QQ group below (plus a button that copies the group number). Sponsoring is optional and changes nothing about the program.
   Changes take effect immediately; closing the window does not affect the settings. The main window therefore no longer piles up these items, and the piano roll gets more height.
 
 ## Skins
