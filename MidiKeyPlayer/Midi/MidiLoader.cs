@@ -1,5 +1,6 @@
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
+using Melanchall.DryWetMidi.Common;
 
 namespace MidiKeyPlayer.Midi;
 
@@ -116,6 +117,9 @@ public static class MidiLoader
             string trackName = chunk.Events.OfType<SequenceTrackNameEvent>()
                                       .FirstOrDefault()?.Text ?? "";
 
+            // 这条轨各个声道用的 GM 音色号：声部识别的主要证据（见 GmInstrument）。
+            var programs = ReadPrograms(chunk);
+
             var allNotes = chunk.GetNotes().ToList();
 
             foreach (var grp in allNotes.GroupBy(n => (int)n.Channel))
@@ -140,11 +144,39 @@ public static class MidiLoader
 
                 if (notes.Count == 0) continue;
 
+                int program = programs.TryGetValue(grp.Key, out int p) ? p : -1;
+                TrackRole role;
+                bool guessed;
+                if (grp.Key == 9)
+                {
+                    // 通道 10 按 MIDI 规范就是打击乐，与音色号无关
+                    role = TrackRole.Drums;
+                    guessed = false;
+                }
+                else if (program >= 0)
+                {
+                    role = GmInstrument.RoleOfProgram(program);
+                    guessed = false;
+                }
+                else
+                {
+                    role = GmInstrument.Infer(grp.Key, trackName, notes);
+                    // 轨名里明写了「鼓 / drum / 打击」，那是文件里的信息，不算猜
+                    bool nameSaysDrums = trackName.Contains("鼓") || trackName.Contains("打击")
+                                         || trackName.ToLowerInvariant().Contains("drum")
+                                         || trackName.ToLowerInvariant().Contains("perc");
+                    guessed = !(role == TrackRole.Drums && nameSaysDrums);
+                }
+
                 var cand = new MidiCandidate
                 {
                     TrackIndex = trackIdx,
                     Channel = grp.Key,
-                    Name = BuildCandidateName(trackName, grp.Key),
+                    TrackName = trackName,
+                    Program = program,
+                    Role = role,
+                    RoleGuessed = guessed,
+                    Name = BuildCandidateName(trackName, grp.Key, program, role),
                     Notes = notes,
                     DurationSec = notes.Max(x => x.End) - notes.Min(x => x.Start)
                 };
@@ -185,10 +217,32 @@ public static class MidiLoader
         return System.Text.Encoding.Latin1.GetString(raw);
     }
 
-    private static string BuildCandidateName(string trackName, int channel)
+    /// <summary>
+    /// 每个声道的 GM 音色号（声道 → 0..127）。同一轨里同一声道改过音色就取最后一次：
+    /// 列表要给用户看的是这条轨最终听起来的音色。
+    /// </summary>
+    private static Dictionary<int, int> ReadPrograms(TrackChunk chunk)
     {
-        if (!string.IsNullOrWhiteSpace(trackName))
-            return trackName.Trim();
+        var map = new Dictionary<int, int>();
+        foreach (var ev in chunk.Events)
+        {
+            if (ev is ProgramChangeEvent pc)
+                map[(int)pc.Channel] = (int)pc.ProgramNumber;
+        }
+        return map;
+    }
+
+    /// <summary>
+    /// 列表里显示的名字：文件写了说得清的轨名就用它，否则用识别出的乐器名，
+    /// 再退一步才是「声道 N」。这样「Track 1」这类空名字后面能看出这条轨是什么。
+    /// </summary>
+    private static string BuildCandidateName(string trackName, int channel, int program, TrackRole role)
+    {
+        string trimmed = (trackName ?? "").Trim();
+        if (!GmInstrument.IsGenericTrackName(trimmed)) return trimmed;
+        if (role != TrackRole.Unknown) return GmInstrument.TagOf(role);
+        string inst = GmInstrument.ProgramName(program);
+        if (inst.Length > 0) return inst;
         return channel == 9 ? "打击乐" : $"声道 {channel + 1}";
     }
 

@@ -1929,6 +1929,23 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// 载入时的那行声部汇总，例：「轨1 鼓、轨2 贝斯、轨3 电吉他」。推断出来的后面加「?」。
+    /// 一条都没有就返回空串（不打印空行）。
+    /// </summary>
+    internal static string DescribeRoles(IReadOnlyList<MidiCandidate> candidates)
+    {
+        var parts = new List<string>();
+        foreach (var c in candidates)
+        {
+            string name = c.RoleTag + (c.RoleGuessed ? "?" : "");
+            parts.Add($"轨{c.TrackIndex + 1} {name}");
+            if (parts.Count >= 12) break;
+        }
+        return parts.Count == 0 ? "" : string.Join("、", parts)
+            + (candidates.Count > parts.Count ? $" 等 {candidates.Count} 条" : "");
+    }
+
     /// <summary>清空「最近打开」列表并落盘。</summary>
     private void ClearRecent_Click(object? sender, RoutedEventArgs e)
     {
@@ -1961,6 +1978,9 @@ public partial class MainWindow : Window
 
             LblFile.Text = System.IO.Path.GetFileName(path);
             InsertLog($"已载入 {System.IO.Path.GetFileName(path)}：{parsed.Candidates.Count} 个候选，时长 ≈ {parsed.DurationSec:F1}s");
+            // 识别出的声部：左侧「声部」列已经写着，这里再给一行汇总，方便直接看出这首曲子有哪些声部
+            string parts = DescribeRoles(parsed.Candidates);
+            if (parts.Length > 0) InsertLog($"声部识别：{parts}");
 
             _selected = null;
             _previewSeconds = 0;      // 换歌必须回到 0，否则上一首的位置会夹到新曲末尾 → 一播放就结束
@@ -2140,7 +2160,31 @@ public partial class MainWindow : Window
                 brush = ResourceBrush("BrushTextMuted");
             }
             row.VoiceBrush = brush;
+
+            // 声部标牌：色按角色分组（见 TrackRowVM.RoleTip 说明识别依据），
+            // 未识别不给色块；参与演奏时实色，没参与时整块变淡（变换器 ActiveOpacityConverter）。
+            row.RoleBrush = RoleBrushOf(row.Candidate.Role);
+            row.RoleActive = row.IsVoiceActive;
         }
+    }
+
+    /// <summary>
+    /// 声部角色的标牌底色。只有 Unknown 返回 null（标牌不上色，文字用默认色）。
+    /// 取不到主题资源时返回 null：宁可无色，也不写字面色值。
+    /// </summary>
+    private static IBrush? RoleBrushOf(TrackRole role)
+    {
+        string key = GmInstrument.ToneOf(role) switch
+        {
+            RoleTone.Rhythm => "BrushRoleRhythm",
+            RoleTone.Low => "BrushRoleLow",
+            RoleTone.Harmony => "BrushRoleHarmony",
+            RoleTone.Lead => "BrushRoleLead",
+            RoleTone.Other => "BrushRoleOther",
+            _ => "",
+        };
+        if (key.Length == 0) return null;
+        return ThemeSwitch.BrushOf(key);
     }
 
     /// <summary>

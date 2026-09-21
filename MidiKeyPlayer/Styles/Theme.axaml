@@ -177,6 +177,18 @@
   <SolidColorBrush x:Key="BrushVoice10" Color="#B0A0FF"/>
   <SolidColorBrush x:Key="BrushVoice11" Color="#F2A65A"/>
 
+  <!-- ===================== 声部标牌配色（唯一真源，两套皮肤共用） =====================
+       左侧列表「声部」列的小标牌按角色分组取色，白字压在色块上：
+         节奏 = 鼓；低音 = 贝斯；和声 = 吉他 / 键盘 / 弦乐 / 和声 / 铺底；旋律 = 旋律 / 人声 / 主音；
+         其它 = 铜管 / 管乐 / 效果。
+       四个色值在深浅两套底上都有足够对比（白字对比度都 ≥ 3:1），所以不做两套。
+       未识别（Unknown）不给色块，文字退回默认色，见 MainWindow.ApplyVoiceBrushes。 -->
+  <SolidColorBrush x:Key="BrushRoleRhythm"  Color="#B2553A"/>   <!-- 鼓 -->
+  <SolidColorBrush x:Key="BrushRoleLow"     Color="#2F6D8E"/>   <!-- 贝斯 -->
+  <SolidColorBrush x:Key="BrushRoleHarmony" Color="#3F7A4F"/>   <!-- 吉他 / 键盘 / 弦乐 / 和声 -->
+  <SolidColorBrush x:Key="BrushRoleLead"    Color="#8A4E9E"/>   <!-- 旋律 / 人声 / 主音 -->
+  <SolidColorBrush x:Key="BrushRoleOther"   Color="#6A6F78"/>   <!-- 铜管 / 管乐 / 效果 -->
+
   <!-- ===================== 字体 =====================
        Windows 用雅黑；macOS/Linux 回退苹方/思源，避免整窗掉到默认字体。 -->
   <FontFamily x:Key="FontUi">Microsoft YaHei UI, 微软雅黑, PingFang SC, Hiragino Sans GB, Noto Sans CJK SC, Source Han Sans SC, Segoe UI, Helvetica Neue, sans-serif</FontFamily>

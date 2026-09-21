@@ -57,6 +57,13 @@ https://github.com/Chaoses-Ib/IbInputSimulator/releases 。
 
 推理参考实现（上游口径）与逐窗口数值比对脚本不在发布包里，只在开发机上用。
 
+## 3b. General MIDI 音色表（声部识别）
+
+左侧列表的「声部」列用 General MIDI 1（MIDI 厂商协会，1991 年）的 128 个音色名。
+本程序只用了这份规范的音色名与音色号对应关系：`MidiKeyPlayer/Midi/GmInstrument.cs`
+里那张 128 条的中文音色表，加上按音色号分组的角色归类（鼓 / 贝斯 / 吉他 / 弦乐 / 人声…）。
+表与归类是本仓库自己写的，不含任何第三方代码。General MIDI 是商标，此处只按规范做兼容命名。
+
 ## 4. 传递依赖
 
 还原结果里还有下列组件。Windows x64 单文件产物会带上其中的托管程序集与原生库。

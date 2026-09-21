@@ -10,6 +10,11 @@
         FontFamily="{DynamicResource FontUi}"
         Closing="OnClosing">
 
+  <Window.Resources>
+    <!-- 声部标牌用的两个小转换器（见 TrackRowVM.cs 末尾） -->
+    <local:ActiveOpacityConverter x:Key="ActiveOpacity"/>
+  </Window.Resources>
+
   <Window.Styles>
     <!-- 文字色写死为深色，避免系统深色/高对比主题下白字白底看不见。
          带 class 的规则必须排在全量规则之后，否则会被盖掉。 -->
@@ -166,7 +171,7 @@
         <Grid RowDefinitions="Auto,*">
           <!-- 列头 -->
           <Border Classes="tableHead">
-            <Grid ColumnDefinitions="22,24,28,62,*,56,42,70">
+            <Grid ColumnDefinitions="22,24,26,58,50,*,52,40,62">
               <TextBlock Text="" FontSize="{DynamicResource FontMicro}"/>
               <TextBlock Grid.Column="1" Text="合" FontSize="{DynamicResource FontCaption}" Classes="sectionLabel"
                          Padding="2,7" FontWeight="SemiBold"
@@ -175,13 +180,16 @@
                          Padding="4,7" FontWeight="SemiBold"/>
               <TextBlock Grid.Column="3" Text="声道" FontSize="{DynamicResource FontCaption}" Classes="sectionLabel"
                          Padding="4,7" FontWeight="SemiBold"/>
-              <TextBlock Grid.Column="4" Text="名称" FontSize="{DynamicResource FontCaption}" Classes="sectionLabel"
+              <TextBlock Grid.Column="4" Text="声部" FontSize="{DynamicResource FontCaption}" Classes="sectionLabel"
+                         Padding="4,7" FontWeight="SemiBold"
+                         ToolTip.Tip="这条轨是什么声部。认的依据是 MIDI 文件里的 GM 音色号与轨名；文件里没写才按音域与节奏推断，推断的会标「疑似」。鼠标停在标牌上看依据"/>
+              <TextBlock Grid.Column="5" Text="乐器 / 名称" FontSize="{DynamicResource FontCaption}" Classes="sectionLabel"
                          Padding="4,7" FontWeight="SemiBold"/>
-              <TextBlock Grid.Column="5" Text="时长" FontSize="{DynamicResource FontCaption}" Classes="sectionLabel"
+              <TextBlock Grid.Column="6" Text="时长" FontSize="{DynamicResource FontCaption}" Classes="sectionLabel"
                          Padding="4,7" FontWeight="SemiBold"/>
-              <TextBlock Grid.Column="6" Text="音符" FontSize="{DynamicResource FontCaption}" Classes="sectionLabel"
+              <TextBlock Grid.Column="7" Text="音符" FontSize="{DynamicResource FontCaption}" Classes="sectionLabel"
                          Padding="4,7" FontWeight="SemiBold"/>
-              <TextBlock Grid.Column="7" Text="音域" FontSize="{DynamicResource FontCaption}" Classes="sectionLabel"
+              <TextBlock Grid.Column="8" Text="音域" FontSize="{DynamicResource FontCaption}" Classes="sectionLabel"
                          Padding="4,7" FontWeight="SemiBold"/>
             </Grid>
           </Border>
@@ -196,7 +204,7 @@
               </ListBox.Styles>
               <ListBox.ItemTemplate>
                 <DataTemplate>
-                  <Grid ColumnDefinitions="22,24,28,62,*,56,42,70" MinHeight="30">
+                  <Grid ColumnDefinitions="22,24,26,58,50,*,52,40,62" MinHeight="30">
                     <TextBlock Text="{Binding MixRank}" FontSize="{DynamicResource FontMicro}" Foreground="{DynamicResource BrushInfoText}"
                                FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"
                                IsVisible="{Binding IsMix}"/>
@@ -211,15 +219,25 @@
                                Padding="4,3" FontSize="{DynamicResource FontSmall}"/>
                     <TextBlock Grid.Column="3" Text="{Binding ChannelLabel}" VerticalAlignment="Center"
                                Padding="4,3" FontSize="{DynamicResource FontSmall}"/>
-                    <TextBlock Grid.Column="4" Text="{Binding Name}" VerticalAlignment="Center"
+                    <!-- 声部标牌：识别出的角色（鼓 / 贝斯 / 电吉他 / 和声 / 人声…）。
+                         底色按角色分组，未参与演奏时整块变淡；悬浮看识别依据。 -->
+                    <Border Grid.Column="4" CornerRadius="4" Padding="4,1" Margin="2,0"
+                            VerticalAlignment="Center" HorizontalAlignment="Left"
+                            Background="{Binding RoleBrush}" Opacity="{Binding RoleActive, Converter={StaticResource ActiveOpacity}}"
+                            ToolTip.Tip="{Binding RoleTip}"
+                            ToolTip.ShowDelay="200">
+                      <TextBlock Text="{Binding RoleTag}" FontSize="{DynamicResource FontMicro}"
+                                 Foreground="{DynamicResource BrushOnAccent}" FontWeight="SemiBold"/>
+                    </Border>
+                    <TextBlock Grid.Column="5" Text="{Binding Name}" VerticalAlignment="Center"
                                Padding="4,3" FontSize="{DynamicResource FontSmall}" TextTrimming="CharacterEllipsis"
                                Foreground="{Binding VoiceBrush}"
-                               ToolTip.Tip="{Binding Name}"/>
-                    <TextBlock Grid.Column="5" Text="{Binding DurationText}" VerticalAlignment="Center"
+                               ToolTip.Tip="{Binding NameTip}"/>
+                    <TextBlock Grid.Column="6" Text="{Binding DurationText}" VerticalAlignment="Center"
                                Padding="4,3" FontSize="{DynamicResource FontCaption}" Classes="sectionLabel"/>
-                    <TextBlock Grid.Column="6" Text="{Binding NoteCount}" VerticalAlignment="Center"
+                    <TextBlock Grid.Column="7" Text="{Binding NoteCount}" VerticalAlignment="Center"
                                Padding="4,3" FontSize="{DynamicResource FontSmall}" HorizontalAlignment="Center"/>
-                    <TextBlock Grid.Column="7" Text="{Binding RangeLabel}" VerticalAlignment="Center"
+                    <TextBlock Grid.Column="8" Text="{Binding RangeLabel}" VerticalAlignment="Center"
                                Padding="4,3" FontSize="{DynamicResource FontSmall}"/>
                   </Grid>
                 </DataTemplate>

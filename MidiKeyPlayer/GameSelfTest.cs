@@ -80,6 +80,7 @@ internal static class GameSelfTest
             TestFf14Piano();
             TestChordScheduling();
             TestAudioToMidi();
+            TestTrackRoles();
         }
         catch (Exception ex)
         {
@@ -675,6 +676,147 @@ internal static class GameSelfTest
         double sum = 0;
         foreach (float v in data) sum += v * (double)v;
         return Math.Sqrt(sum / data.Length);
+    }
+
+    // ================= 声部识别 =================
+
+    /// <summary>
+    /// 声部识别（GM 音色表 + 角色映射 + 无音色时的推断）。
+    /// 这张表是左侧「声部」列的唯一来源，错一个号就会把鼓标成贝斯，所以逐条钉住。
+    /// </summary>
+    private static void TestTrackRoles()
+    {
+        // 音色表必须满 128 条，而且都要有名字：少一条就说明抄表时漏了行
+        int named = 0;
+        for (int p = 0; p < 128; p++)
+            if (GmInstrument.ProgramName(p).Length > 0) named++;
+        Check("GM 音色表 128 条都有名字", named == 128, $"有名字 {named} 条");
+        Check("GM 音色表越界取名为空", GmInstrument.ProgramName(-1).Length == 0
+                                        && GmInstrument.ProgramName(-2).Length == 0);
+        Check("GM 0 = 大钢琴", GmInstrument.ProgramName(0) == "大钢琴", GmInstrument.ProgramName(0));
+        // 音效组（121 起）是分段音色表里最容易错位的一段，钉住首尾与中间两条
+        Check("GM 121 = 吉他品丝声", GmInstrument.ProgramName(120) == "吉他品丝声", GmInstrument.ProgramName(120));
+        Check("GM 124 = 鸟鸣", GmInstrument.ProgramName(123) == "鸟鸣", GmInstrument.ProgramName(123));
+        Check("GM 128 = 枪声", GmInstrument.ProgramName(127) == "枪声", GmInstrument.ProgramName(127));
+        Check("GM 表里没有「鼓组」这一条（127 是音效组末尾）",
+            GmInstrument.ProgramName(127) == "枪声", GmInstrument.ProgramName(127));
+
+        // 角色映射：每组抽查一个号，边界取首尾
+        var cases = new (int Program, TrackRole Role, string Tag)[]
+        {
+            (0,   TrackRole.Piano,           "键盘"),
+            (7,   TrackRole.Piano,           "键盘"),
+            (12,  TrackRole.Chromatic,       "音块"),
+            (16,  TrackRole.Organ,           "风琴"),
+            (24,  TrackRole.AcousticGuitar,  "吉他"),
+            (27,  TrackRole.AcousticGuitar,  "吉他"),
+            (28,  TrackRole.ElectricGuitar,  "电吉他"),
+            (31,  TrackRole.ElectricGuitar,  "电吉他"),
+            (32,  TrackRole.Bass,            "贝斯"),
+            (39,  TrackRole.Bass,            "贝斯"),
+            (40,  TrackRole.Strings,         "弦乐"),
+            (48,  TrackRole.Strings,         "弦乐"),
+            (52,  TrackRole.Vocals,          "人声"),
+            (54,  TrackRole.Vocals,          "人声"),
+            (56,  TrackRole.Brass,           "铜管"),
+            (73,  TrackRole.Wind,            "管乐"),
+            (80,  TrackRole.SynthLead,       "主音"),
+            (88,  TrackRole.SynthPad,        "铺底"),
+            (96,  TrackRole.Effects,         "效果"),
+            (47,  TrackRole.Drums,           "鼓"),
+            (117, TrackRole.Drums,           "鼓"),   // 太鼓 / 旋律鼓 / 合成鼓 / 反镲
+            (119, TrackRole.Drums,           "鼓"),
+            (120, TrackRole.Effects,         "效果"), // 吉他品丝声，音效组开头
+            (127, TrackRole.Effects,         "效果"), // 枪声，音效组末尾
+        };
+        int wrong = 0;
+        string first = "";
+        foreach (var c in cases)
+        {
+            var got = GmInstrument.RoleOfProgram(c.Program);
+            if (got == c.Role) continue;
+            wrong++;
+            if (first.Length == 0) first = $"GM{c.Program + 1} 期望 {c.Role} 实得 {got}";
+        }
+        Check("GM 音色号 → 声部角色", wrong == 0, wrong == 0 ? $"{cases.Length} 条" : first);
+
+        int tagWrong = 0;
+        string badTag = "";
+        foreach (var c in cases)
+        {
+            string tag = GmInstrument.TagOf(c.Role);
+            if (tag == c.Tag) continue;
+            tagWrong++;
+            if (badTag.Length == 0) badTag = $"{c.Role} 期望 {c.Tag} 实得 {tag}";
+        }
+        Check("声部标牌的字", tagWrong == 0, tagWrong == 0 ? $"{cases.Length} 条" : badTag);
+
+        // 标牌最长三个字：列表那一列按它定宽，超了会被截断
+        int tooLong = 0;
+        string longTag = "";
+        foreach (TrackRole r in Enum.GetValues<TrackRole>())
+        {
+            string tag = GmInstrument.TagOf(r);
+            if (tag.Length <= 3) continue;
+            tooLong++;
+            if (longTag.Length == 0) longTag = tag;
+        }
+        Check("声部标牌不超过三个字", tooLong == 0, tooLong == 0 ? "" : longTag);
+
+        // 取色分组：四类不能混，未知不上色
+        Check("取色分组：鼓=节奏", GmInstrument.ToneOf(TrackRole.Drums) == RoleTone.Rhythm);
+        Check("取色分组：贝斯=低音", GmInstrument.ToneOf(TrackRole.Bass) == RoleTone.Low);
+        Check("取色分组：电吉他=和声", GmInstrument.ToneOf(TrackRole.ElectricGuitar) == RoleTone.Harmony);
+        Check("取色分组：人声=旋律", GmInstrument.ToneOf(TrackRole.Vocals) == RoleTone.Lead);
+        Check("取色分组：未知=不上色", GmInstrument.ToneOf(TrackRole.Unknown) == RoleTone.Neutral);
+
+        // 没有音色号时的推断：通道 10 恒为鼓，其余按音域与节奏
+        Check("推断：通道 10 恒为鼓",
+            GmInstrument.Infer(9, "Track 1", MakeNotes(60, 40, 0.5)) == TrackRole.Drums);
+        Check("推断：轨名写了「鼓」也算鼓",
+            GmInstrument.Infer(0, "Drum Kit", MakeNotes(60, 40, 0.5)) == TrackRole.Drums);
+        Check("推断：中音区密集 → 伴奏",
+            GmInstrument.Infer(0, "Track 2", MakeNotes(60, 40, 0.4)) == TrackRole.Accompaniment);
+        Check("推断：高音区稀疏 → 旋律",
+            GmInstrument.Infer(0, "Track 3", MakeNotes(72, 24, 1.0)) == TrackRole.Melody);
+        Check("推断：低音区 → 贝斯",
+            GmInstrument.Infer(0, "Track 4", MakeNotes(40, 24, 0.5)) == TrackRole.Bass);
+        Check("推断：又短又不动 → 鼓",
+            GmInstrument.Infer(0, "Track 5", MakeNotes(38, 40, 0.06)) == TrackRole.Drums);
+
+        // 通用轨名识别：这些名字要换成识别出的乐器名，说得清的名字原样保留
+        var generic = new[] { "", "   ", "Track 1", "track 10", "声道 3", "声部 2", "Part 4", "Channel 7", "Piano 2" };
+        var specific = new[] { "主旋律", "钢琴", "Piano", "贝斯", "电吉他", "鼓组", "和弦 1" };
+        int genericMiss = 0;
+        string missName = "";
+        foreach (string n in generic)
+        {
+            if (GmInstrument.IsGenericTrackName(n)) continue;
+            genericMiss++;
+            if (missName.Length == 0) missName = n;
+        }
+        int specificHit = 0;
+        string hitName = "";
+        foreach (string n in specific)
+        {
+            if (!GmInstrument.IsGenericTrackName(n)) continue;
+            specificHit++;
+            if (hitName.Length == 0) hitName = n;
+        }
+        Check("通用轨名识别为「没写」", genericMiss == 0, genericMiss == 0 ? $"{generic.Length} 条" : missName);
+        Check("说得清的轨名不算通用", specificHit == 0, specificHit == 0 ? $"{specific.Length} 条" : hitName);
+    }
+
+    /// <summary>造一段等长的测试音符：全部同一个音高，间隔固定（只在声部推断用例里用）。</summary>
+    private static List<RawNote> MakeNotes(int pitch, int count, double seconds)
+    {
+        var list = new List<RawNote>(count);
+        for (int i = 0; i < count; i++)
+        {
+            double start = i * seconds * 2;
+            list.Add(new RawNote { Pitch = pitch, Start = start, End = start + seconds, Velocity = 90, Channel = 0 });
+        }
+        return list;
     }
 
     // ================= 断言 =================

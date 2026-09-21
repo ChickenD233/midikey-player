@@ -32,6 +32,21 @@ public sealed class MidiCandidate
     public int MinPitch => Notes.Count == 0 ? 0 : Notes.Min(n => n.Pitch);
     public int MaxPitch => Notes.Count == 0 ? 0 : Notes.Max(n => n.Pitch);
 
+    /// <summary>MIDI 文件里的原始轨名（MTrk 的 SequenceTrackName），没写就是空串。</summary>
+    public string TrackName { get; init; } = "";
+
+    /// <summary>这条轨用的 GM 音色号 0..127；-1 = 文件里没有 Program Change。</summary>
+    public int Program { get; init; } = -1;
+
+    /// <summary>识别出的声部角色。Program 或轨名给的一手证据优先，都没有才是推断。</summary>
+    public TrackRole Role { get; init; } = TrackRole.Unknown;
+
+    /// <summary>Role 是推断出来的（文件里既没音色号也没说得清的轨名）。界面会写「疑似」。</summary>
+    public bool RoleGuessed { get; init; }
+
+    /// <summary>声部标牌的字，例：鼓 / 贝斯 / 电吉他 / 和声 / 人声。</summary>
+    public string RoleTag => GmInstrument.TagOf(Role);
+
     public string ChannelLabel => Channel == 9 ? $"{Channel + 1}(鼓)" : (Channel + 1).ToString();
     /// <summary>列表里的音域：简谱范围，例如 5.~2。不留空格，列表里省地方。</summary>
     public string RangeLabel => Notes.Count == 0 ? "-"
