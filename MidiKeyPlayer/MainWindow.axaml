@@ -98,8 +98,17 @@
           <TextBlock Grid.Column="1" x:Name="LblFile" VerticalAlignment="Center"
                      Margin="12,0,0,0" Text="未选择文件" Classes="caption"
                      TextTrimming="CharacterEllipsis"/>
-          <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Classes="sectionLabel" Margin="0,8,0,0"
-                     Text="支持 .mid / .midi / .kar / .rmi"/>
+          <!-- 音频转 MIDI：第二行左侧仍是格式说明，右侧是转写入口。
+               转写在后台线程跑（见 ConvertAudio_Click / Audio\AudioToMidi.cs），
+               进度写在窗口底部的状态条上，完成后把生成的 .mid 直接载入。 -->
+          <Grid Grid.Row="1" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+            <TextBlock Grid.Column="0" Classes="sectionLabel" VerticalAlignment="Center"
+                       Text="支持 .mid / .midi / .kar / .rmi"/>
+            <Button Grid.Column="1" x:Name="BtnFromAudio" Content="从音频转 MIDI…"
+                    Classes="secondary" FontSize="{DynamicResource FontCaption}" Padding="10,3"
+                    Click="ConvertAudio_Click"
+                    ToolTip.Tip="选一个音频文件（WAV / MP3 / M4A / FLAC 等），本机离线转成 MIDI 并载入。不上传、不需要联网"/>
+          </Grid>
         </Grid>
       </Border>
 

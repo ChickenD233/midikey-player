@@ -1284,6 +1284,76 @@ public partial class MainWindow : Window
         return name + ".mid";
     }
 
+    // ================= 音频转 MIDI =================
+
+    /// <summary>同一时间只转一首：转写要占满所有 CPU 核，重复点只会更慢。</summary>
+    private bool _converting;
+
+    /// <summary>
+    /// 从音频转 MIDI：选一个音频文件，本机离线转写，写成 .mid 并直接载入。
+    ///
+    /// 解码与神经网络推理都在后台线程上跑（见 Audio\AudioToMidi.cs），
+    /// 进度写在窗口底部的状态条上，完整历史照旧落盘。
+    /// 生成的 .mid 放在音频文件旁边，重名自动加序号，不覆盖任何已有文件。
+    /// </summary>
+    private async void ConvertAudio_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_converting) { InsertLog("正在转写，等这一首转完再点。"); return; }
+        try
+        {
+            var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "选择要转成 MIDI 的音频文件",
+                AllowMultiple = false,
+                FileTypeFilter = new List<FilePickerFileType>
+                {
+                    new("音频文件")
+                    {
+                        Patterns = Audio.AudioToMidi.AudioExtensions.Select(x => "*" + x).ToList()
+                    },
+                    new("所有文件") { Patterns = new List<string> { "*.*" } }
+                }
+            });
+            if (files.Count == 0) return;
+            string? path = files[0].TryGetLocalPath();
+            if (string.IsNullOrEmpty(path)) return;
+
+            // 与换歌同一条保护：转完会载入新谱，手动改动先问一句
+            if (!await ConfirmDiscardEditsAsync("从音频转 MIDI")) return;
+
+            _converting = true;
+            BtnFromAudio.IsEnabled = false;
+            InsertLog($"开始转写：{System.IO.Path.GetFileName(path)}（离线进行，时长越长越慢）");
+            var progress = new Progress<double>(p =>
+            {
+                if (TxtLastMsg != null) TxtLastMsg.Text = $"正在转写音频… {p * 100:F0}%";
+            });
+
+            Audio.AudioToMidi.Outcome outcome;
+            try
+            {
+                outcome = await Task.Run(() => Audio.AudioToMidi.Transcribe(path, progress));
+            }
+            finally
+            {
+                _converting = false;
+                BtnFromAudio.IsEnabled = true;
+            }
+
+            string midi = Audio.AudioToMidi.SuggestPath(path);
+            Audio.AudioToMidi.SaveMidi(midi, outcome);
+            InsertLog($"转写完成：{outcome.Notes.Count} 个音，用时 {outcome.Elapsed.TotalSeconds:F0}s"
+                + $"，已写出 {System.IO.Path.GetFileName(midi)}");
+            LoadMidiFile(midi);
+        }
+        catch (Exception ex)
+        {
+            _converting = false;
+            BtnFromAudio.IsEnabled = true;
+            InsertLog($"音频转 MIDI 失败：{ex.Message}");
+        }
+    }
+
     /// <summary>没有可定位的谱面时，清空进度条、卷帘与音符显示。</summary>
     private void ResetSeekUi()
     {
