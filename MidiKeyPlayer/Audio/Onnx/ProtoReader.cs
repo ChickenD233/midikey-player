@@ -117,7 +117,16 @@ internal sealed class ProtoReader
 internal enum OnnxDataType
 {
     Float = 1,
+    UInt8 = 2,
+    Int8 = 3,
+    UInt16 = 4,
+    Int16 = 5,
     Int32 = 6,
     Int64 = 7,
     Bool = 9,
+    Float16 = 10,     // 半精度：本执行器一律按 float32 处理（权重本来就是 fp32，只是图上要 Cast）
+    Double = 11,
+    UInt32 = 12,
+    UInt64 = 13,
+    BFloat16 = 16,
 }

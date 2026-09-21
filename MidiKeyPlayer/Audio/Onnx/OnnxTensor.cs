@@ -51,6 +51,8 @@ internal sealed class OnnxTensor
 
     public static int ElementCount(int[] dims)
     {
+        // 标量（dims 为空）有 1 个元素，不是 0
+        if (dims.Length == 0) return 1;
         int n = 1;
         for (int i = 0; i < dims.Length; i++) n *= dims[i];
         return n;
