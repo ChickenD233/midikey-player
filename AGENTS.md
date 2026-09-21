@@ -49,9 +49,9 @@
 - 开裁剪（`PublishTrimmed`）。反射相关的程序集用 `TrimmerRootAssembly` 钉住：
   `MidiKeyPlayer`、`Avalonia` 系列、`Melanchall.DryWetMidi`。
   动裁剪设置或升级依赖之后，必须重跑自检与界面快照比对。
-- 体积基线：exe 23.2 MB，zip 17.3 MB。明显变大就查原因。
-  （v1.1.8 起移除了音频转 MIDI 与 ONNX Runtime 原生库，回到 v1.1.6 的量级。
-   v1.1.7 的基线是 exe 26.6 MB、zip 21.2 MB。）
+- 体积基线：exe 23.2 MB，zip 17.6 MB。明显变大就查原因。（zip 会每版涨约 0.04 MB，
+  因为包里带着累积的 更新日志.txt。v1.1.8 是 17.60 MB，v1.1.9 是 17.60 MB。
+  v1.1.8 起移除了音频转 MIDI 与 ONNX Runtime 原生库；v1.1.7 的基线是 exe 26.6 MB、zip 21.2 MB。）
 
 ## 其它
 
