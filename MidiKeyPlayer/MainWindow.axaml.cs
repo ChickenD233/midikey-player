@@ -2750,8 +2750,7 @@ public partial class MainWindow : Window
         if (TxtFreeNoticeBody != null) TxtFreeNoticeBody.Text = AutoUpdate.FreeNotice;
         if (TxtFreeNoticeWhere != null) TxtFreeNoticeWhere.Text = links;
         if (TxtForcedNotice != null) TxtForcedNotice.Text = AutoUpdate.FreeNotice;
-        if (TxtQuizRefund != null) TxtQuizRefund.Text = AutoUpdate.FreeNotice;
-        if (TxtQuizWhere != null) TxtQuizWhere.Text = links;
+        if (TxtQuizRefund != null) TxtQuizRefund.Text = AutoUpdate.QuizRefundNote;
     }
 
     /// <summary>
@@ -2786,11 +2785,11 @@ public partial class MainWindow : Window
     {
         _quizFails = 0;
         TxtQuizError.IsVisible = false;
-        TxtQuizRefund.Text = AutoUpdate.FreeNotice;
+        TxtQuizRefund.Text = AutoUpdate.QuizRefundNote;
         TxtQuizAnswer.Text = "";
         QuizOverlay.IsVisible = true;
         TxtQuizAnswer.Focus();
-        InsertLog($"第一次使用：请输入作者的 B 站 ID（提示见设置 → 关于）。");
+        InsertLog("第一次使用：请输入作者的 B 站 ID。");
     }
 
     private void QuizConfirm_Click(object? sender, RoutedEventArgs e) => SubmitQuizAnswer();
@@ -2809,10 +2808,10 @@ public partial class MainWindow : Window
         if (!AutoUpdate.IsAuthorAnswer(TxtQuizAnswer.Text))
         {
             _quizFails++;
+            // 不把答案写在题面上：答错只指路，让人自己去作者主页看
             TxtQuizError.Text = _quizFails == 1
-                ? "不对。作者就是 B 站上做这个程序的人，点下面的「看作者的 B 站主页」看一眼再填。"
-                : $"还是不对。答案是「{AutoUpdate.AuthorName}」（大小写都可以），"
-                  + "或者填作者 B 站主页地址里的数字 ID。";
+                ? "不对。作者就是 B 站上做这个程序的人，点下面的「B 站主页」看一眼再填。"
+                : "还是不对。答案就在下面的「B 站主页」里，填作者在 B 站的名字。";
             TxtQuizError.IsVisible = true;
             TxtQuizAnswer.SelectAll();
             return;

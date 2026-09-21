@@ -808,40 +808,35 @@
   </Border>
 
   <!-- 第一次使用的验证浮层：填对作者的 B 站 ID 才能进。
+       题面上不出现作者名字（名字就是答案）；链接只留下面三个按钮，不再重复列文字。
        只在设置里没答对过时弹一次（AppConfig.AuthorQuizPassed），以后每次更新都不再弹。 -->
   <Border x:Name="QuizOverlay" IsVisible="False" Background="#66101828" CornerRadius="0">
-    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="580" Margin="24">
-      <Border Classes="card" Padding="24,20">
+    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="460" Margin="24">
+      <Border Classes="card" Padding="22,18">
         <StackPanel Spacing="10">
-          <TextBlock Text="第一次使用，先回答一个问题" FontSize="17" FontWeight="Bold"/>
-          <TextBlock TextWrapping="Wrap" FontSize="{DynamicResource FontBody}" LineHeight="21"
-                     Text="请输入作者的 B 站 ID（作者在 B 站的名字）。答对一次，以后不再问。"/>
-          <Border Background="{DynamicResource BrushDangerSoft}" BorderBrush="{DynamicResource BrushDangerBorder}"
-                  BorderThickness="1" CornerRadius="8" Padding="12,9">
-            <TextBlock x:Name="TxtQuizRefund" TextWrapping="Wrap"
-                       FontSize="{DynamicResource FontSmall}" LineHeight="19"
-                       Foreground="{DynamicResource BrushDangerText}"/>
-          </Border>
-          <WrapPanel ItemSpacing="10" LineSpacing="8">
-            <TextBox x:Name="TxtQuizAnswer" Width="240" FontSize="{DynamicResource FontBody}"
+          <TextBlock FontSize="16" FontWeight="Bold" Text="请输入作者的 B 站 ID"/>
+          <WrapPanel ItemSpacing="8" LineSpacing="8">
+            <TextBox x:Name="TxtQuizAnswer" Width="230" FontSize="{DynamicResource FontBody}"
                      Watermark="作者的 B 站 ID" KeyDown="QuizAnswer_KeyDown"/>
-            <Button x:Name="BtnQuizOk" Content="确认" Classes="accent" Padding="18,7"
+            <Button x:Name="BtnQuizOk" Content="确认" Classes="accent" Padding="18,6"
                     FontSize="{DynamicResource FontTitle}" Click="QuizConfirm_Click"/>
           </WrapPanel>
           <TextBlock x:Name="TxtQuizError" TextWrapping="Wrap" IsVisible="False"
                      FontSize="{DynamicResource FontSmall}" LineHeight="19"
                      Foreground="{DynamicResource BrushDangerText}"/>
-          <WrapPanel ItemSpacing="10" LineSpacing="8">
-            <Button Content="看作者的 B 站主页" FontSize="{DynamicResource FontSmall}" Padding="12,5"
+          <TextBlock x:Name="TxtQuizRefund" TextWrapping="Wrap"
+                     FontSize="{DynamicResource FontSmall}" LineHeight="19"
+                     Foreground="{DynamicResource BrushDangerText}"/>
+          <TextBlock Text="祝倒狗冚家富貴=）" FontSize="{DynamicResource FontSmall}"
+                     LineHeight="19" Foreground="{DynamicResource BrushTextSecondary}"/>
+          <WrapPanel ItemSpacing="8" LineSpacing="8">
+            <Button Content="B 站主页" FontSize="{DynamicResource FontSmall}" Padding="12,5"
                     Classes="secondary" Click="OpenAuthorSpace_Click"/>
             <Button Content="复制 QQ 群号" FontSize="{DynamicResource FontSmall}" Padding="12,5"
                     Classes="secondary" Click="CopyQq_Click"/>
             <Button Content="打开下载页" FontSize="{DynamicResource FontSmall}" Padding="12,5"
                     Classes="secondary" Click="OpenReleases_Click"/>
           </WrapPanel>
-          <TextBlock x:Name="TxtQuizWhere" TextWrapping="Wrap"
-                     FontSize="{DynamicResource FontSmall}" LineHeight="19"
-                     Foreground="{DynamicResource BrushTextSecondary}"/>
         </StackPanel>
       </Border>
     </StackPanel>

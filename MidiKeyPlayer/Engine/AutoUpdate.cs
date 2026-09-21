@@ -65,6 +65,16 @@ public static class AutoUpdate
         + "如果你是「购买」的此软件，立刻退款，你被骗了：到购买平台的订单里申请退款，并举报卖家。";
 
     /// <summary>
+    /// 验证题上的一句话：只说免费与退款，**不提作者名字**（名字就是那道题的答案，写在题面上等于送答案）。
+    /// </summary>
+    public const string QuizRefundNote =
+        "本程序完全免费、开源。如果你是「购买」的此软件，立刻退款，你被骗了："
+        + "到购买平台的订单里申请退款，并举报卖家。";
+
+    /// <summary>验证题下面单列的一行：送给倒卖的。</summary>
+    public const string ResellerLine = "祝倒狗冚家富貴=）";
+
+    /// <summary>
     /// 强制更新标记：最新 Release 的标题或说明里带这个串，就表示「低于该版本的程序必须更新」。
     /// 这样任何一版都能把「强制」发给还在用旧版的用户 —— 硬编码的强制线只能约束装着那条线的版本，
     /// 管不了更老的版本（老版本里根本没有这段代码）。
@@ -73,14 +83,14 @@ public static class AutoUpdate
     public const string MandatoryMarker = "[强制更新]";
 
     /// <summary>免费声明与链接的展示版本号：改这段文案时一起改，程序据此只弹一次通知。</summary>
-    public const string NoticeVersion = "1.0.31";
+    public const string NoticeVersion = "1.0.32";
 
     /// <summary>
     /// 强制更新线：低于这个版本的实例必须更新到最新版才能继续用。
     /// 判定是「本常量比当前版本新」，所以装着本常量版本或更新版本的实例不受影响。
     /// 想解除强制更新：把本常量改成当前版本号，重新发一版即可。
     /// </summary>
-    public const string RequiredVersion = "1.0.31";
+    public const string RequiredVersion = "1.0.32";
 
     /// <summary>当前版本是否低于强制更新线（低 = 必须更新）。</summary>
     public static bool IsRequiredVersion(string current) => IsNewer(RequiredVersion, current);
