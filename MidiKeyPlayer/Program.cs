@@ -38,6 +38,13 @@ internal static class Program
             return;
         }
 
+        // 人声 / 伴奏分离探针（MIDIKEY_STEM_PROBE=<模型目录>）：见 Audio\StemProbe.cs。
+        if (MidiKeyPlayer.Audio.StemProbe.Requested)
+        {
+            Environment.Exit(MidiKeyPlayer.Audio.StemProbe.Run());
+            return;
+        }
+
         // 人声 / 伴奏分离模型探针（MIDIKEY_SPLEETER_PROBE=<模型目录>）：见 Audio\SpleeterProbe.cs。
         if (MidiKeyPlayer.Audio.SpleeterProbe.Requested)
         {

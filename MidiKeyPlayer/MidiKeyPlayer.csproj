@@ -70,6 +70,7 @@
     <TrimmerRootAssembly Include="Avalonia.Themes.Fluent" />
     <TrimmerRootAssembly Include="Avalonia.Win32" />
     <TrimmerRootAssembly Include="Melanchall.DryWetMidi" />
+    <TrimmerRootAssembly Include="Microsoft.ML.OnnxRuntime" />
   </ItemGroup>
 
   <ItemGroup>
@@ -77,6 +78,10 @@
     <PackageReference Include="Avalonia.Desktop" Version="11.3.20" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.20" />
     <PackageReference Include="Melanchall.DryWetMidi" Version="7.2.0" />
+    <!-- 人声 / 伴奏分离：Spleeter 的图比 basic-pitch 复杂得多（转置卷积、批归一、动态填充），
+         自写执行器在这张图上数值不可信，所以这一件事交给 ONNX Runtime。
+         basic-pitch（230 KB）仍然走自写执行器，不受影响。 -->
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.20.1" />
   </ItemGroup>
 
   <!-- 原 App 图标资源。 -->
