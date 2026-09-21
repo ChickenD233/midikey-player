@@ -147,10 +147,12 @@
 - 想跨八度弹，就在键位设置里勾「启用功能键」，再绑升高八度与降低八度。
 - 没有对应键的音不发声。状态文字与日志写明原因：超出音域，或键表里没有这个音。
 - 乐器一次只发一个音。同时按住多个键时，后来的音优先，前一个音被换掉。
+- 设备把同一个音重复发送时只发一次。键盘接触抖动、同一个音走多个通道、驱动重发都会这样；
+  30ms 以内的重复 NoteOn 直接丢掉，日志里写明丢了多少次（用来确认设备真的在重发）。
 
 「设备实时演奏」和「文件播放」互不影响。播放期间设备照样能弹，但两路输入会同时生效，
 想干净一点就在播放时先取消勾选。状态文字实时显示最近一个音映射成了什么。
-停止时日志给出统计：收到多少音、多少没有对应的键、多少被后来的音顶掉。
+停止时日志给出统计：收到多少音、多少重复被丢掉、多少没有对应的键、多少被后来的音顶掉。
 
 设置自动记忆。位置是 `%LOCALAPPDATA%\MidiKeyPlayer\settings.json`。日志在同一目录，文件名是 `play.log`。
 
@@ -551,10 +553,12 @@ Connect a MIDI keyboard or pad, and key presses are sent directly to the target 
 - To play across octaves, tick "Enable function keys" (启用功能键) in the key settings, then bind octave up and octave down.
 - Notes with no corresponding key stay silent. The status text and the log state the reason: out of range, or the note is not in the key table.
 - The instrument emits only one note at a time. When multiple keys are held at once, the later note wins and the earlier one is replaced.
+- When the device sends the same note several times, only one note goes out. Key contact chatter, one note on several channels, and driver re-sends all look like this;
+  a repeated NoteOn within 30 ms is dropped, and the log states how many were dropped (use it to confirm the device really re-sends).
 
 "Device live performance" and "file playback" do not interfere with each other. The device can still be played during playback, but both input paths take effect at the same time —
 untick it during playback if you want it clean. The status text shows in real time what the most recent note mapped to.
-On stop, the log gives statistics: how many notes were received, how many had no corresponding key, and how many were replaced by later notes.
+On stop, the log gives statistics: how many notes were received, how many duplicates were dropped, how many had no corresponding key, and how many were replaced by later notes.
 
 Settings are remembered automatically. Location: `%LOCALAPPDATA%\MidiKeyPlayer\settings.json`. The log is in the same directory, file name `play.log`.
 

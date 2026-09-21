@@ -42,12 +42,14 @@ public sealed class LivePlayback : IDisposable
     private const int MaxQueue = 1024;          // 事件队列上限，防止异常情况下无限增长
     private const int MaxSounding = 32;         // 同时"在响"的音符上限
     private const int MaxRecent = 24;           // 自动贴合的样本数
+    private const double DefaultDuplicateWindowMs = 30.0;   // 同一音高的重复 NoteOn 去抖窗口（IN-09）
 
     private readonly object _gate = new();
     private readonly SemaphoreSlim _wake = new(0);
     private readonly List<Pending> _queue = new();          // 按 Due 升序
     private readonly List<Sounding> _sounding = new();      // 按按下顺序
     private readonly List<int> _recent = new();
+    private readonly Dictionary<int, double> _lastAttackAt = new();   // 音高 → 上一次真正按下的时刻（去重用）
     private Thread? _thread;
     private volatile bool _running;
     private bool _disposed;
@@ -95,7 +97,7 @@ public sealed class LivePlayback : IDisposable
     public event Action<string>? Log;
     public event Action<LiveMapping, int, int>? NoteObserved;   // 映射结果、原始音高、力度
 
-    /// <summary>设备发来的音符数（note on）。</summary>
+    /// <summary>设备发来的音符数（note on，重复被丢掉的不算，见 <see cref="DuplicateCount"/>）。</summary>
     public int NoteOnCount { get; private set; }
     /// <summary>超出可演奏音域、没有发声的音符数。</summary>
     public int OutOfRangeCount { get; private set; }
@@ -103,6 +105,8 @@ public sealed class LivePlayback : IDisposable
     public int TooShortCount { get; private set; }
     /// <summary>同一根音键上被后来音符顶掉的次数。</summary>
     public int StolenCount { get; private set; }
+    /// <summary>设备把同一个音重复发送、按抖动丢掉的次数（IN-09）。</summary>
+    public int DuplicateCount { get; private set; }
 
     private KeymapProfile? _keymap;
 
@@ -144,6 +148,19 @@ public sealed class LivePlayback : IDisposable
         set => _minVelocity = Math.Clamp(value, 1, 127);
     }
     private int _minVelocity = 1;
+
+    /// <summary>
+    /// 去抖窗口（毫秒）：同一个音高在这个窗口内的重复 NoteOn 按「设备多发」处理，直接丢掉。
+    /// 键盘接触抖动、同一个音走多个通道、驱动重发都落在这种重复里；不丢就会变成
+    /// 「按一下响好几下」（IN-09）。默认 30ms —— 人手不可能在 30ms 内重按同一个键，
+    /// 真实的重复（换指、连打）不会被误伤。0 = 关掉去抖。
+    /// </summary>
+    public double DuplicateWindowMs
+    {
+        get => _duplicateWindowMs;
+        set => _duplicateWindowMs = Math.Clamp(value, 0, 200);
+    }
+    private double _duplicateWindowMs = DefaultDuplicateWindowMs;
 
     /// <summary>输入时序预算（物理毫秒），与文件播放共用一套档位。</summary>
     public InputTiming Timing { get; set; } = InputTiming.Standard;
@@ -261,6 +278,7 @@ public sealed class LivePlayback : IDisposable
             _running = true;
             _queue.Clear();
             _sounding.Clear();
+            _lastAttackAt.Clear();
             _modKey = null;
             _modSharp = false;
             _modFlat = false;
@@ -280,6 +298,7 @@ public sealed class LivePlayback : IDisposable
             _running = false;
             _queue.Clear();
             _sounding.Clear();
+            _lastAttackAt.Clear();
             _modKey = null;
             _modSharp = false;
             _modFlat = false;
@@ -307,15 +326,37 @@ public sealed class LivePlayback : IDisposable
         if (pitch is < 0 or > 127) return;
 
         double now = NowMs();
-        LiveMapping map;
+        LiveMapping map = default;
         bool octaveMoved = false;
+        bool duplicate = false;
         lock (_gate)
         {
-            NoteOnCount++;
-            octaveMoved = ObserveForAutoFit(pitch);
-            map = Map(pitch + _transpose, _baseOctave, Keymap);
-            if (!map.Playable) OutOfRangeCount++;
+            // IN-09：设备把同一个音在一次按下里发了多次（接触抖动、同一个音走多个通道、驱动重发）。
+            // 只认第一次 —— 乐器一次只发一个音，同一个键没抬起也不可能再触发一次；
+            // 照着发就会变成「按一下响好几下」。
+            duplicate = IsDuplicateAttack(pitch, now);
+            if (duplicate)
+            {
+                DuplicateCount++;
+            }
+            else
+            {
+                NoteOnCount++;
+                octaveMoved = ObserveForAutoFit(pitch);
+                map = Map(pitch + _transpose, _baseOctave, Keymap);
+                if (!map.Playable) OutOfRangeCount++;
+            }
         }
+
+        if (duplicate)
+        {
+            // 第一次与之后每 50 次写一条：能确认设备真的在重发，也不刷屏
+            if (DuplicateCount == 1 || DuplicateCount % 50 == 0)
+                Log?.Invoke($"[MIDI] 去重：{Music.SolfegeName(pitch)} 在 {DuplicateWindowMs:F0}ms 内被重复发送，"
+                            + $"已丢掉这一次（累计 {DuplicateCount} 次）。键盘抖动或同一个音多通道都会这样。");
+            return;
+        }
+
         NoteObserved?.Invoke(map, pitch, velocity);
 
         if (octaveMoved)
@@ -474,6 +515,19 @@ public sealed class LivePlayback : IDisposable
 
     /// <summary>清掉队列里某根键尚未发出的所有事件（修饰键切换时防陈旧 KeyDown 卡键）。持锁调用。</summary>
     private void PurgePending(string key) => _queue.RemoveAll(e => e.Key == key);
+
+    /// <summary>
+    /// 持锁调用：这次 NoteOn 是不是同一个音高的重复发送。
+    /// 只有被接受的那一次才记时刻，所以一串抖动会被整串丢掉，不会「滚」着把窗口一直往后推。
+    /// 窗口为 0（关掉去抖）时不记录，也不丢任何音。
+    /// </summary>
+    private bool IsDuplicateAttack(int pitch, double now)
+    {
+        if (_duplicateWindowMs <= 0) return false;
+        if (_lastAttackAt.TryGetValue(pitch, out double last) && now - last < _duplicateWindowMs) return true;
+        _lastAttackAt[pitch] = now;   // 按音高存，最多 128 项，不用清理
+        return false;
+    }
 
     /// <summary>插入队列并保持按 Due 升序（同刻事件保持插入顺序：先抬起，后按下）。</summary>
     private void Enqueue(double due, string key, bool down)

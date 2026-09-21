@@ -3183,6 +3183,7 @@ public partial class MainWindow : Window
         UpdateMidiPanels();
         if (!wasListening) return;
         InsertLog($"[MIDI] 实时演奏已停止（本次收到 {_livePlay.NoteOnCount} 个音，"
+                  + $"重复丢弃 {_livePlay.DuplicateCount}，"
                   + $"没键可弹 {_livePlay.OutOfRangeCount}，顶音 {_livePlay.StolenCount}，"
                   + $"太短补足 {_livePlay.TooShortCount}）。");
     }
