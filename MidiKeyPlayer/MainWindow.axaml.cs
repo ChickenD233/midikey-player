@@ -276,18 +276,33 @@ public partial class MainWindow : Window
         InstallPreviewProbe(this);  // 【开发用，可删】设了 MIDIKEY_PREVIEW_PROBE=1 才生效，见 DevPreviewProbe.cs
     }
 
-    // ================= 首次启动“快速上手” =================
+    // ================= 首次启动“快速上手” / 关于卡里的「使用教程」 =================
 
+    /// <summary>
+    /// 首次启动弹一次快速上手。设置里记过 FirstRunDone 就不再弹。
+    /// 「关于」卡里的「使用教程」按钮走 <see cref="Tutorial_Click"/>，随时可以再看一遍。
+    /// </summary>
     private void ShowQuickStartOnce()
     {
         if (_cfg == null || _cfg.FirstRunDone || QuickStartOverlay == null) return;
         QuickStartOverlay.IsVisible = true;
     }
 
+    /// <summary>「使用教程」：再弹一遍快速上手。不写 FirstRunDone（它只是记录首次启动跑过了）。</summary>
+    private void Tutorial_Click(object? sender, RoutedEventArgs e)
+    {
+        if (QuickStartOverlay == null) return;
+        QuickStartOverlay.IsVisible = true;
+        BtnQuickStartOk?.Focus();
+    }
+
+    /// <summary>【开发用】浮层快照走这条：与「使用教程」按钮同一条链路。</summary>
+    internal void ShowTutorialForDev() => Tutorial_Click(null, new RoutedEventArgs());
+
     private void QuickStartOk_Click(object? sender, RoutedEventArgs e)
     {
         if (QuickStartOverlay != null) QuickStartOverlay.IsVisible = false;
-        if (_cfg != null)
+        if (_cfg != null && !_cfg.FirstRunDone)
         {
             _cfg.FirstRunDone = true;
             _cfg.Save();
@@ -1303,7 +1318,7 @@ public partial class MainWindow : Window
 
     // ================= 文件载入 =================
 
-    /// <summary>打开文件对话框。既是 SplitButton 主体的处理函数，也是菜单里「打开文件…」的处理函数。</summary>
+    /// <summary>打开文件对话框。既是 SplitButton 主体的处理函数，也是托盘与热键那条链路的入口。</summary>
     private async void BtnOpen_Click(object? sender, RoutedEventArgs e)
     {
         HideOpenMenu();   // 从下拉菜单里点进来时先收菜单：对话框与确认框不压在菜单上面
@@ -1313,6 +1328,7 @@ public partial class MainWindow : Window
             {
                 Title = "选择 MIDI 文件",
                 AllowMultiple = false,
+                SuggestedStartLocation = await LastMidiFolderAsync(),
                 FileTypeFilter = new List<FilePickerFileType>
                 {
                     new("MIDI 文件")
@@ -1336,6 +1352,23 @@ public partial class MainWindow : Window
         {
             InsertLog($"打开文件对话框失败：{ex.GetType().Name}: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// 文件对话框的起始目录：上次打开的文件所在目录（「最近打开」的第一条）。
+    /// 找不到就返回 null，让系统用默认位置。
+    /// </summary>
+    private async Task<Avalonia.Platform.Storage.IStorageFolder?> LastMidiFolderAsync()
+    {
+        try
+        {
+            var recent = _cfg?.RecentFiles;
+            if (recent == null || recent.Count == 0) return null;
+            string? dir = System.IO.Path.GetDirectoryName(recent[0]);
+            if (string.IsNullOrEmpty(dir) || !System.IO.Directory.Exists(dir)) return null;
+            return await StorageProvider.TryGetFolderFromPathAsync(dir);
+        }
+        catch { return null; }   // 起始目录只是方便，失败不挡打开
     }
 
     // ================= 打开文件夹（左栏常驻的「文件夹曲目」卡） =================
@@ -1791,10 +1824,7 @@ public partial class MainWindow : Window
 
         menu.Items.Clear();
 
-        var openFile = new MenuItem { Header = "打开文件…" };
-        openFile.Click += BtnOpen_Click;
-        menu.Items.Add(openFile);
-
+        // 不再重复放「打开文件…」：SplitButton 的主体就是它，菜单里再放一条是同一个动作两个入口。
         var openFolder = new MenuItem { Header = "打开文件夹…" };
         openFolder.Click += BtnOpenFolder_Click;
         menu.Items.Add(openFolder);
@@ -2760,23 +2790,9 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>「关于」里的文档按钮：显示嵌在 exe 里的合规文本（avares 资源，见 csproj）。</summary>
-    private void Doc_Click(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Button b || b.Tag is not string resName || resName.Length == 0) return;
-        string title = b.Content?.ToString() ?? resName;
-        try
-        {
-            using var s = Avalonia.Platform.AssetLoader.Open(new Uri($"avares://MidiKeyPlayer/Docs/{resName}"));
-            using var reader = new System.IO.StreamReader(s);
-            new DocWindow().ShowDoc(this, title, reader.ReadToEnd());
-        }
-        catch (Exception ex)
-        {
-            InsertLog($"打开{title}失败：{ex.Message}");
-            global::MidiKeyPlayer.Persist.LogFile.Append($"[关于] 读内置文档 {resName} 失败：{ex}");
-        }
-    }
+    // 内置合规文本（更新说明 / 第三方声明 / 许可证）仍然嵌在 exe 里，但 v1.2.0 起不再给按钮：
+    // 常规页的「关于」卡只留版本号、检查更新与使用教程。需要看合规文本就解包 exe 或看仓库。
+    // DocWindow 仍然保留：它还给「被跳过的音」当只读查看窗（见 ShowSkippedNotes）。
 
     // ================= 免费声明 / 作者链接 / 强制更新 =================
 
@@ -2787,15 +2803,12 @@ public partial class MainWindow : Window
     /// <summary>把免费声明与作者链接从常量填进界面（常量只有一份，见 AutoUpdate）。</summary>
     private void FillAboutLinks()
     {
-        string space = AutoUpdate.AuthorSpaceUrl;
-        string spaceShow = AutoUpdate.AuthorSpaceUrlShort;
-        string qq = AutoUpdate.QqGroupNumber;
-        string links = $"作者：B 站 {spaceShow}\n反馈与更新：QQ 群 {qq}　下载页：{AutoUpdate.ReleasesUrl}";
+        string links = $"作者：B 站 {AutoUpdate.AuthorSpaceUrlShort}\n"
+            + $"反馈与更新：QQ 群 {AutoUpdate.QqGroupNumber}　下载页：{AutoUpdate.ReleasesUrl}";
 
-        if (TxtFreeNotice != null) TxtFreeNotice.Text = AutoUpdate.FreeNotice;
-        if (TxtAboutLinks != null) TxtAboutLinks.Text = links;
-        if (BtnAuthorSpace != null) ToolTip.SetTip(BtnAuthorSpace, space);
-        if (BtnCopyQq != null) BtnCopyQq.Content = $"复制 QQ 群号 {qq}";
+        if (TxtFreeNotice != null) TxtFreeNotice.Text = AutoUpdate.FreeNoticeShort;
+        if (BtnAuthorSpace != null) ToolTip.SetTip(BtnAuthorSpace, AutoUpdate.AuthorSpaceUrl);
+        if (BtnCopyQq != null) BtnCopyQq.Content = $"复制 QQ 群号 {AutoUpdate.QqGroupNumber}";
         if (TxtFreeNoticeBody != null) TxtFreeNoticeBody.Text = AutoUpdate.FreeNotice;
         if (TxtFreeNoticeWhere != null) TxtFreeNoticeWhere.Text = links;
         if (TxtForcedNotice != null) TxtForcedNotice.Text = AutoUpdate.FreeNotice;

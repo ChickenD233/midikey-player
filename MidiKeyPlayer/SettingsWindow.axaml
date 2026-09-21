@@ -336,7 +336,7 @@
                            FontWeight="SemiBold"/>
                 <TextBlock TextWrapping="Wrap" LineHeight="20"
                            FontSize="{DynamicResource FontSmall}"
-                           Text="如果这个程序帮到了你，可以在爱发电请作者喝杯奶茶。赞助完全自愿，不影响程序功能。"/>
+                           Text="赞助完全自愿，不影响任何功能。"/>
                 <TextBlock x:Name="TxtSponsorAfdianUrl" Classes="value" TextWrapping="Wrap"
                            FontSize="{DynamicResource FontSmall}"/>
                 <Button x:Name="BtnSponsorAfdian" Content="打开爱发电赞助页"
@@ -350,37 +350,19 @@
               <StackPanel Spacing="8">
                 <TextBlock Text="作者的其它地方" Classes="sectionLabel" FontWeight="SemiBold"
                            FontSize="{DynamicResource FontSmall}"/>
-                <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto,Auto">
-                  <TextBlock Grid.Row="0" Grid.Column="0" Text="B 站" Classes="label"
-                             Width="64" VerticalAlignment="Center"/>
-                  <TextBlock Grid.Row="0" Grid.Column="1" x:Name="TxtSponsorBiliUrl"
-                             Classes="value" TextWrapping="Wrap" VerticalAlignment="Center"
-                             FontSize="{DynamicResource FontSmall}"/>
-                  <TextBlock Grid.Row="1" Grid.Column="0" Text="GitHub" Classes="label"
-                             Width="64" Margin="0,6,0,0" VerticalAlignment="Center"/>
-                  <TextBlock Grid.Row="1" Grid.Column="1" x:Name="TxtSponsorGitHubUrl"
-                             Classes="value" TextWrapping="Wrap" Margin="0,6,0,0"
-                             VerticalAlignment="Center" FontSize="{DynamicResource FontSmall}"/>
-                  <TextBlock Grid.Row="2" Grid.Column="0" Text="QQ 群" Classes="label"
-                             Width="64" Margin="0,6,0,0" VerticalAlignment="Center"/>
-                  <TextBlock Grid.Row="2" Grid.Column="1" x:Name="TxtSponsorQq"
-                             Classes="value" Margin="0,6,0,0" VerticalAlignment="Center"
-                             FontSize="{DynamicResource FontSmall}"/>
-                  <Button Grid.Row="2" Grid.Column="2" x:Name="BtnSponsorCopyQq" Content="复制群号"
-                          FontSize="{DynamicResource FontSmall}" Padding="10,4" Margin="8,6,0,0"
-                          Classes="secondary" VerticalAlignment="Center" Click="CopyQq_Click"/>
-                </Grid>
-                <WrapPanel ItemSpacing="10" LineSpacing="8">
+                <!-- 三个按钮一行：B 站、GitHub、复制群号。地址不进正文，鼠标停在按钮上看 -->
+                <StackPanel Orientation="Horizontal" Spacing="8">
                   <Button x:Name="BtnSponsorBili" Content="B 站主页"
                           FontSize="{DynamicResource FontSmall}" Padding="12,5"
                           Classes="secondary" Click="OpenBili_Click"/>
                   <Button x:Name="BtnSponsorGitHub" Content="GitHub 主页"
                           FontSize="{DynamicResource FontSmall}" Padding="12,5"
                           Classes="secondary" Click="OpenGitHub_Click"/>
-                </WrapPanel>
-                <TextBlock x:Name="TxtSponsorQqCopied" Classes="caption" Text=""/>
-                <TextBlock Classes="caption" TextWrapping="Wrap" LineHeight="19"
-                           Text="B 站有使用演示与更新通知；GitHub 上有源码和全部 Release。反馈问题去 QQ 群最快，点上面的「复制群号」就能把群号贴给作者。"/>
+                  <Button x:Name="BtnSponsorCopyQq" Content="复制群号"
+                          FontSize="{DynamicResource FontSmall}" Padding="12,5"
+                          Classes="secondary" Click="CopyQq_Click"/>
+                  <TextBlock x:Name="TxtSponsorQqCopied" Classes="caption" VerticalAlignment="Center"/>
+                </StackPanel>
               </StackPanel>
             </Border>
 

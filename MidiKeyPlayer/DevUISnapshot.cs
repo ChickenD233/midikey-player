@@ -43,8 +43,8 @@ internal static class DevSnapshotMode
 ///     拍图前把「左侧每行文字颜色 ↔ 卷帘每个音符颜色」的对照表写成文本，便于逐行核对。
 /// MIDIKEY_UI_SNAPSHOT_THEME=0|1|2
 ///     拍图前先切皮肤（0 自动 / 1 浅色 / 2 深色），走的是设置里那个下拉框的同一条链路。
-/// MIDIKEY_UI_SNAPSHOT_OVERLAY=notice|forced|quiz
-///     配合 MIDIKEY_UI_SNAPSHOT 用：把「免费声明」或「强制更新」浮层打开再拍图。
+/// MIDIKEY_UI_SNAPSHOT_OVERLAY=notice|forced|quiz|tutorial
+///     配合 MIDIKEY_UI_SNAPSHOT 用：把「免费声明」「强制更新」「验证题」或「使用教程」浮层打开再拍图。
 ///     强制更新那条传空资产地址，所以不会真的联网下载。
 /// MIDIKEY_UI_SNAPSHOT_ADVANCED=/path/advanced.png
 ///     打开设置窗口，切到「常规」页拍一张（并顺带走一遍「开 → 关 → 再开」）。
@@ -191,6 +191,8 @@ public partial class MainWindow
             w.ShowForcedUpdate("1.0.30", AutoUpdate.ReleasesUrl, "");
         else if (string.Equals(mode, "quiz", StringComparison.OrdinalIgnoreCase))
             w.ShowQuizOverlay();
+        else if (string.Equals(mode, "tutorial", StringComparison.OrdinalIgnoreCase))
+            w.ShowTutorialForDev();     // 「关于」卡里的「使用教程」按钮走的同一条链路
         else
             w.ShowFreeNoticeOverlay();
     }

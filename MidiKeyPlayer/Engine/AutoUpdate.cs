@@ -77,6 +77,14 @@ public static class AutoUpdate
         + "设置里的赞助是自愿打赏给作者，不是购买，不影响程序功能。";
 
     /// <summary>
+    /// 常规页「关于」卡里的一行短声明：浮层那一段太长，这里只留最要紧的两句 ——
+    /// 免费、被骗就退款并举报。全文仍在首次启动的浮层里。
+    /// </summary>
+    public const string FreeNoticeShort =
+        "本程序免费开源，没有收费版本。如果你是买的，立刻退款并举报卖家。"
+        + "赞助是自愿打赏，不影响功能。";
+
+    /// <summary>
     /// 验证题上的一句话：只说免费与退款，**不提作者名字**（名字就是那道题的答案，写在题面上等于送答案）。
     /// </summary>
     public const string QuizRefundNote =
@@ -98,9 +106,10 @@ public static class AutoUpdate
     /// 免费声明与链接的展示版本号：改这段文案时一起改，程序据此只弹一次通知。
     /// 1.1.0：免费声明浮层加了「爱发电」按钮，文案也点了赞助不等于购买 → 版本号加一，
     /// 让已经看过 1.0.32 那版的人再看一次，才拿得到新的赞助入口。
+    /// 1.2.0：「关于」卡里那一行长声明换成 <see cref="FreeNoticeShort"/>，浮层再加回来一次。
     /// 注意这里写的是不带 v 的三段号，与 csproj 的 &lt;Version&gt; 不是同一个字符串，但要对得上版本。
     /// </summary>
-    public const string NoticeVersion = "1.1.0";
+    public const string NoticeVersion = "1.2.0";
 
     /// <summary>
     /// 强制更新线：低于这个版本的实例必须更新到最新版才能继续用。

@@ -93,9 +93,9 @@
           <!-- 打开入口：主体 = 文件选择对话框（一键，行为与旧按钮一样）；
                右侧箭头 = 菜单，只有两级（打开文件… / 打开文件夹… / 分隔线 / 最近打开 ▸）。
                菜单项全部由 RefreshRecentUi() 重建，见 MainWindow.axaml.cs。 -->
-          <SplitButton x:Name="BtnOpen" Content="打开 MIDI 文件 / 文件夹" Click="BtnOpen_Click"
+          <SplitButton x:Name="BtnOpen" Content="打开 MIDI 文件" Click="BtnOpen_Click"
                        Padding="14,7" FontSize="{DynamicResource FontBody}" VerticalAlignment="Center"
-                       ToolTip.Tip="点左边直接选文件；点右边的 ▾ 可以选文件夹（曲目列在下面那块区域），或从最近打开里挑">
+                       ToolTip.Tip="点左边直接选文件；点右边的 ▾ 选文件夹或从最近打开里挑">
             <SplitButton.Flyout>
               <MenuFlyout Placement="BottomEdgeAlignedLeft"/>
             </SplitButton.Flyout>
@@ -376,7 +376,7 @@
               <Button Grid.Column="1" x:Name="BtnHelp" Content="帮助"
                       FontSize="{DynamicResource FontCaption}" Padding="10,3" Margin="8,0,0,0"
                       Classes="secondary" Click="Help_Click"
-                      ToolTip.Tip="在卷帘右侧显示操作说明。再点一下收起，把宽度让给卷帘"/>
+                      ToolTip.Tip="显示 / 收起右侧操作说明"/>
             </Grid>
           </Grid>
           <!-- 卷帘：上=时间标尺，左=琴键栏。
@@ -399,7 +399,7 @@
               <!-- 试听：和「停止」一样大的独立按钮。只放声音，不发按键、不走倒计时、不最小化窗口。 -->
               <Button x:Name="BtnPreview" Content="试听" Click="Preview_Click"
                       Classes="secondary" FontSize="{DynamicResource FontTitle}" Padding="20,8"
-                      ToolTip.Tip="用系统 MIDI 合成器直接播放当前谱面，不发送任何按键、不走倒计时、不最小化窗口。再点一下停止。"/>
+                      ToolTip.Tip="只放声音：不发按键、不走倒计时、不最小化窗口。再点一下停止"/>
               <CheckBox x:Name="ChkLoop" Content="循环" VerticalAlignment="Center" FontSize="{DynamicResource FontBody}"/>
               <TextBlock x:Name="TxtHotHint" Classes="sectionLabel" VerticalAlignment="Center"
                          Text="F6：开始 / 暂停 / 继续"/>
@@ -474,7 +474,7 @@
                            TextTrimming="CharacterEllipsis" ToolTip.Tip="当前键位方案名"/>
                 <Button x:Name="BtnSettings" Content="设置…" FontSize="{DynamicResource FontSmall}"
                         Padding="14,5" Classes="secondary" VerticalAlignment="Center" Click="Settings_Click"
-                        ToolTip.Tip="打开设置，三页：常规（设备、兼容、热键、导出、主界面显示）、键位（方案、按键绑定、功能键）、赞助（爱发电与作者链接）"/>
+                        ToolTip.Tip="打开设置"/>
               </StackPanel>
             </Grid>
 
@@ -485,7 +485,7 @@
                 <Slider x:Name="SliderSpeed" Width="96" Minimum="10" Maximum="400" Value="100"
                         TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="SpeedChanged"
                         VerticalAlignment="Center"
-                        ToolTip.Tip="10% = 慢速练习，400% = 快速过谱（引擎支持 10%–400%）"/>
+                        ToolTip.Tip="10% 慢速练习，400% 快速过谱"/>
                 <TextBlock x:Name="TxtSpeed" Text="100%" Classes="value" Width="42" VerticalAlignment="Center"/>
               </StackPanel>
 
@@ -494,7 +494,7 @@
                 <Slider x:Name="SliderTranspose" Width="96" Minimum="-24" Maximum="24" Value="0"
                         TickFrequency="1" IsSnapToTickEnabled="True" ValueChanged="SpeedChanged"
                         VerticalAlignment="Center"
-                        ToolTip.Tip="±24 半音（±2 个八度），与设置层、实时演奏同口径"/>
+                        ToolTip.Tip="±24 半音（±2 个八度）"/>
                 <TextBlock x:Name="TxtTranspose" Text="0" Classes="value" Width="30" VerticalAlignment="Center"/>
               </StackPanel>
 
@@ -502,7 +502,7 @@
                 <TextBlock Text="倒计时" Classes="label" MinWidth="46" VerticalAlignment="Center"/>
                 <ComboBox x:Name="CountdownCombo" Width="104" FontSize="{DynamicResource FontSmall}" SelectedIndex="1"
                           VerticalAlignment="Center" SelectionChanged="CountdownCombo_Changed"
-                          ToolTip.Tip="点播放后等几秒才开始发按键：这段时间用来切到目标程序、装备乐器"/>
+                          ToolTip.Tip="这几秒用来切到目标程序并装备乐器"/>
               </StackPanel>
 
               <!-- 「播放后自动最小化」只决定开始播放时缩不缩窗，不改谱面 -->
@@ -516,7 +516,7 @@
               <CheckBox Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" x:Name="ChkFocusGuard"
                         Content="焦点离开目标程序时自动暂停（按键只进游戏）"
                         FontSize="{DynamicResource FontSmall}" IsChecked="True" VerticalAlignment="Center"
-                        ToolTip.Tip="勾选后：演奏中焦点离开目标程序的窗口就自动暂停，切回去自动继续。Alt+Tab 出去不会把谱面弹进聊天窗口。与主程序自己的窗口交互不算离开"
+                        ToolTip.Tip="焦点离开目标程序就自动暂停，切回来自动继续。与本程序自己的窗口交互不算离开"
                         IsCheckedChanged="FocusGuard_Changed"/>
             </Grid>
           </StackPanel>
@@ -532,17 +532,17 @@
             <Button x:Name="BtnAutoTranspose" Content="一键移调" FontSize="{DynamicResource FontSmall}"
                     Padding="12,5" Classes="secondary" VerticalAlignment="Center"
                     Click="BtnAutoTranspose_Click"
-                    ToolTip.Tip="自动移调，让没有对应键的音最少（这些音会跳过不弹，卷帘里画成灰色）"/>
+                    ToolTip.Tip="自动移调，让没有对应键的音最少（这些音跳过不弹，卷帘里是灰色）"/>
 
             <Button x:Name="BtnNaturalTranspose" Content="自然音最多" FontSize="{DynamicResource FontSmall}"
                     Padding="12,5" Classes="secondary" VerticalAlignment="Center"
                     Click="BtnNaturalTranspose_Click"
-                    ToolTip.Tip="自动移调，让最多音落在自然音上（口琴等没有半音键的乐器用）。自然音同样多时取没有对应键的更少"/>
+                    ToolTip.Tip="自动移调，让最多音落在自然音上（口琴等没有半音键的乐器用）"/>
 
             <!-- 「去除开头空拍」会把整条旋律往前挪，属于改谱面 -->
             <CheckBox x:Name="ChkTrimLead" Content="去除开头空拍" FontSize="{DynamicResource FontSmall}"
                       IsChecked="True" VerticalAlignment="Center"
-                      ToolTip.Tip="剪掉开头的休止，让旋律从第 0 秒开始。注意它会把整条旋律往前挪，卷帘左下角会标出剪掉了多少秒"
+                      ToolTip.Tip="剪掉开头的休止，让旋律从第 0 秒开始。整条旋律会往前挪"
                       IsCheckedChanged="Option_Changed"/>
           </WrapPanel>
         </Border>
@@ -627,23 +627,23 @@
           <WrapPanel ItemSpacing="22" LineSpacing="8">
             <StackPanel Orientation="Horizontal" Spacing="8">
               <TextBlock Text="输入兼容" Classes="label"
-                         ToolTip.Tip="目标程序按键是按帧读取的：修饰键与音键间隔太短会被折进同一帧，导致漏音。这里给出时间余量。"/>
+                         ToolTip.Tip="修饰键与音键间隔太短会被目标程序折进同一帧，导致漏音。这里给时间余量"/>
               <ComboBox x:Name="TimingCombo" Width="150" FontSize="{DynamicResource FontSmall}"
                         VerticalAlignment="Center" SelectionChanged="Timing_Changed"
-                        ToolTip.Tip="稳健=给30fps/掉帧留余量；标准=60fps 推荐；极限=高帧率下跟快歌。若仍漏音请选「稳健」。"/>
+                        ToolTip.Tip="稳健 = 掉帧机器；标准 = 60fps 推荐；极限 = 高帧率跟快歌。仍漏音就选稳健"/>
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" Spacing="8">
               <TextBlock Text="输入方式" Classes="label"
-                         ToolTip.Tip="SendInput 是 Windows 自带的输入模拟；罗技 G HUB 驱动则直接向罗技驱动发键盘报告。两种方式的兼容性不同，默认 SendInput 即可。"/>
+                         ToolTip.Tip="SendInput 是 Windows 自带的输入模拟。默认用它就够了"/>
               <ComboBox x:Name="BackendCombo" Width="216" FontSize="{DynamicResource FontSmall}"
                         VerticalAlignment="Center" SelectionChanged="Backend_Changed"
-                        ToolTip.Tip="罗技 G HUB 驱动：直接向罗技驱动发标准键盘报告。需安装并保持运行 Logitech G HUB（不需要罗技硬件，装好后默认开机自启）。只发键盘：鼠标键无效；同时按住的音最多 6 个。"/>
+                        ToolTip.Tip="需安装并保持运行 Logitech G HUB（不需要罗技硬件）。只发键盘：鼠标键无效，同时按住最多 6 个音"/>
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" Spacing="8">
               <TextBlock Text="控制热键" Classes="label"
-                         ToolTip.Tip="一个键四用：空闲=开始，播放=暂停，暂停=继续，倒计时=取消"/>
+                         ToolTip.Tip="一个键四用：空闲 = 开始，播放 = 暂停，暂停 = 继续，倒计时 = 取消"/>
               <ComboBox x:Name="HotkeyControlCombo" Width="86" FontSize="{DynamicResource FontSmall}"
                         VerticalAlignment="Center" SelectionChanged="Hotkey_Changed"
                         ToolTip.Tip="默认 F6"/>
@@ -667,7 +667,7 @@
 
             <StackPanel Orientation="Horizontal" Spacing="8">
               <TextBlock Text="上一首" Classes="label"
-                         ToolTip.Tip="切到文件夹曲目里的上一首。要先「打开文件夹」列出曲目才生效；播放中切歌不走倒计时，直接接着弹"/>
+                         ToolTip.Tip="上一首。要先打开文件夹列出曲目；播放中切歌不走倒计时"/>
               <ComboBox x:Name="HotkeyPrevCombo" Width="86" FontSize="{DynamicResource FontSmall}"
                         VerticalAlignment="Center" SelectionChanged="Hotkey_Changed"
                         ToolTip.Tip="默认 F8"/>
@@ -675,7 +675,7 @@
 
             <StackPanel Orientation="Horizontal" Spacing="8">
               <TextBlock Text="下一首" Classes="label"
-                         ToolTip.Tip="切到文件夹曲目里的下一首。要先「打开文件夹」列出曲目才生效；播放中切歌不走倒计时，直接接着弹"/>
+                         ToolTip.Tip="下一首。要先打开文件夹列出曲目；播放中切歌不走倒计时"/>
               <ComboBox x:Name="HotkeyNextCombo" Width="86" FontSize="{DynamicResource FontSmall}"
                         VerticalAlignment="Center" SelectionChanged="Hotkey_Changed"
                         ToolTip.Tip="默认 F9"/>
@@ -707,29 +707,29 @@
               <ComboBox x:Name="ThemeCombo" Width="152" FontSize="{DynamicResource FontSmall}"
                         SelectedIndex="0" VerticalAlignment="Center"
                         SelectionChanged="Theme_Changed"
-                        ToolTip.Tip="自动 = 跟随 Windows 的浅色 / 深色设置。选完立即生效，不用重启"/>
+                        ToolTip.Tip="自动 = 跟随 Windows 的浅色 / 深色设置，立即生效"/>
             </StackPanel>
             <CheckBox x:Name="ChkShowPreflight" Content="播放前自检（管理员 / 输入法）"
                       FontSize="{DynamicResource FontSmall}" IsChecked="True" VerticalAlignment="Center"
                       IsCheckedChanged="ShowPreflight_Changed"
-                      ToolTip.Tip="勾选时，主界面右上方的状态卡里常驻显示自检结论与「刷新」按钮。关掉后主界面不再显示这三样"/>
+                      ToolTip.Tip="主界面右上角常驻显示管理员与输入法检查结果"/>
             <CheckBox x:Name="ChkOverlay" Content="播放悬浮窗（倒计时 / 进度）"
                       FontSize="{DynamicResource FontSmall}" IsChecked="True" VerticalAlignment="Center"
                       IsCheckedChanged="Overlay_Changed"
-                      ToolTip.Tip="勾选时，倒计时与演奏期间在屏幕右上角显示一个置顶悬浮窗：倒计时秒数、进度条与当前音。浮窗可拖动，位置自动记忆"/>
+                      ToolTip.Tip="倒计时与演奏时在屏幕右上角显示置顶小窗：秒数、进度条与当前音。可拖动，位置会记住"/>
             <CheckBox x:Name="ChkOverlayHideOnPause" Content="暂停后关闭悬浮窗"
                       FontSize="{DynamicResource FontSmall}" IsChecked="True" VerticalAlignment="Center"
                       IsCheckedChanged="OverlayHideOnPause_Changed"
-                      ToolTip.Tip="勾选时，暂停也把悬浮窗收起来（不再挡着画面），继续演奏时自动弹回来，不用去设置里重开"/>
+                      ToolTip.Tip="暂停也把悬浮窗收起来，继续时自动弹回"/>
           </WrapPanel>
           <TextBlock Classes="caption" TextWrapping="Wrap" LineHeight="19"
-                     Text="皮肤分浅色（白）与深色（黑），也可以跟随系统。自检常驻在主界面右上方的状态卡里，这里关掉就不再显示。悬浮窗浮在目标程序画面上，倒计时与演奏进度不用切回来看；暂停时默认把它收起来，继续时自动弹回，不想要可以在上面取消勾选。点悬浮窗右上角的 ✕ 只让本次播放不再弹它，设置里的开关不动。"/>
+                     Text="悬浮窗右上角的 ✕ 只关掉本次播放，设置里的开关不变。"/>
         </StackPanel>
       </Border>
 
-      <!-- 关于：版本号、手动检查更新、内置文档查看。
-           更新说明 / 第三方声明 / 许可证三份文本由 csproj 以 AvaloniaResource 嵌进 exe，
-           这里提供界面入口；更新日志不进 exe（只随发布包附带），不在这里列。 -->
+      <!-- 关于：版本号、手动检查更新、使用教程。
+            更新说明 / 第三方声明 / 许可证三份合规文本仍然嵌在 exe 里（csproj 的 AvaloniaResource），
+            只是不再给按钮：常规页不需要那么多字。教程按钮重弹「快速上手」浮层。 -->
       <Border Classes="card" Padding="14,10">
         <StackPanel Spacing="6">
           <TextBlock Text="关于" Classes="sectionLabel" FontSize="{DynamicResource FontSmall}"
@@ -739,25 +739,20 @@
             <Button x:Name="BtnCheckUpdate" Content="检查更新" FontSize="{DynamicResource FontSmall}"
                     Padding="12,5" Classes="secondary" VerticalAlignment="Center"
                     Click="CheckUpdateManual_Click"
-                    ToolTip.Tip="立刻检查 GitHub 上有没有新版本。有新版时主界面顶部会出现提示条"/>
-            <Button Content="更新说明" FontSize="{DynamicResource FontSmall}" Tag="更新说明.txt"
-                    Padding="12,5" Classes="secondary" VerticalAlignment="Center" Click="Doc_Click"/>
-            <Button Content="第三方声明" FontSize="{DynamicResource FontSmall}" Tag="THIRD-PARTY-NOTICES.md"
-                    Padding="12,5" Classes="secondary" VerticalAlignment="Center" Click="Doc_Click"/>
-            <Button Content="许可证" FontSize="{DynamicResource FontSmall}" Tag="LICENSE"
-                    Padding="12,5" Classes="secondary" VerticalAlignment="Center" Click="Doc_Click"/>
+                    ToolTip.Tip="有新版时顶部会出现提示条"/>
+            <Button x:Name="BtnTutorial" Content="使用教程" FontSize="{DynamicResource FontSmall}"
+                    Padding="12,5" Classes="secondary" VerticalAlignment="Center" Click="Tutorial_Click"
+                    ToolTip.Tip="再弹一遍「快速上手」"/>
           </WrapPanel>
           <TextBlock Classes="caption" TextWrapping="Wrap" LineHeight="19"
-                     Text="发现新版本时主界面顶部会出现提示条：点它自动下载并更新，右键跳过本版本。累积更新日志在发布包的 更新日志.txt 里。"/>
-          <!-- 免费声明与作者链接：文案由代码从 AutoUpdate 的常量填（见 FillAboutLinks），
+                     Text="提示条点一下自动更新，右键跳过本版本。"/>
+          <!-- 免费声明与作者入口：文案由代码从 AutoUpdate 的常量填（见 FillAboutLinks），
                避免同一个群号/链接在 XAML 与代码里各写一遍。 -->
           <Border Background="{DynamicResource BrushDangerSoft}" BorderBrush="{DynamicResource BrushDangerBorder}"
                   BorderThickness="1" CornerRadius="8" Padding="12,9" Margin="0,3,0,0">
             <StackPanel Spacing="7">
               <TextBlock x:Name="TxtFreeNotice" TextWrapping="Wrap" FontSize="{DynamicResource FontSmall}"
                          LineHeight="19" Foreground="{DynamicResource BrushDangerText}"/>
-              <TextBlock x:Name="TxtAboutLinks" TextWrapping="Wrap" FontSize="{DynamicResource FontSmall}"
-                         LineHeight="19" Foreground="{DynamicResource BrushTextSecondary}"/>
               <WrapPanel ItemSpacing="10" LineSpacing="6">
                 <Button x:Name="BtnAuthorSpace" Content="B 站主页" FontSize="{DynamicResource FontSmall}"
                         Padding="12,5" Classes="secondary" VerticalAlignment="Center"

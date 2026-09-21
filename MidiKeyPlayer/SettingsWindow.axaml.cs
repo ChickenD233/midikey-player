@@ -35,13 +35,10 @@ public partial class SettingsWindow : Window
         AdvancedHost.Content = body;
     }
 
-    /// <summary>赞助页：爱发电在最上面，下面是 B 站、GitHub 与 QQ 群。地址与群号都取自 AutoUpdate。</summary>
+    /// <summary>赞助页：爱发电在最上面，下面是 B 站、GitHub 与 QQ 群。地址都取自 AutoUpdate。</summary>
     private void FillSponsorPage()
     {
         if (TxtSponsorAfdianUrl != null) TxtSponsorAfdianUrl.Text = AutoUpdate.AfdianUrlShort;
-        if (TxtSponsorBiliUrl != null) TxtSponsorBiliUrl.Text = AutoUpdate.AuthorSpaceUrlShort;
-        if (TxtSponsorGitHubUrl != null) TxtSponsorGitHubUrl.Text = AutoUpdate.GitHubUrlShort;
-        if (TxtSponsorQq != null) TxtSponsorQq.Text = AutoUpdate.QqGroupNumber;
         if (BtnSponsorAfdian != null) ToolTip.SetTip(BtnSponsorAfdian, AutoUpdate.AfdianUrl);
         if (BtnSponsorBili != null) ToolTip.SetTip(BtnSponsorBili, AutoUpdate.AuthorSpaceUrlShort);
         if (BtnSponsorGitHub != null) ToolTip.SetTip(BtnSponsorGitHub, AutoUpdate.GitHubUrlShort);
@@ -83,13 +80,13 @@ public partial class SettingsWindow : Window
                 MinWidth = 720; MinHeight = 560;
                 Width = 900; Height = 680;
                 break;
-            case 2:   // 赞助页：内容不多，跟常规页差不多高就够
-                MinWidth = 560; MinHeight = 520;
-                Width = 660; Height = 620;
+            case 2:   // 赞助页：内容短，窗口压到刚好装下，不留一大片空白
+                MinWidth = 560; MinHeight = 380;
+                Width = 660; Height = 440;
                 break;
             default:  // 常规页
-                MinWidth = 560; MinHeight = 520;
-                Width = 640; Height = 660;   // 四张卡都露出来（「关于」卡里还有免费声明与作者链接）
+                MinWidth = 560; MinHeight = 500;
+                Width = 640; Height = 620;   // 四张卡都露出来（文字缩短后 620 就够）
                 break;
         }
     }
