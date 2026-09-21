@@ -42,17 +42,157 @@ internal static class SpleeterProbe
         Say($"目录：{dir}");
         Say("");
 
+        // 特殊模式：核对 fp16 解码（MIDIKEY_SPLEETER_PROBE_FP16=<前缀>，读 _in.f16 写 _out.f32）
+        string fp16 = Environment.GetEnvironmentVariable("MIDIKEY_SPLEETER_PROBE_FP16") ?? "";
+        if (fp16.Length > 0)
+        {
+            var raw = File.ReadAllBytes(fp16 + "_in.f16");
+            var f = new float[raw.Length / 2];
+            for (int i = 0; i < f.Length; i++)
+            {
+                ushort h = (ushort)(raw[i * 2] | (raw[i * 2 + 1] << 8));
+                f[i] = HalfToFloat(h);
+            }
+            File.WriteAllBytes(fp16 + "_out.f32", Floats(f));
+            Say($"fp16 解码核对：读 {f.Length} 个，写出 {fp16}_out.f32");
+            try { File.WriteAllText(outPath, Log.ToString(), new UTF8Encoding(false)); } catch { }
+            return 0;
+        }
+
+        // 特殊模式：只核对一个算子或「卷积+批归一」两节点子图
+        // （MIDIKEY_SPLEETER_PROBE_CT=<前缀>，前缀下要有 <前缀>[_x/_w/_b/_s/_bb/_mu/_va/_c/_y].f32 与 _meta.txt）
+        string ct = Environment.GetEnvironmentVariable("MIDIKEY_SPLEETER_PROBE_CT") ?? "";
+        if (ct.Length > 0)
+        {
+            ConvCheck(ct, "_meta.txt", withBn: false);
+            ConvCheck(ct, "_bn_meta.txt", withBn: true);
+            ConvCheck(ct, "_meta.txt", withBn: false, opOverride: "ConvTranspose");
+            try { File.WriteAllText(outPath, Log.ToString(), new UTF8Encoding(false)); } catch { }
+            Say($"报告：{outPath}");
+            return 0;
+        }
+
+        // 只跑指定的一支模型：MIDIKEY_SPLEETER_PROBE_ONLY=vocals / accompaniment
+        string only = Environment.GetEnvironmentVariable("MIDIKEY_SPLEETER_PROBE_ONLY") ?? "";
         foreach (string name in new[] { "vocals", "accompaniment" })
         {
+            if (only.Length > 0 && !string.Equals(only, name, StringComparison.OrdinalIgnoreCase)) continue;
             string file = FindModel(dir, name);
             if (file.Length == 0) { Say($"[{name}] 找不到模型文件"); continue; }
-            Inspect(name, file, audio.Length > 0 ? audio : null);
+            Inspect(name, file, audio);
             Say("");
         }
 
         try { File.WriteAllText(outPath, Log.ToString(), new UTF8Encoding(false)); } catch { }
         Say($"报告：{outPath}");
         return 0;
+    }
+
+    /// <summary>
+    /// 核对一个卷积算子：在内存里拼一个只有一个节点的图，
+    /// 输入/权重/偏置从 &lt;前缀&gt;_x.f32 / _w.f32 / _b.f32 读，
+    /// 形状与步长/填充从 &lt;前缀&gt;_meta.txt 读（首行：算子 输入形状 权重形状 步长 填充），
+    /// 输出与前缀 _y.f32 逐元素比。
+    /// </summary>
+    private static void ConvCheck(string prefix, string metaSuffix, bool withBn, string? opOverride = null)
+    {
+        string metaPath = prefix + metaSuffix;
+        if (!File.Exists(metaPath)) return;
+        string[] parts = File.ReadAllText(metaPath).Trim().Split(' ');
+        if (parts.Length < 6) return;
+        string opType = opOverride ?? parts[0];
+        if (parts[0] != opType && opOverride == null) return;
+
+        int[] inShape = Array.ConvertAll(parts[1].Split(','), int.Parse);
+        int[] wShape = Array.ConvertAll(parts[2].Split(','), int.Parse);
+        long[] strides = Array.ConvertAll(parts[3].Split(','), long.Parse);
+        long[] pads = Array.ConvertAll(parts[4].Split(','), long.Parse);
+        long[] dil = Array.ConvertAll(parts[5].Split(','), long.Parse);
+        int cout = opType == "Conv" ? wShape[0] : wShape[1];
+
+        var x = ReadFloats(prefix + "_x.f32");
+        var w = ReadFloats(prefix + "_w.f32");
+        var b = ReadFloats(prefix + "_b.f32");
+        var expect = ReadFloats(prefix + (withBn ? "_y.f32" : "_y.f32"));
+        if (x.Length == 0 || w.Length == 0 || expect.Length == 0)
+        {
+            Say($"{opType}{(withBn ? " + BN" : "")} 核对：输入文件不全（缺 {prefix}_x.f32 之类）");
+            return;
+        }
+
+        var model = new OnnxModel();
+        var conv = new OnnxNode { OpType = opType };
+        conv.Inputs = withBn ? new[] { "x", "w", "b" } : new[] { "x", "w", "b" };
+        conv.Outputs = new[] { withBn ? "c" : "y" };
+        conv.Attributes["strides"] = strides;
+        conv.Attributes["pads"] = pads;
+        conv.Attributes["dilations"] = dil;
+        model.Nodes.Add(conv);
+        model.Initializers["w"] = new OnnxTensor(OnnxDataType.Float, wShape, w);
+        model.Initializers["b"] = new OnnxTensor(OnnxDataType.Float, new[] { cout }, b);
+
+        if (withBn)
+        {
+            var bn = new OnnxNode { OpType = "BatchNormalization" };
+            bn.Inputs = new[] { "c", "s", "bb", "mu", "va" };
+            bn.Outputs = new[] { "y" };
+            model.Nodes.Add(bn);
+            model.Initializers["s"] = new OnnxTensor(OnnxDataType.Float, new[] { cout }, ReadFloats(prefix + "_s.f32"));
+            model.Initializers["bb"] = new OnnxTensor(OnnxDataType.Float, new[] { cout }, ReadFloats(prefix + "_bb.f32"));
+            model.Initializers["mu"] = new OnnxTensor(OnnxDataType.Float, new[] { cout }, ReadFloats(prefix + "_mu.f32"));
+            model.Initializers["va"] = new OnnxTensor(OnnxDataType.Float, new[] { cout }, ReadFloats(prefix + "_va.f32"));
+        }
+
+        model.InputName = "x";
+        model.OutputNames = new[] { "y" };
+
+        var runner = new OnnxGraphRunner(model);
+        var input = new OnnxTensor(OnnxDataType.Float, inShape, x);
+        OnnxTensor output;
+        try { output = runner.Run(input); }
+        catch (Exception ex) { Say($"{opType}{(withBn ? " + BN" : "")} 核对：跑不通 {ex.Message}"); return; }
+
+        double maxAbs = 0, sumAbs = 0;
+        int n = Math.Min(expect.Length, output.F!.Length);
+        for (int i = 0; i < n; i++)
+        {
+            double d = Math.Abs(output.F[i] - expect[i]);
+            sumAbs += d;
+            if (d > maxAbs) maxAbs = d;
+        }
+        Say($"{opType}{(withBn ? " + BN" : "")} 核对：形状 {output.ShapeText()}（参考 {expect.Length} 个数）");
+        Say($"  maxAbs={maxAbs:E3} meanAbs={(n > 0 ? sumAbs / n : 0):E3}");
+        Say($"  本实现头8：{string.Join(",", output.F.Take(8).Select(v => v.ToString("G5")))}");
+        Say($"  参考头8  ：{string.Join(",", expect.Take(8).Select(v => v.ToString("G5")))}");
+    }
+
+    private static float[] ReadFloats(string path)
+    {
+        if (!File.Exists(path)) return Array.Empty<float>();
+        var raw = File.ReadAllBytes(path);
+        var f = new float[raw.Length / 4];
+        Buffer.BlockCopy(raw, 0, f, 0, f.Length * 4);
+        return f;
+    }
+
+    private static byte[] Floats(float[] data)
+    {
+        var b = new byte[data.Length * 4];
+        Buffer.BlockCopy(data, 0, b, 0, b.Length);
+        return b;
+    }
+
+    /// <summary>fp16 解码（与 OnnxModel.FromHalf 同一口径，供核对用）。</summary>
+    private static float HalfToFloat(ushort h)
+    {
+        int sign = (h >> 15) & 1;
+        int exp = (h >> 10) & 0x1F;
+        int mant = h & 0x3FF;
+        double value;
+        if (exp == 0) value = mant * Math.Pow(2, -24);
+        else if (exp == 31) value = mant == 0 ? double.PositiveInfinity : double.NaN;
+        else value = (1.0 + mant / 1024.0) * Math.Pow(2, exp - 15);
+        return (float)(sign == 1 ? -value : value);
     }
 
     private static string FindModel(string dir, string stem)
@@ -179,17 +319,28 @@ internal static class SpleeterProbe
         foreach (string on in model.OutputNames)
             Say($"  输出节点：{on}");
 
-        if (audioPath == null) return;
-        RunOnce(label, model, audioPath);
+        // 有音频、或者给了固定输入文件，才真跑一遍
+        string inFile = Environment.GetEnvironmentVariable("MIDIKEY_SPLEETER_PROBE_IN") ?? "";
+        if (audioPath == null && !(inFile.Length > 0 && File.Exists(inFile))) return;
+        RunOnce(label, model, audioPath ?? "");
     }
 
     private static void RunOnce(string label, OnnxModel model, string audioPath)
     {
         try
         {
-            var (samples, rate, channels) = AudioDecoder.Decode(audioPath);
-            Say($"  音频：{Path.GetFileName(audioPath)} {rate} Hz {channels} 声道 {samples.Length / Math.Max(1, channels)} 帧");
+            float[] samples = Array.Empty<float>();
+            if (audioPath.Length > 0)
+            {
+                var (decoded, rate, channels) = AudioDecoder.Decode(audioPath);
+                samples = decoded;
+                Say($"  音频：{Path.GetFileName(audioPath)} {rate} Hz {channels} 声道 {decoded.Length / Math.Max(1, channels)} 帧");
+            }
             var runner = new OnnxGraphRunner(model);
+            // 想看的中间张量：MIDIKEY_SPLEETER_PROBE_DUMP 里给名字（逗号分隔）
+            string dumpNames = Environment.GetEnvironmentVariable("MIDIKEY_SPLEETER_PROBE_DUMP") ?? "";
+            foreach (string dn in dumpNames.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                runner.DumpValues[dn] = dn;
             var trace = new List<string>();
             runner.Trace = (op, shape) =>
             {
@@ -202,11 +353,20 @@ internal static class SpleeterProbe
             foreach (var kv in model.InputShapes)
             {
                 var dims = (int[])kv.Value.Clone();
-                if (dims.Length == 0) { shapes.Add(new[] { 2, 1, 512, 1024 }); continue; }
+                if (dims.Length == 0) { shapes.Add(new[] { 2, 2, 512, 1024 }); continue; }
                 for (int i = 0; i < dims.Length; i++) if (dims[i] == 0) dims[i] = 1;
                 shapes.Add(dims);
             }
-            if (shapes.Count == 0) shapes.Add(new[] { 2, 1, 512, 1024 });
+            if (shapes.Count == 0) shapes.Add(new[] { 2, 2, 512, 1024 });
+
+            // 可选：从文件读固定输入（MIDIKEY_SPLEETER_PROBE_IN=<float32 原始数据>），
+            // 并与参考输出（_REF=<float32 原始数据>）逐元素比对。用来核对执行器的数值正确性。
+            string inFile = Environment.GetEnvironmentVariable("MIDIKEY_SPLEETER_PROBE_IN") ?? "";
+            if (inFile.Length > 0 && File.Exists(inFile))
+            {
+                shapes.Clear();
+                shapes.Add(new[] { 2, 2, 512, 1024 });
+            }
 
             foreach (int[] dims in shapes)
             {
@@ -214,7 +374,17 @@ internal static class SpleeterProbe
                 int want = 1;
                 foreach (int d in dims) want *= d;
                 var data = new float[want];
-                for (int i = 0; i < want && i < samples.Length; i++) data[i] = samples[i];
+                string inFile2 = Environment.GetEnvironmentVariable("MIDIKEY_SPLEETER_PROBE_IN") ?? "";
+                if (inFile2.Length > 0 && File.Exists(inFile2))
+                {
+                    var raw = File.ReadAllBytes(inFile2);
+                    Buffer.BlockCopy(raw, 0, data, 0, Math.Min(raw.Length, want * 4));
+                    Say($"  输入来自文件 {Path.GetFileName(inFile2)}（{raw.Length / 4} 个 float）");
+                }
+                else
+                {
+                    for (int i = 0; i < want && i < samples.Length; i++) data[i] = samples[i];
+                }
                 var input = new OnnxTensor(OnnxDataType.Float, dims, data);
                 var sw = Stopwatch.StartNew();
                 try
@@ -233,6 +403,29 @@ internal static class SpleeterProbe
                         }
                         double mean = o.Length > 0 ? sum / o.Length : 0;
                         Say($"    {o.ShapeText()} min={min:F4} max={max:F4} mean={mean:F5}");
+
+                        // 有参考输出就逐元素比：maxAbs 是最大绝对差，meanAbs 是平均绝对差
+                        string refFile = Environment.GetEnvironmentVariable("MIDIKEY_SPLEETER_PROBE_REF") ?? "";
+                        if (refFile.Length > 0 && File.Exists(refFile) && o.F != null)
+                        {
+                            var raw = File.ReadAllBytes(refFile);
+                            int n = Math.Min(raw.Length / 4, o.F.Length);
+                            var refF = new float[n];
+                            Buffer.BlockCopy(raw, 0, refF, 0, n * 4);
+                            double maxAbs = 0, sumAbs = 0;
+                            int worst = -1;
+                            for (int i = 0; i < n; i++)
+                            {
+                                double d = Math.Abs(o.F[i] - refF[i]);
+                                sumAbs += d;
+                                if (d > maxAbs) { maxAbs = d; worst = i; }
+                            }
+                            Say($"    与参考比：n={n} maxAbs={maxAbs:E3} meanAbs={(n > 0 ? sumAbs / n : 0):E3}" +
+                                (worst >= 0 ? $" 最大差在 {worst}：本 {o.F[worst]:F6} / 参考 {refF[worst]:F6}" : ""));
+                            if (o.F.Length > 0)
+                                Say($"    本实现头8：{string.Join(",", o.F.Take(8).Select(v => v.ToString("G6")))}" +
+                                    $" / 参考头8：{string.Join(",", refF.Take(8).Select(v => v.ToString("G6")))}");
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -244,6 +437,9 @@ internal static class SpleeterProbe
                     Say("  执行轨迹（节点类型+输出形状，前 40 个）：");
                     for (int i = 0; i < Math.Min(40, trace.Count); i++) Say($"    {i}: {trace[i]}");
                 }
+                // 诊断：把指定名字的张量值打出来（成功失败都打，失败了才最需要看）
+                foreach (var kv in runner.DumpValues)
+                    Say($"  张量 {kv.Key} {kv.Value}");
             }
         }
         catch (Exception ex)

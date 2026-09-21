@@ -20,6 +20,25 @@ internal sealed class OnnxNode
     public string Str(string name, string fallback = "")
         => Attributes.TryGetValue(name, out var v) && v is string s ? s : fallback;
 
+    /// <summary>
+    /// 取一个浮点属性。属性值可能是 float、double 或整型包装（不同导出器不一样），一律认。
+    /// 缺属性或类型不认识时给 fallback。
+    /// </summary>
+    public float Float(string name, float fallback = 0f)
+    {
+        if (!Attributes.TryGetValue(name, out var v) || v == null) return fallback;
+        return v switch
+        {
+            float f => f,
+            double d => (float)d,
+            long l => l,
+            int i => i,
+            long[] la when la.Length > 0 => la[0],
+            float[] fa when fa.Length > 0 => fa[0],
+            _ => fallback,
+        };
+    }
+
     public bool Has(string name) => Attributes.ContainsKey(name);
 
     /// <summary>取 TensorProto 属性（Constant / ConstantOfShape 的 value）。没有就返回 null。</summary>

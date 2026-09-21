@@ -41,7 +41,55 @@ internal sealed class OnnxGraphRunner
             throw new InvalidOperationException($"张量 {name} 既不是初始值，也没有节点产出它");
         foreach (string i in node.Inputs) Materialize(i);
         if (node.Outputs.Length > 0 && node.Outputs[0].Length > 0)
-            _values[node.Outputs[0]] = Execute(node);
+        {
+            var t = Execute(node);
+            _values[node.Outputs[0]] = t;
+            if (DumpValues.TryGetValue(node.Outputs[0], out var key))
+                DumpValues[node.Outputs[0]] = key + " => " + Describe(Snapshot(t));
+        }
+    }
+
+    /// <summary>
+    /// 复制一张张量。诊断打点必须复制：图里后面的算子会原地改写张量，
+    /// 只存引用的话，等整图跑完再打印会打出被改过的值（曾经因此误判过一层算子有错）。
+    /// </summary>
+    private static OnnxTensor Snapshot(OnnxTensor t)
+    {
+        var dims = (int[])t.Dims.Clone();
+        if (t.F != null) return new OnnxTensor(t.Type, dims, (float[])t.F.Clone());
+        if (t.L != null) return new OnnxTensor(t.Type, dims, (long[])t.L.Clone());
+        return t;
+    }
+
+    /// <summary>把一张张量的形状与统计量写成一行（大张量不打全部值），供开发诊断用。</summary>
+    private static string Describe(OnnxTensor t)
+    {
+        // 大张量：只给形状与前几个数 + 均值，避免刷屏
+        if (t.Length > 64)
+        {
+            double sum = 0;
+            float min = float.MaxValue, max = float.MinValue;
+            if (t.F != null)
+            {
+                foreach (float v in t.F) { sum += v; if (v < min) min = v; if (v > max) max = v; }
+            }
+            double mean = t.F != null && t.F.Length > 0 ? sum / t.F.Length : 0;
+            string head = t.F != null && t.F.Length > 0
+                ? string.Join(",", t.F.Take(4).Select(v => v.ToString("G4")))
+                : "(整数)";
+            return $"{t.ShapeText()} 均值={mean:G5} 最小={min:G4} 最大={max:G4} 头4={head}";
+        }
+        string values;
+        if (t.L != null)
+        {
+            values = string.Join(",", t.L);
+        }
+        else if (t.F != null)
+        {
+            values = string.Join(",", t.F.Select(v => v.ToString("G4")));
+        }
+        else values = "(空)";
+        return $"{t.ShapeText()} 值[{values}]";
     }
 
     /// <summary>跑一遍图。input 的形状必须与模型声明的入口一致。</summary>
@@ -84,6 +132,9 @@ internal sealed class OnnxGraphRunner
 
     /// <summary>每算完一个节点回调一次（类型, 输出形状文本）。只有开发探针会挂它，正常使用时为 null。</summary>
     internal Action<string, string>? Trace;
+
+    /// <summary>【开发诊断】把这些名字的张量算出来后打一份值。只给探针用，正常使用为空。</summary>
+    internal readonly Dictionary<string, string> DumpValues = new(StringComparer.Ordinal);
 
     private OnnxTensor Execute(OnnxNode node)
     {
@@ -540,19 +591,23 @@ internal sealed class OnnxGraphRunner
                 begin[axis] = (int)start;
                 step[axis] = (int)st;
                 count[axis] = end > start ? (int)((end - start + st - 1) / st) : 0;
+                Trace?.Invoke("Slice分支", $"轴{axis} 正 起{start} 止{end} 个{count[axis]} 维{dim}");
             }
             else
             {
-                // 步长为负：起点夹到 [-dim, dim-1]，终点夹到 [-1, dim-1]，-1 表示一直走到头。
-                // 这套口径逐条比对过 onnxruntime 的 Slice 输出（4 维以下、含哨兵值都一致）。
+                // 步长为负：起点先按负数加维度长度（-1 → dim-1），再夹到 [0, dim-1]；
+                // 终点夹到 [-1, dim-1] 后**原样用负数**算个数（-1 表示「一直走到头」）。
+                // 这套口径逐条比对过 onnxruntime（含 starts=[-1] ends=[INT64_MIN] steps=[-1] 这类反向切片）。
                 start = SliceIndex(start, -dim, dim - 1);
-                end = SliceIndex(end, -1, dim - 1);
                 if (start < 0) start += dim;
-                if (end < 0) end += dim;
+                start = Math.Clamp(start, 0, dim - 1);
+                end = SliceIndex(end, -1, dim - 1);
                 long span = start - end;
                 begin[axis] = (int)start;
                 step[axis] = (int)st;
-                count[axis] = span < 0 ? 0 : (int)(span / (-st) + 1);
+                // 跨几个位置就是几个元素（不再加一）：starts=[-1] 在长度 4 上要正好取 4 个
+                count[axis] = span < 0 ? 0 : (int)(span / (-st));
+                Trace?.Invoke("Slice分支", $"轴{axis} 负 起{start} 止{end} 个{count[axis]} 维{dim}");
             }
         }
 
@@ -635,6 +690,7 @@ internal sealed class OnnxGraphRunner
         int rank = x.Dims.Length;
         var begin = new int[rank];
         var endPad = new int[rank];
+        Trace?.Invoke("Pad参数", $"pads[{string.Join(",", pads)}] 长度={pads.Length} 输入 {x.ShapeText()} 填充入={node.Inputs.Length switch { > 2 => node.Inputs[2], _ => "(无)" }}");
         // pads 的长度有三种常见口径：2*rank（前后各 rank）、rank（只在末尾补）、1（两边同值）
         for (int i = 0; i < rank; i++)
         {
@@ -836,7 +892,7 @@ internal sealed class OnnxGraphRunner
 
     private OnnxTensor LeakyRelu(OnnxNode node)
     {
-        float alpha = node.Attributes.TryGetValue("alpha", out var a) && a is float af ? af : 0.01f;
+        float alpha = node.Float("alpha", 0.01f);
         return Unary(node, v => v < 0f ? alpha * v : v);
     }
 
@@ -851,7 +907,8 @@ internal sealed class OnnxGraphRunner
         var bias = Get(node.Inputs[2]);
         var mean = Get(node.Inputs[3]);
         var varT = Get(node.Inputs[4]);
-        float eps = node.Attributes.TryGetValue("epsilon", out var e) && e is float ef ? ef : 1e-5f;
+        float eps = node.Float("epsilon", 1e-5f);
+        Trace?.Invoke("BN参数", $"{node.Outputs[0]} eps={eps} 通道={scale.Length}");
 
         int n = x.Length;
         int c = scale.Length;
