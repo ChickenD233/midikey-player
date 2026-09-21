@@ -104,8 +104,8 @@
     </Style>
   </Window.Styles>
 
-  <!-- 两页：常规（设备、兼容、热键、导出、自检）与键位（方案、按键绑定、功能键）。
-       常规页的内容由 MainWindow 在打开时搬进来（AdvancedHost），键位页的控件就声明在这里。
+  <!-- 三页：常规（设备、兼容、热键、导出、自检）、键位（方案、按键绑定、功能键）、赞助（爱发电与作者链接）。
+       常规页的内容由 MainWindow 在打开时搬进来（AdvancedHost），键位页与赞助页的控件就声明在这里。
        窗口大小跟着页签走：常规页小、键位页大，见 SettingsWindow.axaml.cs 的 ApplyPageSize。 -->
   <DockPanel>
 
@@ -316,6 +316,81 @@
       <TextBlock Text="{Binding StatsText}" Classes="caption" TextWrapping="Wrap"/>
     </Border>
   </Grid>
+      </TabItem>
+
+      <!-- ============ 赞助页 ============
+           爱发电置顶（整页最显眼的一块），下面才是 B 站与 GitHub。
+           地址与名字由代码从 AutoUpdate 的常量填（见 SettingsWindow.FillSponsorPage），
+           免得同一个链接在 XAML 与代码里各写一遍。 -->
+      <TabItem Header="赞助">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Margin="14,12,14,10" Spacing="10">
+
+            <!-- 置顶：爱发电。整块是暖色底，一眼就看到 -->
+            <Border Background="{DynamicResource BrushWarnSoft}"
+                    BorderBrush="{DynamicResource BrushWarnBorder}" BorderThickness="1"
+                    CornerRadius="10" Padding="16,14">
+              <StackPanel Spacing="10">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Text="爱发电" Classes="label" FontSize="{DynamicResource FontTitle}"
+                             FontWeight="SemiBold" VerticalAlignment="Center"/>
+                  <Border Background="{DynamicResource BrushWarnBorder}" CornerRadius="9"
+                          Padding="8,2" VerticalAlignment="Center">
+                    <TextBlock Text="置顶" FontSize="{DynamicResource FontCaption}"
+                               Foreground="{DynamicResource BrushText}"/>
+                  </Border>
+                </StackPanel>
+                <TextBlock TextWrapping="Wrap" LineHeight="20"
+                           FontSize="{DynamicResource FontSmall}"
+                           Text="如果这个程序帮到了你，可以在爱发电请作者喝杯奶茶。赞助完全自愿、纯打赏：程序一直免费，赞不赞助、赞多少，功能都一样，也不会解锁什么东西。"/>
+                <TextBlock x:Name="TxtSponsorAfdianUrl" Classes="value" TextWrapping="Wrap"
+                           FontSize="{DynamicResource FontSmall}"/>
+                <Button x:Name="BtnSponsorAfdian" Content="打开爱发电赞助页"
+                        FontSize="{DynamicResource FontTitle}" Padding="20,8"
+                        Classes="accent" HorizontalAlignment="Left"
+                        Click="OpenAfdian_Click"/>
+              </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+              <StackPanel Spacing="8">
+                <TextBlock Text="作者的其它地方" Classes="sectionLabel" FontWeight="SemiBold"
+                           FontSize="{DynamicResource FontSmall}"/>
+                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                  <TextBlock Grid.Row="0" Grid.Column="0" Text="B 站" Classes="label"
+                             Width="64" VerticalAlignment="Center"/>
+                  <TextBlock Grid.Row="0" Grid.Column="1" x:Name="TxtSponsorBiliUrl"
+                             Classes="value" TextWrapping="Wrap" VerticalAlignment="Center"
+                             FontSize="{DynamicResource FontSmall}"/>
+                  <TextBlock Grid.Row="1" Grid.Column="0" Text="GitHub" Classes="label"
+                             Width="64" Margin="0,6,0,0" VerticalAlignment="Center"/>
+                  <TextBlock Grid.Row="1" Grid.Column="1" x:Name="TxtSponsorGitHubUrl"
+                             Classes="value" TextWrapping="Wrap" Margin="0,6,0,0"
+                             VerticalAlignment="Center" FontSize="{DynamicResource FontSmall}"/>
+                </Grid>
+                <WrapPanel ItemSpacing="10" LineSpacing="8">
+                  <Button x:Name="BtnSponsorBili" Content="B 站主页"
+                          FontSize="{DynamicResource FontSmall}" Padding="12,5"
+                          Classes="secondary" Click="OpenBili_Click"/>
+                  <Button x:Name="BtnSponsorGitHub" Content="GitHub 主页"
+                          FontSize="{DynamicResource FontSmall}" Padding="12,5"
+                          Classes="secondary" Click="OpenGitHub_Click"/>
+                </WrapPanel>
+                <TextBlock Classes="caption" TextWrapping="Wrap" LineHeight="19"
+                           Text="B 站有使用演示与更新通知；GitHub 上有源码和全部 Release。反馈问题去 QQ 群最快，群号在「常规」页的关于卡里。"/>
+              </StackPanel>
+            </Border>
+
+            <Border Background="{DynamicResource BrushDangerSoft}"
+                    BorderBrush="{DynamicResource BrushDangerBorder}" BorderThickness="1"
+                    CornerRadius="8" Padding="12,9">
+              <TextBlock x:Name="TxtSponsorFree" TextWrapping="Wrap"
+                         FontSize="{DynamicResource FontSmall}" LineHeight="19"
+                         Foreground="{DynamicResource BrushDangerText}"/>
+            </Border>
+
+          </StackPanel>
+        </ScrollViewer>
       </TabItem>
     </TabControl>
   </DockPanel>

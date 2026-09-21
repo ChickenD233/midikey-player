@@ -2845,6 +2845,28 @@ public partial class MainWindow : Window
         InsertLog($"已打开作者 B 站主页：{AutoUpdate.AuthorSpaceUrl}");
     }
 
+    /// <summary>打开爱发电赞助页。所有「爱发电」按钮都走这里，含设置里「赞助」页那个。</summary>
+    private void OpenAfdian_Click(object? sender, RoutedEventArgs e) => OpenAfdianPage();
+
+    private void OpenAfdianPage()
+    {
+        AutoUpdate.OpenUrl(AutoUpdate.AfdianUrl);
+        InsertLog($"已打开爱发电赞助页：{AutoUpdate.AfdianUrl}");
+    }
+
+    /// <summary>设置窗口「赞助」页里的爱发电按钮：窗口拿不到主窗的私有处理器，由它转进来。</summary>
+    internal void OpenAfdianForSettings() => OpenAfdianPage();
+
+    /// <summary>设置窗口「赞助」页里的 B 站按钮：复用主窗那个处理器，开链接与写日志只有一份。</summary>
+    internal void OpenAuthorSpaceForSettings() => OpenAuthorSpace_Click(null, new RoutedEventArgs());
+
+    /// <summary>设置窗口「赞助」页里的 GitHub 按钮。地址白名单只放行本仓库页面，这里是仓库主页。</summary>
+    internal void OpenGitHubForSettings()
+    {
+        AutoUpdate.OpenUrl(AutoUpdate.GitHubUrl);
+        InsertLog($"已打开作者 GitHub 主页：{AutoUpdate.GitHubUrl}");
+    }
+
     private void OpenReleases_Click(object? sender, RoutedEventArgs e)
     {
         AutoUpdate.OpenUrl(AutoUpdate.ReleasesUrl);
@@ -3186,7 +3208,8 @@ public partial class MainWindow : Window
     /// <summary>打开「键位设置」窗口（模态）。关闭后刷新卷帘颜色、按键表与状态行。</summary>
     // ================= 设置窗口 =================
     //
-    // 设置窗口两页：常规（设备、兼容、热键、导出、主界面显示开关）与键位（方案、按键绑定、功能键）。
+    // 设置窗口三页：常规（设备、兼容、热键、导出、主界面显示开关）、键位（方案、按键绑定、功能键）
+    // 与赞助（爱发电置顶 + 作者 B 站 / GitHub）。
     //
     // 常规页的控件声明在 MainWindow.axaml 的 AdvancedStash 里（不可见、零尺寸），
     // 打开设置时整块交给窗口的常规页，关窗再搬回来。好处是这些控件的 x:Name 与事件处理器
@@ -3217,7 +3240,7 @@ public partial class MainWindow : Window
         win.AttachAdvancedBody(AdvancedBody, this);
         _settingsWindow = win;
         win.Show(this);
-        InsertLog("已打开设置：常规与键位两页都在这里。");
+        InsertLog("已打开设置：常规、键位、赞助三页都在这里。");
     }
 
     /// <summary>设置窗口关窗时回调：把常规页的内容还回主窗，并同步键位改动。</summary>

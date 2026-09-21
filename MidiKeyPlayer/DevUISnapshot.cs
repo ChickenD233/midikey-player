@@ -24,6 +24,7 @@ internal static class DevSnapshotMode
         || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_FOLDER"))
         || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_FOLDER_REPORT"))
         || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_ADVANCED"))
+        || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_SPONSOR"))
         || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_THEME"));
 }
 
@@ -45,6 +46,10 @@ internal static class DevSnapshotMode
 /// MIDIKEY_UI_SNAPSHOT_OVERLAY=notice|forced|quiz
 ///     配合 MIDIKEY_UI_SNAPSHOT 用：把「免费声明」或「强制更新」浮层打开再拍图。
 ///     强制更新那条传空资产地址，所以不会真的联网下载。
+/// MIDIKEY_UI_SNAPSHOT_ADVANCED=/path/advanced.png
+///     打开设置窗口，切到「常规」页拍一张（并顺带走一遍「开 → 关 → 再开」）。
+/// MIDIKEY_UI_SNAPSHOT_SPONSOR=/path/sponsor.png
+///     打开设置窗口，切到第三页「赞助」拍一张（爱发电置顶 + B 站 / GitHub）。
 ///
 /// 各变量可以只设一个；全都不设则本文件无任何行为。
 /// 删本文件时记得同时删 MainWindow 里的 InstallDevSnapshot(this)。
@@ -60,11 +65,12 @@ public partial class MainWindow
         var reportPath = Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_REPORT");
         var folderProbe = Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_FOLDER");
         var advancedPath = Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_ADVANCED");
+        var sponsorPath = Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_SPONSOR");
         var themeMode = Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_THEME");
         if (string.IsNullOrWhiteSpace(path) && string.IsNullOrWhiteSpace(keymapPath)
             && string.IsNullOrWhiteSpace(midiPath) && string.IsNullOrWhiteSpace(reportPath)
             && string.IsNullOrWhiteSpace(folderProbe) && string.IsNullOrWhiteSpace(advancedPath)
-            && string.IsNullOrWhiteSpace(themeMode)) return;
+            && string.IsNullOrWhiteSpace(sponsorPath) && string.IsNullOrWhiteSpace(themeMode)) return;
 
         window.Opened += (_, _) =>
         {
@@ -119,6 +125,12 @@ public partial class MainWindow
             if (!string.IsNullOrWhiteSpace(advancedPath))
             {
                 CaptureAdvanced(window, advancedPath!);
+                return;
+            }
+            // 赞助页快照：设置窗口的第三页，内容不多，直接切过去拍
+            if (!string.IsNullOrWhiteSpace(sponsorPath))
+            {
+                CaptureSponsor(window, sponsorPath!);
                 return;
             }
             // 等布局就绪，900ms 是实测够用的值
@@ -589,6 +601,44 @@ public partial class MainWindow
             Log("兜底计时器触发");
             ShotVisual(win, path);
             owner.DevCleanUpForExit();   // A19：退出前走一遍显式清理
+            Environment.Exit(0);
+        };
+        guard.Start();
+    }
+
+    /// <summary>
+    /// 【开发用，可删】赞助页快照：设置窗口的第三页（爱发电置顶 + B 站 / GitHub）。
+    /// 与键位页、常规页同一个做法：切页 → 等布局 → 拍窗口本体 → 退出，另配一个兜底计时器。
+    /// </summary>
+    private static void CaptureSponsor(MainWindow owner, string path)
+    {
+        owner.OpenSettingsForDev();
+        var win = owner.SettingsWindowForDev;
+        if (win == null)
+        {
+            Console.Error.WriteLine("设置窗口没打开");
+            owner.DevCleanUpForExit();
+            Environment.Exit(1);
+        }
+        win.SelectPageForDev(2);   // 赞助页
+        Log("设置窗口已打开，当前页 = 赞助");
+
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            ShotVisual(win!, path);
+            owner.DevCleanUpForExit();
+            Environment.Exit(0);
+        };
+        timer.Start();
+
+        var guard = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
+        guard.Tick += (_, _) =>
+        {
+            guard.Stop();
+            ShotVisual(win!, path);
+            owner.DevCleanUpForExit();
             Environment.Exit(0);
         };
         guard.Start();

@@ -119,9 +119,10 @@
 - **导出按键表**。导出 G HUB 脚本（.lua），或通用 CSV。内容跟随当前键位方案，与实际演奏一致。
 - **循环**。默认关。勾上后一遍播完就从头再来，日志里写明当前是第几遍。
 - **数值范围**。速度 10%–400%，默认 100%。移调 ±24 半音，默认 0。倒计时 0 / 3 / 5 / 10 秒，默认 3 秒。
-- **设置…**。点这个按钮打开设置窗口，两页。
+- **设置…**。点这个按钮打开设置窗口，三页。
   **常规**页：设备接入、输入兼容、三个热键、导出按键表、界面（皮肤、自检开关）。
   **键位**页：方案、按键绑定、功能键。
+  **赞助**页：置顶爱发电，下面列作者的 B 站与 GitHub。赞助完全自愿，不影响功能。
   改动即时生效，关掉窗口不影响设置。主界面因此不再堆这些项，卷帘拿到的高度也更多。
 
 ## 皮肤
@@ -341,8 +342,8 @@ THIRD-PARTY-NOTICES.md      # 第三方组件许可声明
 3. 改 `MidiKeyPlayer/MidiKeyPlayer.csproj` 的 `<Version>` 与 `更新说明.txt` 第一行的版本号。
 4. 跑 `build-win.sh` 出包。zip 里是 exe 与 `更新日志.txt`。
 5. 跑内置自检，退出码必须是 0。
-6. 跑主窗、设置窗口两页与深色皮肤主窗的界面快照，确认都能出图。
-   设置窗那两步会自己走一遍「开 → 关 → 再开」，顺带验证内容归属来回搬是干净的。
+6. 跑主窗、设置窗口（常规、键位、赞助三页）与深色皮肤主窗的界面快照，确认都能出图。
+   设置窗那几步会自己走一遍「开 → 关 → 再开」，顺带验证内容归属来回搬是干净的。
 7. 跑文件夹曲目卡换歌回归：连点三首，每步都要换过去，列表行数不能塌。
 8. 提交、推 main、打 tag、建 Release、上传 zip。上传后比对远端资产的 sha256 与本地 zip，
    不一致就报错。
@@ -378,6 +379,7 @@ tag 已存在，脚本直接停手。日志里没有当前版本号那一节，`
 - 更新重启后，新版首次启动会在 play.log 写一行「已从 vX 更新到 vY」，确认替换成功。
 
 设置 → 常规 → 关于 里有当前版本号、「检查更新」按钮，以及更新说明 / 第三方声明 / 许可证的查看入口。
+这一页还有免费声明与作者入口（B 站主页、爱发电赞助、复制 QQ 群号）。赞助页在 设置 → 赞助。
 
 更新包只从本仓库的 Releases 下载（地址白名单），并校验包内 exe 完整后才替换。
 要关掉检查，把 `MidiKeyPlayer/Engine/AutoUpdate.cs` 里的 `Enabled` 改成 `false`。
@@ -534,9 +536,10 @@ The bottom right of the main window is split into two cards. **Performance Param
 - **Export key table** (导出按键表). Export a G HUB script (.lua), or a generic CSV. The content follows the current key layout scheme and matches the actual performance.
 - **Loop** (循环). Default off. When ticked, playback restarts from the beginning after one pass, and the log states which pass it is on.
 - **Value ranges.** Tempo 10%–400%, default 100%. Transposition ±24 semitones, default 0. Countdown 0 / 3 / 5 / 10 seconds, default 3 seconds.
-- **Settings…** (设置…). Click this button to open the Settings window, with two pages.
+- **Settings…** (设置…). Click this button to open the Settings window, with three pages.
   The **General** (常规) page: device connection, input compatibility, three hotkeys, key table export, interface (skin, self-check switch).
   The **Keys** (键位) page: scheme, key bindings, function keys.
+  The **Sponsor** (赞助) page: Afdian (爱发电) pinned at the top, with the author's Bilibili and GitHub below. Sponsoring is optional and changes nothing about the program.
   Changes take effect immediately; closing the window does not affect the settings. The main window therefore no longer piles up these items, and the piano roll gets more height.
 
 ## Skins
@@ -793,6 +796,7 @@ On startup it checks for a new version in the background (on by default; auto-do
 - After the update restart, the new version's first launch writes a line "updated from vX to vY" (已从 vX 更新到 vY) to play.log, confirming the replacement succeeded.
 
 Settings → General → About (设置 → 常规 → 关于) shows the current version number, a "Check for Updates" (检查更新) button, and entries to view the release notes / third-party notices / license.
+That page also carries the free-software notice and the author entries (Bilibili page, Afdian sponsorship, copy the QQ group number). The sponsor page is Settings → Sponsor (设置 → 赞助).
 
 Update packages are downloaded only from this repository's Releases (address whitelist), and the exe inside the package is verified intact before replacement.
 To turn off the check, change `Enabled` in `MidiKeyPlayer/Engine/AutoUpdate.cs` to `false`.

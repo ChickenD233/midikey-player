@@ -234,6 +234,15 @@ function Invoke-Snapshot([string]$exe, [string]$tag) {
     if ($r.ExitCode -ne 0) { throw "高级设置窗口快照退出码 $($r.ExitCode)。" }
     Remove-Item Env:\MIDIKEY_UI_SNAPSHOT_ADVANCED -ErrorAction SilentlyContinue
 
+    # 赞助页：设置窗口的第三页（爱发电置顶 + B 站 / GitHub）
+    $sponsor = Join-Path $env:TEMP "midikey-release-$tag-sponsor.png"
+    Remove-Item $sponsor -ErrorAction SilentlyContinue
+    $env:MIDIKEY_UI_SNAPSHOT_SPONSOR = $sponsor
+    $sp = Start-Process -FilePath $exe -PassThru
+    [void]$sp.WaitForExit(180000)
+    if ($sp.ExitCode -ne 0) { throw "赞助页快照退出码 $($sp.ExitCode)。" }
+    Remove-Item Env:\MIDIKEY_UI_SNAPSHOT_SPONSOR -ErrorAction SilentlyContinue
+
     # 深色皮肤：拍图前用设置里那个下拉框切到「深色（黑）」，验证不重启也能换色。
     # 探针只切不落盘，不会改掉跑脚本这台机器的皮肤档位。
     $dark = Join-Path $env:TEMP "midikey-release-$tag-dark.png"
@@ -246,12 +255,12 @@ function Invoke-Snapshot([string]$exe, [string]$tag) {
     if ($s.ExitCode -ne 0) { throw "深色皮肤快照退出码 $($s.ExitCode)。" }
     Remove-Item Env:\MIDIKEY_UI_SNAPSHOT, Env:\MIDIKEY_UI_SNAPSHOT_THEME -ErrorAction SilentlyContinue
 
-    foreach ($f in @($main, $keymap, $advanced, $dark)) {
+    foreach ($f in @($main, $keymap, $advanced, $sponsor, $dark)) {
         if (-not (Test-Path -LiteralPath $f)) { throw "快照没出图：$f" }
         if ((Get-Item -LiteralPath $f).Length -lt 10000) { throw "快照太小，可能是空白：$f" }
     }
-    Write-Host ("   主窗 " + (Get-Item $main).Length + " 字节；键位窗 " + (Get-Item $keymap).Length + " 字节；高级窗 " + (Get-Item $advanced).Length + " 字节；深色主窗 " + (Get-Item $dark).Length + " 字节")
-    return @{ Main = $main; Keymap = $keymap; Advanced = $advanced; Dark = $dark }
+    Write-Host ("   主窗 " + (Get-Item $main).Length + " 字节；键位窗 " + (Get-Item $keymap).Length + " 字节；高级窗 " + (Get-Item $advanced).Length + " 字节；赞助页 " + (Get-Item $sponsor).Length + " 字节；深色主窗 " + (Get-Item $dark).Length + " 字节")
+    return @{ Main = $main; Keymap = $keymap; Advanced = $advanced; Sponsor = $sponsor; Dark = $dark }
 }
 
 # 文件夹曲目卡换歌回归：连续点三首，每步都要换过去，列表行数不能塌。
@@ -527,5 +536,6 @@ finally {
     Pop-Location
     Remove-Item Env:\MIDIKEY_UI_SNAPSHOT, Env:\MIDIKEY_UI_SNAPSHOT_KEYMAP, Env:\MIDIKEY_UI_SNAPSHOT_MIX, `
         Env:\MIDIKEY_UI_SNAPSHOT_MIDI, Env:\MIDIKEY_UI_SNAPSHOT_REPORT, Env:\MIDIKEY_UI_SNAPSHOT_THEME, `
+        Env:\MIDIKEY_UI_SNAPSHOT_ADVANCED, Env:\MIDIKEY_UI_SNAPSHOT_SPONSOR, `
         Env:\MIDIKEY_UI_SNAPSHOT_FOLDER, Env:\MIDIKEY_UI_SNAPSHOT_FOLDER_REPORT -ErrorAction SilentlyContinue
 }

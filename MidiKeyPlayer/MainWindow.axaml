@@ -453,7 +453,7 @@
                            TextTrimming="CharacterEllipsis" ToolTip.Tip="当前键位方案名"/>
                 <Button x:Name="BtnSettings" Content="设置…" FontSize="{DynamicResource FontSmall}"
                         Padding="14,5" Classes="secondary" VerticalAlignment="Center" Click="Settings_Click"
-                        ToolTip.Tip="打开设置：常规（设备、兼容、热键、导出、主界面显示）与键位（方案、按键绑定、功能键）两页"/>
+                        ToolTip.Tip="打开设置，三页：常规（设备、兼容、热键、导出、主界面显示）、键位（方案、按键绑定、功能键）、赞助（爱发电与作者链接）"/>
               </StackPanel>
             </Grid>
 
@@ -741,6 +741,10 @@
                 <Button x:Name="BtnAuthorSpace" Content="B 站主页" FontSize="{DynamicResource FontSmall}"
                         Padding="12,5" Classes="secondary" VerticalAlignment="Center"
                         Click="OpenAuthorSpace_Click"/>
+                <Button x:Name="BtnAfdian" Content="爱发电（赞助）" FontSize="{DynamicResource FontSmall}"
+                        Padding="12,5" Classes="secondary" VerticalAlignment="Center"
+                        Click="OpenAfdian_Click"
+                        ToolTip.Tip="赞助完全自愿：程序一直免费，赞不赞助功能都一样。入口也在 设置 → 赞助"/>
                 <Button x:Name="BtnCopyQq" Content="复制 QQ 群号" FontSize="{DynamicResource FontSmall}"
                         Padding="12,5" Classes="secondary" VerticalAlignment="Center"
                         Click="CopyQq_Click"/>
@@ -792,6 +796,9 @@
                      FontSize="{DynamicResource FontSmall}" LineHeight="19"
                      Foreground="{DynamicResource BrushTextSecondary}"/>
           <WrapPanel ItemSpacing="10" LineSpacing="8">
+            <Button Content="爱发电（赞助）" FontSize="{DynamicResource FontSmall}" Padding="12,5"
+                    Classes="secondary" Click="OpenAfdian_Click"
+                    ToolTip.Tip="赞助完全自愿：程序一直免费，赞不赞助功能都一样。入口也在 设置 → 赞助"/>
             <Button Content="B 站主页" FontSize="{DynamicResource FontSmall}" Padding="12,5"
                     Classes="secondary" Click="OpenAuthorSpace_Click"/>
             <Button Content="复制 QQ 群号" FontSize="{DynamicResource FontSmall}" Padding="12,5"

@@ -95,6 +95,10 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         InitializeComponent();
         DataContext = this;
 
+        // 赞助页的链接文字、按钮提示与免费声明都从 AutoUpdate 的常量填：
+        // 地址只有一份，XAML 里不重复写（见 SettingsWindow.FillSponsorPage）
+        FillSponsorPage();
+
         BindRows.ItemsSource = _groups;
         FuncRows.ItemsSource = _funcs;
 
