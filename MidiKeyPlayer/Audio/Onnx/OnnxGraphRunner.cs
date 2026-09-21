@@ -133,6 +133,9 @@ internal sealed class OnnxGraphRunner
     /// <summary>每算完一个节点回调一次（类型, 输出形状文本）。只有开发探针会挂它，正常使用时为 null。</summary>
     internal Action<string, string>? Trace;
 
+    /// <summary>【开发诊断】强制串行：用来判断并行分块是否引入错误。只有探针会开。</summary>
+    internal static bool SerialOnly;
+
     /// <summary>【开发诊断】把这些名字的张量算出来后打一份值。只给探针用，正常使用为空。</summary>
     internal readonly Dictionary<string, string> DumpValues = new(StringComparer.Ordinal);
 
@@ -977,7 +980,7 @@ internal sealed class OnnxGraphRunner
     /// <summary>大数组按核数切块跑 Parallel.For：块大小随数据量走，小张量用串行避免调度开销。</summary>
     private static void Block(int total, Action<int, int> body)
     {
-        if (total <= 32768)
+        if (total <= 32768 || SerialOnly)
         {
             body(0, total);
             return;

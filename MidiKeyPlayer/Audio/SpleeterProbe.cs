@@ -42,35 +42,15 @@ internal static class SpleeterProbe
         Say($"目录：{dir}");
         Say("");
 
-        // 特殊模式：核对 fp16 解码（MIDIKEY_SPLEETER_PROBE_FP16=<前缀>，读 _in.f16 写 _out.f32）
-        string fp16 = Environment.GetEnvironmentVariable("MIDIKEY_SPLEETER_PROBE_FP16") ?? "";
-        if (fp16.Length > 0)
+        // 单算子核对模式不读音频，直接跑
+        if (Environment.GetEnvironmentVariable("MIDIKEY_SPLEETER_PROBE_BN") is { Length: > 0 }
+            || Environment.GetEnvironmentVariable("MIDIKEY_SPLEETER_PROBE_FP16") is { Length: > 0 }
+            || Environment.GetEnvironmentVariable("MIDIKEY_SPLEETER_PROBE_CT") is { Length: > 0 })
         {
-            var raw = File.ReadAllBytes(fp16 + "_in.f16");
-            var f = new float[raw.Length / 2];
-            for (int i = 0; i < f.Length; i++)
-            {
-                ushort h = (ushort)(raw[i * 2] | (raw[i * 2 + 1] << 8));
-                f[i] = HalfToFloat(h);
-            }
-            File.WriteAllBytes(fp16 + "_out.f32", Floats(f));
-            Say($"fp16 解码核对：读 {f.Length} 个，写出 {fp16}_out.f32");
-            try { File.WriteAllText(outPath, Log.ToString(), new UTF8Encoding(false)); } catch { }
+            RunSpecialChecks(outPath);
             return 0;
         }
 
-        // 特殊模式：只核对一个算子或「卷积+批归一」两节点子图
-        // （MIDIKEY_SPLEETER_PROBE_CT=<前缀>，前缀下要有 <前缀>[_x/_w/_b/_s/_bb/_mu/_va/_c/_y].f32 与 _meta.txt）
-        string ct = Environment.GetEnvironmentVariable("MIDIKEY_SPLEETER_PROBE_CT") ?? "";
-        if (ct.Length > 0)
-        {
-            ConvCheck(ct, "_meta.txt", withBn: false);
-            ConvCheck(ct, "_bn_meta.txt", withBn: true);
-            ConvCheck(ct, "_meta.txt", withBn: false, opOverride: "ConvTranspose");
-            try { File.WriteAllText(outPath, Log.ToString(), new UTF8Encoding(false)); } catch { }
-            Say($"报告：{outPath}");
-            return 0;
-        }
 
         // 只跑指定的一支模型：MIDIKEY_SPLEETER_PROBE_ONLY=vocals / accompaniment
         string only = Environment.GetEnvironmentVariable("MIDIKEY_SPLEETER_PROBE_ONLY") ?? "";
@@ -193,6 +173,79 @@ internal static class SpleeterProbe
         else if (exp == 31) value = mant == 0 ? double.PositiveInfinity : double.NaN;
         else value = (1.0 + mant / 1024.0) * Math.Pow(2, exp - 15);
         return (float)(sign == 1 ? -value : value);
+    }
+
+    /// <summary>单算子核对模式的入口：批归一 / fp16 解码 / 卷积。</summary>
+    private static void RunSpecialChecks(string outPath)
+    {
+        BatchNormCheck();
+        Fp16Check();
+        ConvCheckMode();
+        try { File.WriteAllText(outPath, Log.ToString(), new UTF8Encoding(false)); } catch { }
+        Say($"报告：{outPath}");
+    }
+
+    private static void BatchNormCheck()
+    {
+        string bnPrefix = Environment.GetEnvironmentVariable("MIDIKEY_SPLEETER_PROBE_BN") ?? "";
+        if (bnPrefix.Length == 0) return;
+        var bx = ReadFloats(bnPrefix + "_x.f32");
+        var bs = ReadFloats(bnPrefix + "_weight.f32");
+        var bbb = ReadFloats(bnPrefix + "_bias.f32");
+        var bmu = ReadFloats(bnPrefix + "_running_mean.f32");
+        var bva = ReadFloats(bnPrefix + "_running_var.f32");
+        var by = ReadFloats(bnPrefix + "_y.f32");
+        if (bx.Length == 0 || bs.Length == 0)
+        {
+            Say($"单独批归一核对：文件不全（前缀 {bnPrefix}）");
+            return;
+        }
+        int c = bs.Length;
+        int n = bx.Length;
+        var y = new float[n];
+        for (int i = 0; i < n; i++)
+        {
+            int ch = (i / Math.Max(1, n / c)) % c;
+            y[i] = bs[ch] * (bx[i] - bmu[ch]) / MathF.Sqrt(bva[ch] + 1e-3f) + bbb[ch];
+        }
+        double maxAbs = 0, sumAbs = 0;
+        for (int i = 0; i < Math.Min(n, by.Length); i++)
+        {
+            double d = Math.Abs(y[i] - by[i]);
+            sumAbs += d;
+            if (d > maxAbs) maxAbs = d;
+        }
+        double my = 0, ry = 0;
+        foreach (float v in y) my += v;
+        foreach (float v in by) ry += v;
+        Say($"单独批归一核对：n={n} 本均值={(n > 0 ? my / n : 0):G6} 参考均值={(by.Length > 0 ? ry / by.Length : 0):G6}");
+        Say($"  maxAbs={maxAbs:E3} meanAbs={(n > 0 ? sumAbs / n : 0):E3}");
+        Say($"  本头4：{string.Join(",", y.Take(4).Select(v => v.ToString("G6")))}");
+        Say($"  参考头4：{string.Join(",", by.Take(4).Select(v => v.ToString("G6")))}");
+    }
+
+    private static void Fp16Check()
+    {
+        string fp16 = Environment.GetEnvironmentVariable("MIDIKEY_SPLEETER_PROBE_FP16") ?? "";
+        if (fp16.Length == 0) return;
+        var raw = File.ReadAllBytes(fp16 + "_in.f16");
+        var f = new float[raw.Length / 2];
+        for (int i = 0; i < f.Length; i++)
+        {
+            ushort h = (ushort)(raw[i * 2] | (raw[i * 2 + 1] << 8));
+            f[i] = HalfToFloat(h);
+        }
+        File.WriteAllBytes(fp16 + "_out.f32", Floats(f));
+        Say($"fp16 解码核对：读 {f.Length} 个，写出 {fp16}_out.f32");
+    }
+
+    private static void ConvCheckMode()
+    {
+        string ct = Environment.GetEnvironmentVariable("MIDIKEY_SPLEETER_PROBE_CT") ?? "";
+        if (ct.Length == 0) return;
+        ConvCheck(ct, "_meta.txt", withBn: false);
+        ConvCheck(ct, "_bn_meta.txt", withBn: true);
+        ConvCheck(ct, "_meta.txt", withBn: false, opOverride: "ConvTranspose");
     }
 
     private static string FindModel(string dir, string stem)
@@ -337,6 +390,8 @@ internal static class SpleeterProbe
                 Say($"  音频：{Path.GetFileName(audioPath)} {rate} Hz {channels} 声道 {decoded.Length / Math.Max(1, channels)} 帧");
             }
             var runner = new OnnxGraphRunner(model);
+            // 诊断开关：强制串行（判断并行分块有没有引入错误）
+            OnnxGraphRunner.SerialOnly = Environment.GetEnvironmentVariable("MIDIKEY_SPLEETER_PROBE_SERIAL") == "1";
             // 想看的中间张量：MIDIKEY_SPLEETER_PROBE_DUMP 里给名字（逗号分隔）
             string dumpNames = Environment.GetEnvironmentVariable("MIDIKEY_SPLEETER_PROBE_DUMP") ?? "";
             foreach (string dn in dumpNames.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
