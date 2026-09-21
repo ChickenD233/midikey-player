@@ -105,6 +105,7 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         KeyDown += Window_KeyDown;
         KeyUp += Window_KeyUp;
         InitUi();
+        InitSyncPage();   // 「实验功能」页：接上两个列表、恢复上次的成员名（见 SettingsWindow.Experimental.cs）
     }
 
     // ================= 绑定给界面的属性 =================
@@ -518,6 +519,8 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
     private void Window_Closed(object? sender, EventArgs e)
     {
         EndWaiting(false);
+        // 关窗要把远程同演的会话收掉，否则窗口关了还在连代理、还在按掩码过滤声部。
+        CloseSyncSession();
         OnSettingsClosed();   // 把「常规」页的内容还回主窗（见 SettingsWindow.axaml.cs）
     }
 

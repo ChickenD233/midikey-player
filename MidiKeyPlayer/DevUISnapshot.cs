@@ -12,20 +12,52 @@ namespace MidiKeyPlayer;
 /// 界面快照 / 文件夹换歌回归的开关。设了任意一个 MIDIKEY_UI_SNAPSHOT* 变量就为 true。
 /// 用途：<see cref="Program"/> 里跳过单实例锁 —— 这些探针不演奏、不发按键，
 /// 允许与用户正在用的实例并存（与 PreviewProbeMode 同一个理由）。
+///
+/// 判据分两步，两步都要：
+///   1. 逐个已知变量名去问 <see cref="Environment.GetEnvironmentVariable"/>。
+///      **这是唯一可靠的一步。** 不能改成遍历 <see cref="Environment.GetEnvironmentVariables"/>：
+///      父进程设的那个变量在遍历结果里可能看不到（实测：只遍历会让探针被单实例锁挡掉，
+///      程序静默退出、退出码 0、不建窗口、不写日志，看起来像"这个功能坏了"）。
+///   2. 再按前缀扫一遍，兜住以后新加的变量。
 /// </summary>
 internal static class DevSnapshotMode
 {
-    internal static readonly bool On =
-        !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT"))
-        || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_KEYMAP"))
-        || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_MIDI"))
-        || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_MIX"))
-        || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_REPORT"))
-        || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_FOLDER"))
-        || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_FOLDER_REPORT"))
-        || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_ADVANCED"))
-        || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_SPONSOR"))
-        || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_THEME"));
+    private static readonly string[] Known =
+    {
+        "MIDIKEY_UI_SNAPSHOT",
+        "MIDIKEY_UI_SNAPSHOT_KEYMAP",
+        "MIDIKEY_UI_SNAPSHOT_MIDI",
+        "MIDIKEY_UI_SNAPSHOT_MIX",
+        "MIDIKEY_UI_SNAPSHOT_REPORT",
+        "MIDIKEY_UI_SNAPSHOT_FOLDER",
+        "MIDIKEY_UI_SNAPSHOT_FOLDER_REPORT",
+        "MIDIKEY_UI_SNAPSHOT_ADVANCED",
+        "MIDIKEY_UI_SNAPSHOT_SPONSOR",
+        "MIDIKEY_UI_SNAPSHOT_SYNC",
+        "MIDIKEY_UI_SNAPSHOT_THEME",
+    };
+
+    internal static readonly bool On = Detect();
+
+    private static bool Detect()
+    {
+        foreach (string name in Known)
+            if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(name))) return true;
+
+        // 兜底：以后加了新的 MIDIKEY_UI_SNAPSHOT_* 而忘了加进上面那张表时，仍然认。
+        try
+        {
+            foreach (System.Collections.DictionaryEntry item in Environment.GetEnvironmentVariables())
+            {
+                string name = item.Key as string ?? "";
+                if (name.StartsWith("MIDIKEY_UI_SNAPSHOT", StringComparison.Ordinal)
+                    && !string.IsNullOrWhiteSpace(item.Value as string))
+                    return true;
+            }
+        }
+        catch { /* 遍历失败不影响第 1 步的结果 */ }
+        return false;
+    }
 }
 
 /// <summary>
@@ -50,6 +82,10 @@ internal static class DevSnapshotMode
 ///     打开设置窗口，切到「常规」页拍一张（并顺带走一遍「开 → 关 → 再开」）。
 /// MIDIKEY_UI_SNAPSHOT_SPONSOR=/path/sponsor.png
 ///     打开设置窗口，切到第三页「赞助」拍一张（爱发电置顶 + B 站 / GitHub）。
+/// MIDIKEY_UI_SNAPSHOT_SYNC=/path/sync.png
+///     打开设置窗口，切到第四页「实验功能」拍一张。
+///     这一页默认是"未连接"的样子；拍图前先填一套假的房间状态，
+///     否则拍到的是一张空表，看不出成员表与声部表长什么样。
 ///
 /// 各变量可以只设一个；全都不设则本文件无任何行为。
 /// 删本文件时记得同时删 MainWindow 里的 InstallDevSnapshot(this)。
@@ -66,11 +102,13 @@ public partial class MainWindow
         var folderProbe = Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_FOLDER");
         var advancedPath = Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_ADVANCED");
         var sponsorPath = Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_SPONSOR");
+        var syncPath = Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_SYNC");
         var themeMode = Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_THEME");
         if (string.IsNullOrWhiteSpace(path) && string.IsNullOrWhiteSpace(keymapPath)
             && string.IsNullOrWhiteSpace(midiPath) && string.IsNullOrWhiteSpace(reportPath)
             && string.IsNullOrWhiteSpace(folderProbe) && string.IsNullOrWhiteSpace(advancedPath)
-            && string.IsNullOrWhiteSpace(sponsorPath) && string.IsNullOrWhiteSpace(themeMode)) return;
+            && string.IsNullOrWhiteSpace(sponsorPath) && string.IsNullOrWhiteSpace(syncPath)
+            && string.IsNullOrWhiteSpace(themeMode)) return;
 
         window.Opened += (_, _) =>
         {
@@ -131,6 +169,12 @@ public partial class MainWindow
             if (!string.IsNullOrWhiteSpace(sponsorPath))
             {
                 CaptureSponsor(window, sponsorPath!);
+                return;
+            }
+            // 实验功能页快照：设置窗口的第四页（远程同演）
+            if (!string.IsNullOrWhiteSpace(syncPath))
+            {
+                CaptureSync(window, syncPath!);
                 return;
             }
             // 等布局就绪，900ms 是实测够用的值
@@ -648,9 +692,52 @@ public partial class MainWindow
         guard.Start();
     }
 
-    /// <summary>把任意窗口渲染成 PNG。</summary>
-    private static void Shot(Window win, string path)
+    /// <summary>
+    /// 【开发用，可删】实验功能页快照：设置窗口的第四页（远程同演）。
+    /// 拍之前先填一套假的房间状态（<see cref="SettingsWindow.FillSyncPageForDev"/>）：
+    /// 这一页默认是"未连接"的空表，直接拍看不出成员表与声部表长什么样。
+    /// </summary>
+    private static void CaptureSync(MainWindow owner, string path)
     {
+        Log("CaptureSync 开始，目标 " + path);
+        owner.OpenSettingsForDev();
+        var win = owner.SettingsWindowForDev;
+        if (win == null)
+        {
+            Console.Error.WriteLine("设置窗口没打开");
+            owner.DevCleanUpForExit();
+            Environment.Exit(1);
+        }
+        Log("设置窗口已打开，准备切到实验功能页");
+        win.SelectPageForDev(3);   // 实验功能页
+        win.FillSyncPageForDev();
+        Log("设置窗口已打开，当前页 = 实验功能（已填假房间状态）");
+
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            Log("实验功能页快照计时器触发");
+            ShotVisual(win!, path);
+            Log("实验功能页快照已写 " + path);
+            owner.DevCleanUpForExit();
+            Environment.Exit(0);
+        };
+        timer.Start();
+
+        var guard = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
+        guard.Tick += (_, _) =>
+        {
+            guard.Stop();
+            ShotVisual(win!, path);
+            owner.DevCleanUpForExit();
+            Environment.Exit(0);
+        };
+        guard.Start();
+    }
+
+    /// <summary>把任意窗口渲染成 PNG。</summary>
+    private static void Shot(Window win, string path)    {
         try
         {
             var root = (Visual?)win.Content ?? win;

@@ -5,7 +5,7 @@ using MidiKeyPlayer.Engine;
 namespace MidiKeyPlayer;
 
 /// <summary>
-/// 设置窗口：三页，「常规」「键位」「赞助」。
+/// 设置窗口：四页，「常规」「键位」「赞助」「实验功能」。
 ///
 /// - 常规页：设备接入、输入兼容、三个热键、导出按键表、主界面显示开关。
 ///   这些控件声明在 MainWindow.axaml 的 AdvancedStash 里，打开设置时整块交给本窗口的
@@ -19,8 +19,10 @@ namespace MidiKeyPlayer;
 /// - 赞助页：爱发电排在最上面，下面列作者的 B 站、GitHub 与 QQ 群。这一页没有任何设置项，
 ///   文案与地址全从 <see cref="AutoUpdate"/> 的常量来（见 <see cref="FillSponsorPage"/>）。
 ///   「程序完全免费」这类声明不重复放在这里：它留在「常规」页的关于卡里。
+/// - 实验功能页：远程同演。逻辑在 SettingsWindow.Experimental.cs，
+///   同步本身在 <see cref="MidiKeyPlayer.Engine.SyncSession"/>。关窗会把会话收掉。
 ///
-/// 窗口大小跟着页签走：常规页小、键位页大。设置即时生效，没有「应用」按钮。
+/// 窗口大小跟着页签走：常规页小、键位页与实验功能页大。设置即时生效，没有「应用」按钮。
 /// </summary>
 public partial class SettingsWindow : Window
 {
@@ -69,7 +71,7 @@ public partial class SettingsWindow : Window
     /// <summary>页签切换：窗口大小跟着页走，别让常规页撑成一大片空白。</summary>
     private void Pages_SelectionChanged(object? sender, SelectionChangedEventArgs e) => ApplyPageSize();
 
-    /// <summary>页签对应的窗口尺寸。0 常规 / 1 键位 / 2 赞助。</summary>
+    /// <summary>页签对应的窗口尺寸。0 常规 / 1 键位 / 2 赞助 / 3 实验功能。</summary>
     private void ApplyPageSize()
     {
         if (Pages == null) return;   // 构造早期的防御
@@ -84,6 +86,10 @@ public partial class SettingsWindow : Window
                 MinWidth = 560; MinHeight = 380;
                 Width = 660; Height = 440;
                 break;
+            case 3:   // 实验功能页：房间状态加成员表加声部表加演出控制，比赞助页长
+                MinWidth = 700; MinHeight = 600;
+                Width = 820; Height = 820;
+                break;
             default:  // 常规页
                 MinWidth = 560; MinHeight = 500;
                 Width = 640; Height = 620;   // 四张卡都露出来（文字缩短后 620 就够）
@@ -93,7 +99,7 @@ public partial class SettingsWindow : Window
 
     private void CloseSettings_Click(object? sender, RoutedEventArgs e) => Close();
 
-    /// <summary>【开发用】切到某一页：0 = 常规，1 = 键位，2 = 赞助。</summary>
+    /// <summary>【开发用】切到某一页：0 = 常规，1 = 键位，2 = 赞助，3 = 实验功能。</summary>
     internal void SelectPageForDev(int index)
     {
         if (Pages != null) Pages.SelectedIndex = index;

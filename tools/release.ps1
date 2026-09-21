@@ -243,6 +243,15 @@ function Invoke-Snapshot([string]$exe, [string]$tag) {
     if ($sp.ExitCode -ne 0) { throw "赞助页快照退出码 $($sp.ExitCode)。" }
     Remove-Item Env:\MIDIKEY_UI_SNAPSHOT_SPONSOR -ErrorAction SilentlyContinue
 
+    # 实验功能页：设置窗口的第四页（远程同演）。探针会先填一套假的房间状态再拍。
+    $sync = Join-Path $env:TEMP "midikey-release-$tag-sync.png"
+    Remove-Item $sync -ErrorAction SilentlyContinue
+    $env:MIDIKEY_UI_SNAPSHOT_SYNC = $sync
+    $sy = Start-Process -FilePath $exe -PassThru
+    [void]$sy.WaitForExit(180000)
+    if ($sy.ExitCode -ne 0) { throw "实验功能页快照退出码 $($sy.ExitCode)。" }
+    Remove-Item Env:\MIDIKEY_UI_SNAPSHOT_SYNC -ErrorAction SilentlyContinue
+
     # 深色皮肤：拍图前用设置里那个下拉框切到「深色（黑）」，验证不重启也能换色。
     # 探针只切不落盘，不会改掉跑脚本这台机器的皮肤档位。
     $dark = Join-Path $env:TEMP "midikey-release-$tag-dark.png"
@@ -255,12 +264,12 @@ function Invoke-Snapshot([string]$exe, [string]$tag) {
     if ($s.ExitCode -ne 0) { throw "深色皮肤快照退出码 $($s.ExitCode)。" }
     Remove-Item Env:\MIDIKEY_UI_SNAPSHOT, Env:\MIDIKEY_UI_SNAPSHOT_THEME -ErrorAction SilentlyContinue
 
-    foreach ($f in @($main, $keymap, $advanced, $sponsor, $dark)) {
+    foreach ($f in @($main, $keymap, $advanced, $sponsor, $sync, $dark)) {
         if (-not (Test-Path -LiteralPath $f)) { throw "快照没出图：$f" }
         if ((Get-Item -LiteralPath $f).Length -lt 10000) { throw "快照太小，可能是空白：$f" }
     }
-    Write-Host ("   主窗 " + (Get-Item $main).Length + " 字节；键位窗 " + (Get-Item $keymap).Length + " 字节；高级窗 " + (Get-Item $advanced).Length + " 字节；赞助页 " + (Get-Item $sponsor).Length + " 字节；深色主窗 " + (Get-Item $dark).Length + " 字节")
-    return @{ Main = $main; Keymap = $keymap; Advanced = $advanced; Sponsor = $sponsor; Dark = $dark }
+    Write-Host ("   主窗 " + (Get-Item $main).Length + " 字节；键位窗 " + (Get-Item $keymap).Length + " 字节；高级窗 " + (Get-Item $advanced).Length + " 字节；赞助页 " + (Get-Item $sponsor).Length + " 字节；实验功能页 " + (Get-Item $sync).Length + " 字节；深色主窗 " + (Get-Item $dark).Length + " 字节")
+    return @{ Main = $main; Keymap = $keymap; Advanced = $advanced; Sponsor = $sponsor; Sync = $sync; Dark = $dark }
 }
 
 # 文件夹曲目卡换歌回归：连续点三首，每步都要换过去，列表行数不能塌。
@@ -487,6 +496,8 @@ try {
         & $dotnet publish $Proj -c Release -o $plainOut -p:PublishTrimmed=false | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "不裁剪构建失败，退出码 $LASTEXITCODE。" }
         $plainShots = Invoke-Snapshot (Join-Path $plainOut 'MidiKeyPlayer.exe') 'plain'
+        # 「实验功能」页与「赞助」页不参与逐字节比对：这两页的固定文案与列表都由代码在运行时填，
+        # 裁剪版与不裁剪版只要有一处渲染细节不同就会红。它们仍然会被拍出来并做非空校验。
         foreach ($k in @('Main', 'Keymap', 'Advanced', 'Dark')) {
             $a = (Get-FileHash $shots[$k] -Algorithm SHA256).Hash
             $b = (Get-FileHash $plainShots[$k] -Algorithm SHA256).Hash
@@ -536,6 +547,6 @@ finally {
     Pop-Location
     Remove-Item Env:\MIDIKEY_UI_SNAPSHOT, Env:\MIDIKEY_UI_SNAPSHOT_KEYMAP, Env:\MIDIKEY_UI_SNAPSHOT_MIX, `
         Env:\MIDIKEY_UI_SNAPSHOT_MIDI, Env:\MIDIKEY_UI_SNAPSHOT_REPORT, Env:\MIDIKEY_UI_SNAPSHOT_THEME, `
-        Env:\MIDIKEY_UI_SNAPSHOT_ADVANCED, Env:\MIDIKEY_UI_SNAPSHOT_SPONSOR, `
+        Env:\MIDIKEY_UI_SNAPSHOT_ADVANCED, Env:\MIDIKEY_UI_SNAPSHOT_SPONSOR, Env:\MIDIKEY_UI_SNAPSHOT_SYNC, `
         Env:\MIDIKEY_UI_SNAPSHOT_FOLDER, Env:\MIDIKEY_UI_SNAPSHOT_FOLDER_REPORT -ErrorAction SilentlyContinue
 }

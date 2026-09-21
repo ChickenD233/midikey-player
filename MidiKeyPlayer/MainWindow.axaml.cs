@@ -2081,14 +2081,33 @@ public partial class MainWindow : Window
 
     // ================= 映射与预览 =================
 
-    private int CurrentTranspose => (int)SliderTranspose.Value;
+    /// <summary>
+    /// 当前移调（半音）。远程同演时用会话锁定的值：
+    /// 移调是"按人锁"的，同一份谱子每个人弹的调可以不同，所以不能再用界面上那个滑块。
+    /// </summary>
+    private int CurrentTranspose => _syncTranspose ?? (int)SliderTranspose.Value;
 
-    /// <summary>要演奏的行：勾了“合”就按勾选顺序合奏，否则用点选的那一行。</summary>
+    /// <summary>
+    /// 要演奏的行：勾了“合”就按勾选顺序合奏，否则用点选的那一行。
+    ///
+    /// 远程同演时先按声部掩码过滤（见 MainWindow.Sync.cs 的 <c>_syncVoiceMask</c>）：
+    /// 只留分给自己的声部。顺序**不变** —— 声部序号是按顺序编的，
+    /// 这里再排一次序就会让序号对不上，于是每个人弹的都不是自己那一份。
+    /// 掩码为空列表表示"在远程模式但没分到声部"：这时一行都不返回，这个人不弹。
+    /// </summary>
     private List<TrackRowVM> ActiveRows()
     {
         var mix = _mixOrder.Where(r => r.IsMix).ToList();
-        if (mix.Count > 0) return mix;
-        return _selected != null ? new List<TrackRowVM> { _selected } : new List<TrackRowVM>();
+        if (mix.Count == 0 && _selected != null) mix = new List<TrackRowVM> { _selected };
+
+        if (_syncVoiceMask != null)
+        {
+            var allowed = new List<TrackRowVM>();
+            for (int i = 0; i < mix.Count; i++)
+                if (_syncVoiceMask.Contains(i)) allowed.Add(mix[i]);
+            return allowed;
+        }
+        return mix;
     }
 
     // ================= 声轨颜色一一对应 =================
@@ -2099,10 +2118,21 @@ public partial class MainWindow : Window
     // 两边的颜色也各归各的，不看音高猜。
     // 色值只来自 Styles\Theme.axaml 的 BrushVoice0..11；未参与合奏降不透明度，打击乐轨用灰。
 
-    /// <summary>本轨在这次演奏里的声部序号；-1 = 不参与。这个号就是写进音符 Voice 的号。</summary>
+    /// <summary>
+    /// 本轨在这次演奏里的声部序号；-1 = 不参与。这个号就是写进音符 Voice 的号。
+    ///
+    /// 远程同演时用**过滤后的**下标：掩码剔掉了别人的声部，
+    /// 如果还按 _mixOrder 里的原始位置算，本人看到的序号会跟实际弹的声部错位。
+    /// </summary>
     private int VoiceIndexOf(TrackRowVM row)
     {
         if (!row.IsVoiceActive) return -1;
+        if (_syncVoiceMask != null)
+        {
+            var rows = ActiveRows();
+            int idx = rows.IndexOf(row);
+            return idx >= 0 ? idx : -1;
+        }
         if (row.IsMix)
         {
             int i = _mixOrder.IndexOf(row);
@@ -2115,8 +2145,18 @@ public partial class MainWindow : Window
     private void UpdateVoiceRoles()
     {
         bool mixing = _mixOrder.Any(r => r.IsMix);
-        foreach (var row in _tracks)
-            row.IsVoiceActive = mixing ? row.IsMix : ReferenceEquals(row, _selected);
+        if (_syncVoiceMask != null)
+        {
+            // 远程同演：别人负责的声部显示成"没参与"，本人负责的按掩码顺序编号。
+            // 不这样处理的话，界面会显示所有轨都在弹，与耳朵听到的对不上。
+            var rows = ActiveRows();
+            foreach (var row in _tracks) row.IsVoiceActive = rows.Contains(row);
+        }
+        else
+        {
+            foreach (var row in _tracks)
+                row.IsVoiceActive = mixing ? row.IsMix : ReferenceEquals(row, _selected);
+        }
 
         ApplyVoiceBrushes();
 
@@ -2928,6 +2968,30 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             InsertLog($"复制 QQ 群号失败（{ex.GetType().Name}），群号：{qq}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 复制一段任意文本到剪贴板。赞助页复制群号与「实验功能」页复制邀请串都走这里：
+    /// 剪贴板拿不到、写失败这些情况只在这一处处理，调用方只看返回值。
+    /// </summary>
+    internal async Task<bool> CopyTextToClipboard(TopLevel from, string text)
+    {
+        try
+        {
+            var clipboard = from?.Clipboard;
+            if (clipboard == null)
+            {
+                InsertLog("剪贴板不可用，请手动选中那一段文字复制。");
+                return false;
+            }
+            await clipboard.SetTextAsync(text);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            InsertLog($"复制到剪贴板失败（{ex.GetType().Name}），请手动选中那一段文字复制。");
             return false;
         }
     }

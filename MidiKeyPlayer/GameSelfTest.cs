@@ -19,7 +19,7 @@ namespace MidiKeyPlayer;
 /// 走这条路时程序**不创建窗口、不注册热键、不碰按键与 MIDI 设备**，跑完直接退出，
 /// 退出码 0 = 全过，1 = 有用例失败。和 DevUISnapshot / DevPreviewProbe 一样属于可删的开发件。
 /// </summary>
-internal static class GameSelfTest
+internal static partial class GameSelfTest
 {
     public const string EnvVar = "MIDIKEY_GAME_SELFTEST";
 
@@ -83,6 +83,7 @@ internal static class GameSelfTest
             TestChordScheduling();
             TestChordMerge();
             TestTrackRoles();
+            TestRemoteSync();
         }
         catch (Exception ex)
         {

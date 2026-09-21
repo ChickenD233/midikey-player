@@ -83,6 +83,18 @@ public sealed class AppConfig
     public int MidiMinVelocity { get; set; } = 1;        // 力度下限（1 = 不过滤）
     public bool MidiAutoFit { get; set; } = true;        // 自动贴合音域
 
+    // —— 实验功能：远程同演（设置窗口第四页）——
+    // 只记住"下次还好用"的东西：名字、成员号、上次的代理地址。
+    // 房间码与房间密钥**不记**：那是一次会话的凭证，每次建房重新生成。
+    public string SyncPeerName { get; set; } = "";       // 上次用的成员名（空 = 没填过）
+    // 成员号：重连后还是同一个人，所以必须记住。空 = 第一次用，界面上生成一个。
+    public string SyncPeerId { get; set; } = "";
+    // 上次用的代理地址（邀请串中间那一段的写法，例如 broker.emqx.io:8084/mqtt）。
+    // 留空时用 SyncRoomInfo 里的默认值。
+    public string SyncBroker { get; set; } = "";
+    // 是否已经看过「实验功能」页开头那段说明。看完只弹一次，之后只留一行小字。
+    public bool SyncIntroSeen { get; set; } = false;
+
     // —— MIDI 文件「最近打开」——
     /// <summary>「最近打开」最多记这么多条，超出丢最旧的。</summary>
     public const int MaxRecentFiles = 10;
