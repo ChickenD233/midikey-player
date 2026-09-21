@@ -33,6 +33,11 @@ internal static class StemProbe
         string outPath = Environment.GetEnvironmentVariable("MIDIKEY_STEM_PROBE_OUT") ?? "";
         if (outPath.Length == 0) outPath = Path.Combine(Path.GetTempPath(), "midikey-stem-probe.txt");
 
+        // 整链路模式：MIDIKEY_STEM_PROBE_PIPE=<模型目录> + _AUDIO=<音频> + _MIDI=<输出 .mid>
+        string pipeDir = Environment.GetEnvironmentVariable("MIDIKEY_STEM_PROBE_PIPE") ?? "";
+        if (pipeDir.Length > 0)
+            return RunPipeline(pipeDir, audio, Environment.GetEnvironmentVariable("MIDIKEY_STEM_PROBE_MIDI") ?? "", outPath);
+
         Say($"分离探针 {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
         try
         {
@@ -107,6 +112,50 @@ internal static class StemProbe
             return 1;
         }
 
+        try { File.WriteAllText(outPath, Log.ToString(), new UTF8Encoding(false)); } catch { }
+        Say($"报告：{outPath}");
+        return 0;
+    }
+
+    /// <summary>整链路：分离 + 各自转写 + 写出两轨 MIDI，并把写出的 MIDI 读回来核对轨名。</summary>
+    private static int RunPipeline(string modelDir, string audio, string midiOut, string outPath)
+    {
+        Say($"两轨分离转写探针 {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+        try
+        {
+            if (audio.Length == 0 || !File.Exists(audio)) { Say($"音频不存在：{audio}"); return 1; }
+            if (midiOut.Length == 0) midiOut = Path.Combine(Path.GetTempPath(), "stems.mid");
+
+            // 模型目录与 StemModels 的默认目录不一致时，先复制过去（StemPipeline 用默认目录）
+            string vocals = Path.Combine(modelDir, "vocals.fp16.onnx");
+            string accomp = Path.Combine(modelDir, "accompaniment.fp16.onnx");
+            if (!File.Exists(vocals) || !File.Exists(accomp)) { Say($"模型不全：{modelDir}"); return 1; }
+            Directory.CreateDirectory(StemModels.ModelDir);
+            File.Copy(vocals, StemModels.VocalsPath, overwrite: true);
+            File.Copy(accomp, StemModels.AccompanimentPath, overwrite: true);
+            Say($"模型已就位：{StemModels.ModelDir}（{StemModels.SizeOnDisk() / 1024.0 / 1024.0:F1} MB）");
+
+            var progress = new Progress<double>(p => { if (((int)(p * 100)) % 20 == 0) Say($"  进度 {p * 100:F0}%"); });
+            var outcome = StemPipeline.Run(audio, midiOut, progress);
+            Say($"整链路完成：人声 {outcome.VocalNotes} 个音，伴奏 {outcome.AccompanimentNotes} 个音，"
+                + $"时长 {outcome.DurationSec:F1}s，用时 {outcome.Elapsed.TotalSeconds:F1}s");
+            Say($"写出：{outcome.MidiPath}（{new FileInfo(outcome.MidiPath).Length} 字节）");
+
+            // 读回来核对：轨道名、每轨音符数、通道
+            var parsed = Midi.MidiLoader.Parse(outcome.MidiPath);
+            Say($"读回解析：{parsed.Candidates.Count} 条候选，时长 {parsed.DurationSec:F1}s");
+            foreach (var c in parsed.Candidates)
+                Say($"  轨{c.TrackIndex + 1} 声道{c.Channel + 1} 名「{c.Name}」音符 {c.NoteCount} 声部标牌「{c.RoleTag}」");
+        }
+        catch (Exception ex)
+        {
+            var parts = new System.Collections.Generic.List<string>();
+            Exception? e = ex;
+            while (e != null) { parts.Add($"{e.GetType().Name}: {e.Message}"); e = e.InnerException; }
+            Say("跑不通：" + string.Join("  <-  ", parts));
+            try { File.WriteAllText(outPath, Log.ToString(), new UTF8Encoding(false)); } catch { }
+            return 1;
+        }
         try { File.WriteAllText(outPath, Log.ToString(), new UTF8Encoding(false)); } catch { }
         Say($"报告：{outPath}");
         return 0;

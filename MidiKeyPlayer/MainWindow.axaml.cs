@@ -1354,6 +1354,81 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// 「转人声 / 伴奏双轨…」：分离成两条声部，各自转写，写出两轨 MIDI 并载入。
+    /// 分离模型（约 55 MB）不在 exe 里，首次用到时下载一次，之后离线可用。
+    /// </summary>
+    private async void ConvertStems_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_converting) { InsertLog("正在转写，等这一首转完再点。"); return; }
+        try
+        {
+            var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "选择要分离成人声 / 伴奏的音频文件",
+                AllowMultiple = false,
+                FileTypeFilter = new List<FilePickerFileType>
+                {
+                    new("音频文件")
+                    {
+                        Patterns = Audio.AudioToMidi.AudioExtensions.Select(x => "*" + x).ToList()
+                    },
+                    new("所有文件") { Patterns = new List<string> { "*.*" } }
+                }
+            });
+            if (files.Count == 0) return;
+            string? path = files[0].TryGetLocalPath();
+            if (string.IsNullOrEmpty(path)) return;
+
+            if (!await ConfirmDiscardEditsAsync("转人声 / 伴奏双轨")) return;
+
+            _converting = true;
+            BtnFromAudio.IsEnabled = false;
+            if (BtnFromStems != null) BtnFromStems.IsEnabled = false;
+            try
+            {
+                // 第一次要先下模型：约 55 MB，下载一次之后离线
+                if (!Audio.StemModels.IsReady)
+                {
+                    InsertLog("首次使用要先下载分离模型（约 55 MB，只需一次，之后离线可用）…");
+                    var download = new Progress<double>(p =>
+                    {
+                        if (TxtLastMsg != null) TxtLastMsg.Text = $"正在下载分离模型… {p * 100:F0}%";
+                    });
+                    await Audio.StemModels.EnsureAsync(download);
+                    InsertLog("分离模型已就绪。");
+                }
+
+                InsertLog($"开始分离并转写：{System.IO.Path.GetFileName(path)}（本机进行，不上传）");
+                var progress = new Progress<double>(p =>
+                {
+                    if (TxtLastMsg != null) TxtLastMsg.Text = $"正在分离并转写… {p * 100:F0}%";
+                });
+
+                string midi = Audio.AudioToMidi.SuggestPath(path);
+                Audio.StemPipeline.Outcome outcome = await Task.Run(
+                    () => Audio.StemPipeline.Run(path, midi, progress));
+
+                InsertLog($"分离转写完成：人声 {outcome.VocalNotes} 个音、伴奏 {outcome.AccompanimentNotes} 个音，"
+                    + $"用时 {outcome.Elapsed.TotalSeconds:F0}s，已写出 {System.IO.Path.GetFileName(midi)}");
+                LoadMidiFile(midi);
+            }
+            finally
+            {
+                _converting = false;
+                BtnFromAudio.IsEnabled = true;
+                if (BtnFromStems != null) BtnFromStems.IsEnabled = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            _converting = false;
+            BtnFromAudio.IsEnabled = true;
+            if (BtnFromStems != null) BtnFromStems.IsEnabled = true;
+            InsertLog($"分离转写失败：{ex.Message}");
+        }
+    }
+
     /// <summary>没有可定位的谱面时，清空进度条、卷帘与音符显示。</summary>
     private void ResetSeekUi()
     {
