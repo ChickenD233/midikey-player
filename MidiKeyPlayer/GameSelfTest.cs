@@ -77,6 +77,7 @@ internal static class GameSelfTest
             TestSolfegeNames();
             TestFlatModifier();
             TestRobloxPiano();
+            TestFf14Piano();
             TestChordScheduling();
         }
         catch (Exception ex)
@@ -399,6 +400,69 @@ internal static class GameSelfTest
         Check("键位 JSON：没有第四项的老文件读成不按 Shift",
               legacy.Keys.Count == 2 && legacy.Keys.All(k => !k.Shift),
               string.Join(" | ", legacy.Keys.Select(k => k.ToString())));
+    }
+
+    // ================= FF14 钢琴键位 =================
+
+    /// <summary>
+    /// FF14 钢琴键位（本版新增）：演奏模式的 37 键，**一个半音一条键位**，不用功能键，也不按 Shift。
+    /// 三排各 12 个半音（一行一个八度），最后再接一个最高的 do。
+    /// 低八度 Z 1 X 2 C V 3 B 4 N 5 M、中八度 A 6 S 7 D F 8 G 9 H 0 J、高八度 K Y L U Q W I E O R P T、,
+    /// 逐条写在这里：偏移或键名改错一个音，这一条就红。
+    /// </summary>
+    private static void TestFf14Piano()
+    {
+        var p = KeymapProfile.PresetByName("FF14 钢琴键位");
+        Check("FF14 钢琴：37 条键位、功能键全关、不用 Shift",
+              p != null && p.Keys.Count == 37 && p.Keys.Count(k => k.Shift) == 0
+              && !p.ModifiersEnabled && p.Sharp == null && p.OctaveUp == null
+              && p.OctaveDown == null && p.Flat == null && !p.HasSelfShiftKeys,
+              p == null ? "取不到" : $"键 {p.Keys.Count} 条（带 Shift {p.Keys.Count(k => k.Shift)} 条）"
+                                      + $"；开关={p.ModifiersEnabled} Sharp=「{p.Sharp}」");
+        if (p == null) return;
+
+        // 全部 37 个音：音高 → 键名。60..96 一个半音一条键位，音高连成一条不断档。
+        var table = new (string Key, int Pitch)[]
+        {
+            ("Z", 60), ("1", 61), ("X", 62), ("2", 63), ("C", 64), ("V", 65), ("3", 66),
+            ("B", 67), ("4", 68), ("N", 69), ("5", 70), ("M", 71),
+            ("A", 72), ("6", 73), ("S", 74), ("7", 75), ("D", 76), ("F", 77), ("8", 78),
+            ("G", 79), ("9", 80), ("H", 81), ("0", 82), ("J", 83),
+            ("K", 84), ("Y", 85), ("L", 86), ("U", 87), ("Q", 88), ("W", 89), ("I", 90),
+            ("E", 91), ("O", 92), ("R", 93), ("P", 94), ("T", 95), (",", 96),
+        };
+        string bad = "";
+        foreach (var (key, pitch) in table)
+            if (!p.TryKeyOfPitch(pitch, out string got, out _, out bool sharp, out bool flat, out _)
+                || got != key || sharp || flat)
+                bad += $"{pitch}→「{got}」(升={sharp} 降={flat}) 应为「{key}」 ";
+        Check("FF14 钢琴：37 个音逐个对上键名", bad.Length == 0, bad);
+
+        Check("FF14 钢琴：音域 60..96（C4..C7）",
+              p.ResolveMinNote() == 60 && p.ResolveMaxNote() == 96,
+              $"实际 {p.ResolveMinNote()}..{p.ResolveMaxNote()}");
+
+        Check("FF14 钢琴：演奏时不按任何修饰键", p.SharpKeyToHold == null,
+              $"SharpKeyToHold=「{p.SharpKeyToHold}」");
+
+        // 一排 12 条、一行一个八度：行号必须刚好是偏移除以 12，界面才排得出三行十二列。
+        bool rowsOk = p.Keys.All(k => k.Row == k.Offset / 12)
+                      && p.Keys.Count(k => k.Row == 0) == 12 && p.Keys.Count(k => k.Row == 1) == 12
+                      && p.Keys.Count(k => k.Row == 2) == 12 && p.Keys.Count(k => k.Row == 3) == 1;
+        Check("FF14 钢琴：三行各 12 个半音、末行一个 do",
+              rowsOk, string.Join(" | ", p.Keys.GroupBy(k => k.Row).OrderBy(g => g.Key)
+                                                  .Select(g => $"第{g.Key}行 {g.Count()} 条")));
+
+        // 方案 JSON 往返后键名、偏移、行号一字不差（预设要存成文件、要能分享）。
+        var round = KeymapProfile.FromJson(p.ToJson());
+        bool same = round.Keys.Count == p.Keys.Count;
+        for (int i = 0; same && i < p.Keys.Count; i++)
+            same = round.Keys[i].Key == p.Keys[i].Key
+                && round.Keys[i].Offset == p.Keys[i].Offset
+                && round.Keys[i].Row == p.Keys[i].Row
+                && round.Keys[i].Shift == p.Keys[i].Shift;
+        Check("FF14 钢琴：方案 JSON 往返后 37 条键位一字不差", same,
+              same ? "" : $"原 {p.Keys.Count} 条 / 回读 {round.Keys.Count} 条");
     }
 
     // ================= 和弦调度 =================
