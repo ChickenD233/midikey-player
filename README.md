@@ -320,8 +320,9 @@ THIRD-PARTY-NOTICES.md      # 第三方组件许可声明
    然后设环境变量、等程序退出、读回报告、统计 PASS / FAIL。要指定别的 exe，就用 `-ExePath <路径>`。
 3. 退出码 0 = 全部通过，1 = 有用例失败。脚本的其它退出码见脚本头部说明。
 
-当前 29 条断言全部通过，退出码 0。原来是 36 条：其中 13 条测的是自检内部的一份键名翻译副本，
-副本已删，这 13 条一起删。
+当前 42 条断言全部通过，退出码 0。其中和弦调度 5 条（同刻三音同时按住、重叠的同组音同时按住、
+长音不被截断、不重叠的单音线时刻不变、同一根键不会被同时按住两次）。
+原来是 36 条：其中 13 条测的是自检内部的一份键名翻译副本，副本已删，这 13 条一起删。
 
 也可以手动设 `MIDIKEY_GAME_SELFTEST=<报告文件路径>` 再启动程序。程序默认不提权，自检进程不需要管理员权限。
 
@@ -399,7 +400,8 @@ tag 已存在，脚本直接停手。日志里没有当前版本号那一节，`
 - 时序余量按**物理毫秒**给，不随播放速度缩放。标准档：修饰键比音键早至少 40ms，文件播放时每个音至少按住 17.7ms（MIDI 设备实时演奏路径是 46ms），同键重触发至少隔 45ms；提前派发量也是固定物理时间。
 - 10% 与 400% 下，这些物理间隔与 100% 完全相同（实测 40ms / 17.7ms）。变的是它们对应的音乐时间长度：快放时同一段物理时间覆盖的音乐更长，慢放时更短。
 - 结果是快放不再因为间隔被压到一帧以内而漏音。代价是慢放时发音比谱面整体稍晚一点，松手也稍晚一点。
-- 音符之间用「槽位」排开：与前音重叠的音顺延到前音之后，不靠缩短前音让位。这样不会产生零时长按键。
+- 和弦：同一时刻的音**同时按下**。修饰键状态相同的一组音（同一个八度档、都不需要升半音 / 降半音键）可以一起按住；只有必须切换修饰键时才顺延。顺延的音保留原时值，不靠缩短前音让位，所以不会产生零时长按键。
+- 换修饰键之前先把这一组音键全部松开：一个八度键 / 半音键只有一种状态，音键还按着时切换会让它们的音高跟着变。
 - 卷帘坐标换算只有一套。渲染与命中共用，两个方向对称。
 
 ## 许可证
@@ -737,7 +739,8 @@ The program ships with a pure-logic self-test covering key layout schemes and ji
    Then it sets the environment variable, waits for the program to exit, reads back the report, and counts PASS / FAIL. To specify another exe, use `-ExePath <path>`.
 3. Exit code 0 = all passed, 1 = a case failed. See the script header for the script's other exit codes.
 
-Currently all 29 assertions pass, exit code 0. It used to be 36: 13 of them tested a key-name translation copy internal to the self-test;
+Currently all 42 assertions pass, exit code 0. Five of them cover chord scheduling (three notes on the same instant held together, an overlapping note in the same group held with a long note, a long note not truncated, a non-overlapping line unchanged, and no key held twice at once).
+It used to be 36: 13 of them tested a key-name translation copy internal to the self-test;
 the copy has been deleted, and those 13 went with it.
 
 You can also manually set `MIDIKEY_GAME_SELFTEST=<report file path>` and then start the program. The program manifest requires administrator privilege, so the self-test process is elevated as well.
@@ -816,7 +819,8 @@ and migrates tempo, transposition, hotkeys, and MIDI device settings. A migratio
 - Timing margins are given in **physical milliseconds** and do not scale with playback tempo. Standard level: the modifier key leads the note key by at least 40ms; during file playback each note is held for at least 17.7ms (46ms on the MIDI device live-performance path); same-key re-trigger is at least 45ms apart; the dispatch-ahead amount is also a fixed physical time.
 - At 10% and 400%, these physical intervals are exactly the same as at 100% (measured 40ms / 17.7ms). What changes is the musical time they correspond to: at fast playback the same physical interval covers more music, at slow playback less.
 - The result is that fast playback no longer drops notes because intervals get squeezed within one frame. The cost is that at slow playback, notes sound slightly later than the score overall, and release slightly later too.
-- Notes are spaced with "slots": a note overlapping the previous one is deferred to after it, rather than shortening the previous note to make room. This produces no zero-duration keystrokes.
+- Chords: notes at the same instant are pressed **together**. A group of notes that needs the same modifier state (the same octave step, no semitone key) is held down at once. Only a modifier change defers a note, and a deferred note keeps its full duration, so this produces no zero-duration keystrokes.
+- All note keys of a group are released before a modifier changes: an octave key or a semitone key has only one state, and switching it while note keys are held would shift their pitch.
 - There is only one set of piano-roll coordinate conversions. Rendering and hit-testing share it, symmetric in both directions.
 
 ## License

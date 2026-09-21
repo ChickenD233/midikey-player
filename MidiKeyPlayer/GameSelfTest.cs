@@ -77,6 +77,7 @@ internal static class GameSelfTest
             TestSolfegeNames();
             TestFlatModifier();
             TestRobloxPiano();
+            TestChordScheduling();
         }
         catch (Exception ex)
         {
@@ -398,6 +399,91 @@ internal static class GameSelfTest
         Check("键位 JSON：没有第四项的老文件读成不按 Shift",
               legacy.Keys.Count == 2 && legacy.Keys.All(k => !k.Shift),
               string.Join(" | ", legacy.Keys.Select(k => k.ToString())));
+    }
+
+    // ================= 和弦调度 =================
+
+    /// <summary>
+    /// 和弦调度自检：修饰键状态相同的同刻音必须**同时按下**（和弦），不是被顺延成琶音；
+    /// 不重叠的单音线不能被改坏；同一根键不会被同时按住两次。
+    /// 用公开的 <see cref="PlaybackEngine.BuildSchedulePreview"/>（导出按键表走的就是它），
+    /// 所以发布版也能跑，不需要 MIDIKEY_TEST。
+    /// </summary>
+    private static void TestChordScheduling()
+    {
+        // 三个同刻音（都在基准八度、不需要修饰键）→ 必须同时按住 3 根
+        var chordEvs = PlaybackEngine.BuildSchedulePreview(new List<MappedNote>
+        {
+            ScheduleNote(60, 'Z', 1.0, 1.5),
+            ScheduleNote(64, 'C', 1.0, 1.5),
+            ScheduleNote(67, 'B', 1.0, 1.5),
+        }, InputTiming.Standard, 1.0);
+        int held = MaxHeldKeyCount(chordEvs);
+        Check("和弦：三个同刻音同时按住", held == 3, $"实际最多同时按住 {held} 根");
+
+        // 重叠但不同刻的两个音也要同时发声，长音不能被截断
+        var overlapEvs = PlaybackEngine.BuildSchedulePreview(new List<MappedNote>
+        {
+            ScheduleNote(60, 'Z', 0.0, 2.0),
+            ScheduleNote(64, 'C', 0.5, 1.0),
+        }, InputTiming.Standard, 1.0);
+        int overlapHeld = MaxHeldKeyCount(overlapEvs);
+        Check("和弦：重叠的同组音同时按住", overlapHeld == 2, $"实际最多同时按住 {overlapHeld} 根");
+
+        var longUp = overlapEvs.FirstOrDefault(e => e.Kind == "key" && e.Key == 'Z' && !e.Down);
+        Check("和弦：长音不被截断（抬起仍是 2.0000）",
+              longUp != null && Math.Abs(longUp.MusicTime - 2.0) < 1e-6,
+              longUp == null ? "找不到 Z 的抬起" : $"Z 抬起 {longUp.MusicTime:F4}");
+
+        // 不重叠的单音线不能被改坏：时刻与谱面一字不差
+        var lineEvs = PlaybackEngine.BuildSchedulePreview(new List<MappedNote>
+        {
+            ScheduleNote(60, 'Z', 0.0, 0.5),
+            ScheduleNote(62, 'X', 0.6, 1.0),
+        }, InputTiming.Standard, 1.0);
+        var lineDowns = lineEvs.Where(e => e.Kind == "key" && e.Down).Select(e => e.MusicTime).ToList();
+        Check("单音线：不重叠的音时刻不变（0.0000 / 0.6000）",
+              lineDowns.Count == 2 && Math.Abs(lineDowns[0]) < 1e-9 && Math.Abs(lineDowns[1] - 0.6) < 1e-9,
+              $"实际 {string.Join(",", lineDowns.Select(t => t.ToString("F4")))}");
+
+        // 同一根键的两个音：不能同时按住
+        var repeatEvs = PlaybackEngine.BuildSchedulePreview(new List<MappedNote>
+        {
+            ScheduleNote(60, 'Z', 0.0, 0.4),
+            ScheduleNote(60, 'Z', 0.4, 0.8),
+        }, InputTiming.Standard, 1.0);
+        int repeatHeld = MaxHeldKeyCount(repeatEvs);
+        Check("和弦：同一根键不会被同时按住两次", repeatHeld == 1, $"实际最多同时按住 {repeatHeld} 根");
+    }
+
+    /// <summary>自检用：造一个不需要修饰键的可演奏音符。</summary>
+    private static MappedNote ScheduleNote(int pitch, char key, double start, double end) => new()
+    {
+        Pitch = pitch,
+        Start = start,
+        End = end,
+        Key = key,
+        KeyName = key.ToString(),
+        Sharp = false,
+        Flat = false,
+        OctaveOffset = 0,
+        SoundingPitch = pitch,
+        InRange = true,
+    };
+
+    /// <summary>自检用：扫事件流求"同时按住的音键"峰值（同一时刻先算抬起、再算按下）。</summary>
+    private static int MaxHeldKeyCount(List<PlaybackEngine.ScheduledEvent> evs)
+    {
+        int held = 0, max = 0;
+        var ordered = evs.Where(e => e.Kind == "key")
+                         .OrderBy(e => e.MusicTime)
+                         .ThenBy(e => e.Down ? 1 : 0);
+        foreach (var e in ordered)
+        {
+            held += e.Down ? 1 : -1;
+            if (held > max) max = held;
+        }
+        return max;
     }
 
     // ================= 断言 =================

@@ -83,8 +83,9 @@ public sealed class InputTimingProbe
     private readonly object _gate = new();
 
     private double _lastModMusicT = double.NegativeInfinity;
-    private double _lastKeyDownMusicT = double.NegativeInfinity;
-    private char _lastKey = '\0';
+    // 按音键分别记账：和弦会同时按着多根键，"最近按下的那根"不足以判断重触发与按住时长。
+    private readonly Dictionary<char, double> _lastDownOfKey = new();
+    private readonly Dictionary<char, double> _downAtOfKey = new();
     private int _heldMods;
     private bool _sawLead;
 
@@ -138,7 +139,7 @@ public sealed class InputTimingProbe
         }
     }
 
-    /// <summary>音键按下（按音乐时间记录）。</summary>
+    /// <summary>音键按下（按音乐时间记录）。和弦里每根键各记一份。</summary>
     public void OnNoteOn(char key, double musicT)
     {
         lock (_gate)
@@ -146,9 +147,9 @@ public sealed class InputTimingProbe
             TotalNoteOn++;
             // 事件表存音乐时间 → 物理时间 = 音乐时间 × 速度（A13）
             double phys = Speed <= 0 ? 1.0 : Speed;
-            if (_lastKey == key)
+            if (_lastDownOfKey.TryGetValue(key, out double prevDown))
             {
-                double gapMs = (musicT - _lastKeyDownMusicT) * phys * 1000.0;
+                double gapMs = (musicT - prevDown) * phys * 1000.0;
                 if (gapMs < Timing.RetriggerMs) RetriggerTooShort++;
             }
             // 只有此刻真有修饰键按着才评估提前量：修饰键已松开后来的音不做这项检查
@@ -160,21 +161,22 @@ public sealed class InputTimingProbe
                 if (leadMs < Timing.FrameMs) ModLeadTooShort++;
                 if (leadMs < 0.5) ModLeadZero++;
             }
-            _lastKey = key;
-            _lastKeyDownMusicT = musicT;
+            _lastDownOfKey[key] = musicT;
+            _downAtOfKey[key] = musicT;
         }
     }
 
-    /// <summary>音键抬起，用于统计按住时长。</summary>
+    /// <summary>音键抬起，用于统计按住时长（按这根键自己的按下时刻算）。</summary>
     public void OnNoteOff(char key, double musicT)
     {
         lock (_gate)
         {
             double phys = Speed <= 0 ? 1.0 : Speed;
-            if (_lastKey == key)
+            if (_downAtOfKey.TryGetValue(key, out double downAt))
             {
-                double holdMs = (musicT - _lastKeyDownMusicT) * phys * 1000.0;
+                double holdMs = (musicT - downAt) * phys * 1000.0;
                 if (holdMs < Timing.FrameMs) MinHoldTooShort++;
+                _downAtOfKey.Remove(key);
             }
         }
     }
@@ -186,8 +188,8 @@ public sealed class InputTimingProbe
         {
             _lastModMusicT = double.NegativeInfinity;
             _heldMods = 0;
-            _lastKey = '\0';
-            _lastKeyDownMusicT = double.NegativeInfinity;
+            _lastDownOfKey.Clear();
+            _downAtOfKey.Clear();
         }
     }
 

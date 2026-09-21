@@ -45,6 +45,12 @@ public sealed class PlaybackEngine : IDisposable
             => new(t, K_Modifier, ' ', name, slot, down, "");
     }
 
+    /// <summary>
+    /// 一根正在按着的音键：DownT = 实际按下时刻，UpT = 计划抬起时刻（都是音乐时间）。
+    /// 同一组（修饰键状态相同）里可以同时有多根，和弦靠它发声。
+    /// </summary>
+    private readonly record struct HeldKey(char Key, double DownT, double UpT);
+
     private const int K_Key = 0;
     private const int K_Modifier = 1;   // 八度 / 升半音修饰键：具体是键盘键还是鼠标键由键名决定
 
@@ -577,13 +583,13 @@ public sealed class PlaybackEngine : IDisposable
                 if (ev.Down)
                 {
                     if (!Silent) InputSender.KeyDown(ev.Code);
-                    _physHeldKey = ev.Code;
+                    _physHeldKeys.Add(ev.Code);
                     Probe.OnNoteOn(ev.Code, ev.T);
                 }
                 else
                 {
                     if (!Silent) InputSender.KeyUp(ev.Code);
-                    if (_physHeldKey == ev.Code) _physHeldKey = '\0';
+                    _physHeldKeys.Remove(ev.Code);
                     Probe.OnNoteOff(ev.Code, ev.T);
                 }
                 break;
@@ -621,8 +627,8 @@ public sealed class PlaybackEngine : IDisposable
         public static ModState None => new(null, null, null);
     }
 
-    /// <summary>音键当前是否真的处于按下状态（供停止/跳转后与目标程序对表）。</summary>
-    private char _physHeldKey = '\0';
+    /// <summary>音键当前真正处于按下状态的那几根（供停止/跳转后与目标程序对表）。和弦会同时有多根。</summary>
+    private readonly HashSet<char> _physHeldKeys = new();
     /// <summary>当前真实按着的八度修饰键名（null = 没按）。</summary>
     private string? _physOctKey;
     /// <summary>当前真实按着的升半音修饰键名（null = 没按）。</summary>
@@ -707,7 +713,7 @@ public sealed class PlaybackEngine : IDisposable
     /// 只抬本程序真正按下过的键：InputSender 内部记账，用户物理按住的键不动（A04）。
     /// 清零是让 <see cref="CurrentModifiers"/> 说真话的前提 —— 否则上一轮结束时若还按着修饰键，
     /// 下一轮 <see cref="Play"/> 会以那个已经松开的陈旧键为起点建表，整轮都不再补发它的 KeyDown。
-    /// _physHeldKey 有意不动：下一轮建表会按它补发一次音键 KeyUp（见 <see cref="BuildSchedule"/> 起点处理）。
+    /// _physHeldKeys 有意不动：下一轮建表会按它补发一次音键 KeyUp（见 <see cref="BuildSchedule"/> 起点处理）。
     /// </summary>
     private void ReleaseAllInput()
     {
@@ -742,9 +748,12 @@ public sealed class PlaybackEngine : IDisposable
     /// 修饰键比音键早 ModLeadMs 且音键至少晚一帧；同键两次按下 ≥ RetriggerMs；
     /// 每次按下至少按住一帧。
     ///
-    /// 音符之间用**槽位**排开，而不是只靠"前音抬起 → 后音按下"的间隔：
-    /// 与前音重叠（含同刻起音）的音顺延到前音之后，时值不变。乐器是单音乐器，
-    /// 同刻起音本来只能演奏响一个；靠"缩短前音"去腾位置，就会产生零时长按键 ——
+    /// **和弦**：修饰键状态相同的一组音可以同时按住多根音键，同刻起音就真的同时发声。
+    /// 组内自由重叠，不再互相顺延。组与组之间必须顺延：一个八度键 / 半音键只有一种状态，
+    /// 切换修饰键时按着的音在目标程序里的音高会跟着变，所以换组前先把这一组全部松开，
+    /// 而且修饰键的按下一定晚于最后一根音键的松开。同一根键要重按时，
+    /// 也先松开再按重触发间隔按回去 —— 不会出现同一根键被"按两次"的错觉。
+    /// 顺延的音保留原时值，绝不靠缩短前音腾位置：那会排出零时长的按键，
     /// 目标程序按帧采样时一帧都读不到，整段音被吃掉。
     ///
     /// startMods = 建表这一刻目标程序侧真实按着的修饰键。当前唯一的调用点（Play）传
@@ -795,11 +804,12 @@ public sealed class PlaybackEngine : IDisposable
         string? heldSharp = startMods.SharpKey;
         string? heldFlat = startMods.FlatKey;
 
-        // 起点若还按着音键（上一轮中断残留），先松开
-        if (_physHeldKey != '\0')
+        // 起点若还按着音键（上一轮中断残留），先全部松开
+        if (_physHeldKeys.Count > 0)
         {
-            evs.Add(PhysicalEvent.Key(0, _physHeldKey, false, ""));
-            _physHeldKey = '\0';
+            foreach (char leftover in _physHeldKeys.ToList())
+                evs.Add(PhysicalEvent.Key(0, leftover, false, ""));
+            _physHeldKeys.Clear();
         }
 
         void EmitModifiers(string? wantOct, bool wantS, bool wantF, double modT)
@@ -839,28 +849,38 @@ public sealed class PlaybackEngine : IDisposable
             }
         }
 
-        char? heldKey = null;
-        double heldDownT = 0;      // 前音实际按下时刻
-        double heldUpT = 0;        // 前音实际抬起时刻
-        var lastDown = new Dictionary<char, double>();
+        // —— 和弦：同一组（修饰键状态相同）的音可以同时按着多根音键 ——
+        // group = 当前按着的那一组音键。组内自由重叠，这就是和弦发声的地方；
+        // 组与组之间必须顺延，因为一个八度键 / 半音键只有一种状态。
+        var group = new List<HeldKey>();
+        bool hasGroup = false;          // 上面这一组是不是已经按出来了（空组不算）
+        string? groupOct = null;
+        bool groupSharp = false;
+        bool groupFlat = false;
 
-        // 槽位起点：本音必须晚于上一个音（乐器是单音），槽位终点 = 前音实际抬起时刻。
-        double slotStart = 0;
+        var lastDown = new Dictionary<char, double>();     // 每根键上一次按下时刻（重触发用）
+        double lastRelease = double.NegativeInfinity;      // 本音之前最后一次"松开音键"的时刻
+
+        // 松开一根按着的音键。limit = 必须抬起的最晚时刻；scoreEnd = 触发这次让位的音符的谱面结束时刻。
+        // 只有"提前松开"记诊断，自然结束不记（口径同 B04：被迫压缩 / 正常让位）。
+        void ReleaseHeld(HeldKey h, double limit, double scoreEnd)
+        {
+            double natural = Math.Max(h.UpT, h.DownT + minUpT);          // 自然抬起也要跨过一个帧点
+            double upT = natural <= limit ? natural : Math.Max(limit, h.DownT + minUpT);
+            if (upT < natural - 1e-9)
+            {
+                if (scoreEnd < h.DownT + minUpT) Probe.OnMinUpForced();
+                else Probe.OnMinUpLimited();
+            }
+            evs.Add(PhysicalEvent.Key(upT, h.Key, false, ""));
+            if (upT > lastRelease) lastRelease = upT;
+        }
 
         foreach (var n in ordered)
         {
             double baseStart = Math.Max(0, n.Start);
-            double endT = Math.Max(baseStart, n.End);      // 谱面结束时刻（保留原时值）
-            double duration = endT - baseStart;
-
-            // ① 本音最早能按下的时刻：
-            //    - baseStart：谱面时刻（不与前音重叠时完全按原谱）
-            //    - slotStart：前音实际抬起时刻（乐器是单音，重叠音必须排开）
-            //    - 前音按下 + minUpT：保证前音能跨过一个帧点，被目标程序采样到。
-            //      少了这条，紧随其后的音就会把前音的时值压成 0 → 目标程序整段读不到 → 漏音。
-            double t = Math.Max(baseStart, slotStart);
-            if (heldKey != null && t < heldDownT + minUpT) t = heldDownT + minUpT;
-            endT = t + duration;
+            double scoreEnd = Math.Max(baseStart, n.End);      // 谱面结束时刻（保留原时值）
+            double duration = scoreEnd - baseStart;
 
             // 本音需要的修饰键状态：八度档位 -1 = 按「降八度」键，+1 = 按「升八度」键，0 = 都不按
             string? wantOct = n.OctaveOffset < 0 ? octDownKey : (n.OctaveOffset > 0 ? octUpKey : null);
@@ -869,7 +889,45 @@ public sealed class PlaybackEngine : IDisposable
             bool sharpHeld = heldSharp != null && heldSharp == sharpKey;
             bool flatHeld = heldFlat != null && heldFlat == flatKey;
 
-            // ② 同一根音键的重触发间隔（旧版只给 12ms，短于一帧 → 两音粘连）
+            double limit = baseStart;                  // 本音最早能按下 = 谱面起点
+            lastRelease = double.NegativeInfinity;
+
+            // ① 已经弹完的音键按计划松开，与本音无关（自然结束，不记诊断）
+            for (int i = group.Count - 1; i >= 0; i--)
+            {
+                HeldKey h = group[i];
+                if (Math.Max(h.UpT, h.DownT + minUpT) <= limit)
+                {
+                    ReleaseHeld(h, limit, scoreEnd);
+                    group.RemoveAt(i);
+                }
+            }
+
+            // ② 本音要的修饰键状态与这一组不同 → 整组让位：先全松，再切修饰键。
+            //    一个修饰键只能有一种状态；切换时按着的音在目标程序里会跟着变音高。
+            if (group.Count > 0 &&
+                !(hasGroup && groupOct == wantOct && groupSharp == wantS && groupFlat == wantF))
+            {
+                foreach (HeldKey h in group) ReleaseHeld(h, limit, scoreEnd);
+                group.Clear();
+                hasGroup = false;
+            }
+
+            // ③ 同一根键还被按着（同音重复，或方案里两个音共用一根键）→ 先松开它，再按重触发间隔按回去
+            for (int i = group.Count - 1; i >= 0; i--)
+            {
+                if (group[i].Key == n.Key)
+                {
+                    ReleaseHeld(group[i], limit, scoreEnd);
+                    group.RemoveAt(i);
+                }
+            }
+
+            // ④ 本音最早能按下的时刻：谱面起点与"刚松开的音键"取晚者
+            double t = Math.Max(baseStart, lastRelease);
+            double endT = t + duration;
+
+            // ⑤ 同一根音键的重触发间隔（旧版只给 12ms，短于一帧 → 两音粘连）
             double downT = t;
             if (lastDown.TryGetValue(n.Key, out double prevDown) && downT < prevDown + retrig)
                 downT = prevDown + retrig;
@@ -883,35 +941,17 @@ public sealed class PlaybackEngine : IDisposable
                 downT = Math.Max(t, Math.Min(endT, prevDown + effRetrig));
             }
 
-            // ③ 前音抬起：最早是它的谱面结束时刻，最晚是本音按下时刻。
-            //    ①保证了这个区间至少跨过一个帧点，所以不会再出现 upT == downT 的零时长按键。
-            if (heldKey is char prev)
-            {
-                double upT = Math.Min(heldUpT, downT);
-                upT = Math.Min(downT, Math.Max(upT, heldDownT + minUpT));   // 至少跨一个帧点，且不越过本音
-                // B04：区分「被迫压缩」与「正常让位」。
-                // 本音的谱面结束时刻本来就放不下最短按住 → 被迫压缩（这才是异常信号）；
-                // 只是被槽位顺延推早了 → 正常让位（重叠音本来就该让位，不是异常）。
-                if (upT < heldUpT - 1e-9)
-                {
-                    if (endT < heldDownT + minUpT) Probe.OnMinUpForced();
-                    else Probe.OnMinUpLimited();
-                }
-
-                evs.Add(PhysicalEvent.Key(upT, prev, false, ""));
-                if (upT > slotStart) slotStart = upT;
-                heldKey = null;
-            }
-
-            // ④ 修饰键切换：提前 modLead 发出，并保证音键至少晚于一帧
+            // ⑥ 修饰键切换：提前 modLead 发出，但一定晚于最后一根音键的松开（否则按着的音会跟着变调），
+            //    并保证音键至少晚于一帧。
             if (wantOct != heldOct || wantS != sharpHeld || wantF != flatHeld)
             {
                 double modT = Math.Max(0, downT - modLead);
+                if (lastRelease > modT) modT = lastRelease;
                 EmitModifiers(wantOct, wantS, wantF, modT);
                 if (downT < modT + frame) downT = modT + frame;
             }
 
-            // ⑤ 修饰键提前量若把本音按下推后了，整段跟着后移，时值不变。
+            // ⑦ 修饰键提前量若把本音按下推后了，整段跟着后移，时值不变。
             //    不能只推按下不推抬起：那会把时值压没，又变成零时长按键。
             if (downT > t)
             {
@@ -923,21 +963,21 @@ public sealed class PlaybackEngine : IDisposable
             evs.Add(PhysicalEvent.Key(downT, n.Key, true,
                 NoteMapper.Describe(n, withTime: false)));
 #if MIDIKEY_TEST
-            TraceSink?.Invoke($"  音 {n.Key} 谱面 {baseStart:F4}→{baseStart + duration:F4} 槽位 {t:F4}→{endT:F4} "
-                              + $"实发 down={downT:F4}"
+            TraceSink?.Invoke($"  音 {n.Key} 谱面 {baseStart:F4}→{scoreEnd:F4} 实发 down={downT:F4} up={endT:F4} "
+                              + $"同组 {group.Count} 根"
                               + $"{(lastDown.ContainsKey(n.Key) ? $" prevDown={lastDown[n.Key]:F4}" : "")}");
 #endif
-            heldKey = n.Key;
-            heldDownT = downT;
-            heldUpT = endT;
+            group.Add(new HeldKey(n.Key, downT, endT));
+            hasGroup = true;
+            groupOct = wantOct;
+            groupSharp = wantS;
+            groupFlat = wantF;
             lastDown[n.Key] = downT;
         }
 
-        if (heldKey is char last)
-        {
-            double upT = Math.Max(heldUpT, heldDownT + minUpT);
-            evs.Add(PhysicalEvent.Key(upT, last, false, ""));
-        }
+        // 收尾：还按着的音键全部松开（自然抬起，至少跨过一个帧点）
+        foreach (HeldKey h in group)
+            evs.Add(PhysicalEvent.Key(Math.Max(h.UpT, h.DownT + minUpT), h.Key, false, ""));
 
         // 表尾不补修饰键 KeyUp：表若在「某根修饰键还按着」处结束，接手的必定是一条释放路径 ——
         // 自然播完（Worker 收尾）、循环重开（RestartLoop）、下一轮跳转/换谱（ForceReleaseModifiers），
