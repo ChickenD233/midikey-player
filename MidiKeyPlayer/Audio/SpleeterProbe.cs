@@ -396,6 +396,10 @@ internal static class SpleeterProbe
             string dumpNames = Environment.GetEnvironmentVariable("MIDIKEY_SPLEETER_PROBE_DUMP") ?? "";
             foreach (string dn in dumpNames.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
                 runner.DumpValues[dn] = dn;
+            // 钉住的张量：算出来立刻留底，跑完打统计（不受后续算子原地改写影响）
+            string pinNames = Environment.GetEnvironmentVariable("MIDIKEY_SPLEETER_PROBE_PIN") ?? "";
+            foreach (string pn in pinNames.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                runner.Pinned[pn] = null!;
             var trace = new List<string>();
             runner.Trace = (op, shape) =>
             {
@@ -495,6 +499,19 @@ internal static class SpleeterProbe
                 // 诊断：把指定名字的张量值打出来（成功失败都打，失败了才最需要看）
                 foreach (var kv in runner.DumpValues)
                     Say($"  张量 {kv.Key} {kv.Value}");
+                foreach (var kv in runner.Pinned)
+                {
+                    var t = kv.Value;
+                    if (t == null) { Say($"  钉住 {kv.Key} 未算出"); continue; }
+                    Say($"  钉住 {kv.Key} {DescribeTensor(t)}");
+                    // 想导出钉住的原始数据时给一个目录前缀（MIDIKEY_SPLEETER_PROBE_PREFIX）
+                    string prefix = Environment.GetEnvironmentVariable("MIDIKEY_SPLEETER_PROBE_PREFIX") ?? "";
+                    if (prefix.Length > 0 && t.F != null)
+                    {
+                        string safe = kv.Key.Trim('/').Replace('/', '_');
+                        File.WriteAllBytes($"{prefix}_{safe}.f32", Floats(t.F));
+                    }
+                }
             }
         }
         catch (Exception ex)
@@ -504,6 +521,18 @@ internal static class SpleeterProbe
     }
 
     private static string Shape(int[] dims) => "[" + string.Join(",", dims) + "]";
+
+    /// <summary>把一张张量的形状与统计量写成一行（钉住模式用）。</summary>
+    private static string DescribeTensor(OnnxTensor t)
+    {
+        if (t.F == null) return t.ShapeText() + " (整数)";
+        double sum = 0;
+        float min = float.MaxValue, max = float.MinValue;
+        foreach (float v in t.F) { sum += v; if (v < min) min = v; if (v > max) max = v; }
+        double mean = t.F.Length > 0 ? sum / t.F.Length : 0;
+        string head = string.Join(",", t.F.Take(4).Select(v => v.ToString("G6")));
+        return $"{t.ShapeText()} 均值={mean:G6} 最小={min:G4} 最大={max:G4} 头4={head}";
+    }
 
     private static bool Supported(string op) => op switch
     {

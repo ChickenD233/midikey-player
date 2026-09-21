@@ -46,6 +46,7 @@ internal sealed class OnnxGraphRunner
             _values[node.Outputs[0]] = t;
             if (DumpValues.TryGetValue(node.Outputs[0], out var key))
                 DumpValues[node.Outputs[0]] = key + " => " + Describe(Snapshot(t));
+            if (Pinned.ContainsKey(node.Outputs[0])) Pinned[node.Outputs[0]] = Snapshot(t);
         }
     }
 
@@ -138,6 +139,9 @@ internal sealed class OnnxGraphRunner
 
     /// <summary>【开发诊断】把这些名字的张量算出来后打一份值。只给探针用，正常使用为空。</summary>
     internal readonly Dictionary<string, string> DumpValues = new(StringComparer.Ordinal);
+
+    /// <summary>【开发诊断】钉住的张量：算出来立刻深拷贝留底，避免被后续算子原地改写。只给探针用。</summary>
+    internal readonly Dictionary<string, OnnxTensor> Pinned = new(StringComparer.Ordinal);
 
     private OnnxTensor Execute(OnnxNode node)
     {
