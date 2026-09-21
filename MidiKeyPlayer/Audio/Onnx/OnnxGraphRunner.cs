@@ -697,7 +697,7 @@ internal sealed class OnnxGraphRunner
         int rank = x.Dims.Length;
         var begin = new int[rank];
         var endPad = new int[rank];
-        Trace?.Invoke("Pad参数", $"pads[{string.Join(",", pads)}] 长度={pads.Length} 输入 {x.ShapeText()} 填充入={node.Inputs.Length switch { > 2 => node.Inputs[2], _ => "(无)" }}");
+        Trace?.Invoke("Pad参数", $"出[{node.Outputs[0]}] 入 {x.ShapeText()} pads({pads.Length})=[{string.Join(",", pads)}]");
         // pads 的长度有三种常见口径：2*rank（前后各 rank）、rank（只在末尾补）、1（两边同值）
         for (int i = 0; i < rank; i++)
         {

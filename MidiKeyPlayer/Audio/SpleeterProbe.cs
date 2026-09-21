@@ -496,7 +496,9 @@ internal static class SpleeterProbe
                     Say("  执行轨迹（节点类型+输出形状，前 40 个）：");
                     for (int i = 0; i < Math.Min(40, trace.Count); i++) Say($"    {i}: {trace[i]}");
                 }
-                // 诊断：把指定名字的张量值打出来（成功失败都打，失败了才最需要看）
+                // 打印全部 Pad 参数（填充值算错是当前最大疑点）
+                foreach (string line in trace)
+                    if (line.StartsWith("Pad参数", StringComparison.Ordinal)) Say($"  {line}");
                 foreach (var kv in runner.DumpValues)
                     Say($"  张量 {kv.Key} {kv.Value}");
                 foreach (var kv in runner.Pinned)
