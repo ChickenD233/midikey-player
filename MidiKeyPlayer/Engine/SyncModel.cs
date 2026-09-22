@@ -17,11 +17,16 @@ namespace MidiKeyPlayer.Engine;
 internal sealed class SyncRoomInfo
 {
     /// <summary>
-    /// 默认中转站。**发布前把这里改成你自己的 Worker 地址。**
-    /// 用户界面上的「高级：中转站地址」留空时就用它。
-    /// 没有默认值时用户必须自己填，那就失去了"粘一条邀请串就能进"的方便。
+    /// 默认中转站。用户界面上的「高级：中转站地址」留空时就用它。
+    ///
+    /// 这是本项目作者部署在 Cloudflare 上的公共中转站，所有用户共用它。
+    /// 内置它的意义：用户粘一条邀请串就能进房间，不用自己填地址。
+    ///
+    /// 想换成自己的：把这里改成你的 Worker 地址（形如
+    /// <c>你的名字.你的子域.workers.dev</c>），重新构建。部署说明见仓库的
+    /// <c>cloudflare/部署说明.md</c>。
     /// </summary>
-    internal const string DefaultRelayHost = "";
+    internal const string DefaultRelayHost = "midikeyplayer-sync.dl18710255985.workers.dev";
 
     /// <summary>邀请串的协议前缀，用来认出自家的串。</summary>
     internal const string Scheme = "mkp";

@@ -371,11 +371,13 @@
       </TabItem>
 
       <!-- ============ 实验功能页 ============
-           远程同演：几个人各自负责几个声部，锁定各自的移调，一同演奏同一首 MIDI。
-           传输走公共 MQTT 代理，不写服务器；同步靠本机单调时钟的锚点，不比较两台机器的墙钟。
+           远程同演：几个人各自选自己的声部，一同演奏同一首 MIDI。
+           同步只管两件事：谁弹哪个声部、从什么时候开始。按键全部由本机发出。
+           时间靠本机单调时钟的锚点，不比较两台机器的墙钟，所以不用对时。
+           传输走自建的中转站（cloudflare/ 目录里的 Worker），不走公共代理。
            这一页的逻辑在 SettingsWindow.Experimental.cs。
            中间那块「成员表」与「声部」用 ItemsControl 绑 ObservableCollection，
-           不在代码里手工拼控件 —— 成员进出与声部占用是随时变的。 -->
+           不在代码里手工拼控件 —— 成员进出与声部变动是随时变的。 -->
       <TabItem Header="实验功能">
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
           <StackPanel Margin="14,12,14,10" Spacing="10">

@@ -36,13 +36,16 @@ export default {
     if (url.pathname !== '/room') {
       return new Response('MidiKeyPlayer sync relay', { status: 200 });
     }
-    if (request.headers.get('Upgrade') !== 'websocket') {
-      return new Response('需要 WebSocket 升级请求', { status: 426 });
-    }
 
+    // 先校验房间键，再看升级头。反过来的话，键不合法会回 426（"需要升级"），
+    // 那是个误导人的答复 —— 真正的问题是键不对。
     const key = url.searchParams.get('k') || '';
     if (!/^[0-9a-f]{32,64}$/.test(key)) {
       return new Response('房间键不合法', { status: 400 });
+    }
+
+    if (request.headers.get('Upgrade') !== 'websocket') {
+      return new Response('需要 WebSocket 升级请求', { status: 426 });
     }
 
     const stub = env.ROOMS.get(env.ROOMS.idFromName(key));
