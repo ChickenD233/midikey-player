@@ -4,7 +4,8 @@
   "description": "MidiKeyPlayer 远程同演中转站：一个 Cloudflare Worker 加一个 Durable Object。",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "test": "node test-relay.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"

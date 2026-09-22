@@ -9,6 +9,8 @@
 # 只忽略依赖目录；package.json 与 package-lock.json 要进仓库，
 # 否则别人（和 Cloudflare 的构建机）装不出同一份依赖。
 node_modules/
+# wrangler dev 的本机状态（临时对象库、日志），不进仓库。
+.wrangler/
 
 # ---------- 系统文件 ----------
 **/.DS_Store

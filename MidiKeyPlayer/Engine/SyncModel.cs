@@ -41,8 +41,19 @@ internal sealed class SyncRoomInfo
     /// <summary>房间密码。用户自定义。</summary>
     public string Password { get; init; } = "";
 
+    /// <summary>
+    /// 用不用 TLS。正式部署的 Worker 一律走 wss://。
+    /// 只有本机联调（wrangler dev）是明文 ws://，所以回环地址自动退回明文。
+    /// </summary>
+    public bool Secure => !IsLoopback(Host);
+
+    private static bool IsLoopback(string host)
+        => host.StartsWith("127.", StringComparison.Ordinal)
+        || host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+        || host.Equals("::1", StringComparison.Ordinal);
+
     /// <summary>连接地址。房间键放在查询参数里。</summary>
-    public string WebSocketUrl => $"wss://{Host}/room?k={RoomKey}";
+    public string WebSocketUrl => $"{(Secure ? "wss" : "ws")}://{Host}/room?k={RoomKey}";
 
     /// <summary>房间键：房间名经 PBKDF2 派生，64 位小写十六进制。</summary>
     public string RoomKey => DeriveRoomKey(RoomName);
