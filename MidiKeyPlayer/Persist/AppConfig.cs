@@ -45,6 +45,10 @@ public sealed class AppConfig
     public int PrevSongHotkeyIndex { get; set; } = 8;   // 上一首热键（默认 F8，文件夹曲目）
     public int NextSongHotkeyIndex { get; set; } = 9;   // 下一首热键（默认 F9，文件夹曲目）
     public bool TrimLead { get; set; } = true;        // 去除开头空拍（首音平移到 0 秒）
+    // 超出能弹范围的音折八度落回范围，而不是直接丢掉（默认关）。
+    // 默认关是刻意的：折八度会让旋律在某些音上跳八度，听感会变，不该替用户决定。
+    // 音域特别窄的乐器（例如只有 8 个音的手碟）打开它才有意义。
+    public bool FoldOctave { get; set; } = false;
     public bool FirstRunDone { get; set; } = false;   // 首次“快速上手”是否已看过
     public bool AutoMinimizeOnPlay { get; set; } = true;  // 播放开始后自动最小化窗口
     public bool FocusGuard { get; set; } = true;          // 焦点离开目标程序时自动暂停（按键只进游戏）
@@ -84,15 +88,19 @@ public sealed class AppConfig
     public bool MidiAutoFit { get; set; } = true;        // 自动贴合音域
 
     // —— 实验功能：远程同演（设置窗口第四页）——
-    // 只记住"下次还好用"的东西：名字、成员号、上次的代理地址。
-    // 房间码与房间密钥**不记**：那是一次会话的凭证，每次建房重新生成。
+    // 只记住"下次还好用"的东西：名字、成员号、中转站地址、上次的房间名与倒数档位。
+    // **密码不记**：那是一次会话的凭证，每次手输。
     public string SyncPeerName { get; set; } = "";       // 上次用的成员名（空 = 没填过）
     // 成员号：重连后还是同一个人，所以必须记住。空 = 第一次用，界面上生成一个。
     public string SyncPeerId { get; set; } = "";
-    // 上次用的代理地址（邀请串中间那一段的写法，例如 broker.emqx.io:8084/mqtt）。
-    // 留空时用 SyncRoomInfo 里的默认值。
+    // 中转站地址，例如 midikeyplayer-sync.你的名字.workers.dev。
+    // 留空时用 SyncRoomInfo.DefaultRelayHost（发布版会把默认地址写在那里）。
     public string SyncBroker { get; set; } = "";
-    // 是否已经看过「实验功能」页开头那段说明。看完只弹一次，之后只留一行小字。
+    // 上次建的房间名（空 = 没建过）。密码不记，所以这里只图省一次输入。
+    public string SyncRoomName { get; set; } = "";
+    // 开演倒数档位：0=2 秒 / 1=3 秒 / 2=5 秒 / 3=10 秒 / 4=15 秒。
+    public int SyncCountdownIndex { get; set; } = 1;
+    // 是否已经看过「实验功能」页开头那段说明。看完只弹一次。
     public bool SyncIntroSeen { get; set; } = false;
 
     // —— MIDI 文件「最近打开」——

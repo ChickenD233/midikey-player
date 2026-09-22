@@ -132,6 +132,7 @@ public partial class MainWindow : Window
         SliderSpeed.Value = Math.Clamp(_cfg.Speed, 10, 400);
         SliderTranspose.Value = Math.Clamp(_cfg.Transpose, -24, 24);
         ChkTrimLead.IsChecked = _cfg.TrimLead;
+        ChkFoldOctave.IsChecked = _cfg.FoldOctave;
         ChkAutoMinimize.IsChecked = _cfg.AutoMinimizeOnPlay;
         ChkFocusGuard.IsChecked = _cfg.FocusGuard;   // 焦点守卫默认开：按键只进游戏
         ChkShowPreflight.IsChecked = _cfg.ShowPreflight;
@@ -646,6 +647,7 @@ public partial class MainWindow : Window
         _cfg.PrevSongHotkeyIndex = Math.Clamp(HotkeyPrevCombo.SelectedIndex, 0, 12);
         _cfg.NextSongHotkeyIndex = Math.Clamp(HotkeyNextCombo.SelectedIndex, 0, 12);
         _cfg.TrimLead = ChkTrimLead.IsChecked == true;
+        _cfg.FoldOctave = ChkFoldOctave.IsChecked == true;
         _cfg.AutoMinimizeOnPlay = ChkAutoMinimize.IsChecked == true;
         _cfg.ShowPreflight = ChkShowPreflight.IsChecked == true;
         _cfg.TimingIndex = Math.Clamp(TimingCombo.SelectedIndex, 0, 2);
@@ -758,7 +760,7 @@ public partial class MainWindow : Window
         if (eng == null || _selected == null) return;
 
         var map = BuildMapping();
-        var notes = map.Notes.Where(n => n.InRange).ToList();
+        var notes = NoteMapper.Playable(map.Notes);
         eng.UpdateNotes(notes);
         InsertLog($"移调 {CurrentTranspose:+#;-#;0}：可演奏 {notes.Count} 音" +
                   (map.SkipCount > 0 ? $" / 跳过 {map.SkipCount}" : ""));
@@ -1136,7 +1138,7 @@ public partial class MainWindow : Window
             InsertLog("试听与演奏不能同时进行，先停止当前演奏。");
             return;
         }
-        var notes = BuildMapping().Notes.Where(n => n.InRange).ToList();
+        var notes = NoteMapper.Playable(BuildMapping().Notes);
         if (notes.Count == 0)
         {
             InsertLog("当前谱面没有可演奏的音，无法试听。先选一行主旋律。");
@@ -2288,7 +2290,8 @@ public partial class MainWindow : Window
     }
 
     private MappingResult MapAt(int transpose) =>
-        NoteMapper.Map(GetActiveRawNotes(), transpose, manualBaseOctave: null);
+        NoteMapper.Map(GetActiveRawNotes(), transpose, manualBaseOctave: null,
+                       foldOctave: _cfg.FoldOctave);
 
     private MappingResult BuildMapping() =>
         GetActiveRawNotes().Count == 0 ? new MappingResult() : MapAt(CurrentTranspose);
@@ -2307,7 +2310,7 @@ public partial class MainWindow : Window
         try
         {
             var map = BuildMapping();
-            var playable = map.Notes.Where(n => n.InRange).ToList();
+            var playable = NoteMapper.Playable(map.Notes);
             if (playable.Count == 0)
             {
                 InsertLog("没有可演奏的音，无法导出。请调整「移调」或换一行。");
@@ -2407,7 +2410,7 @@ public partial class MainWindow : Window
 
         for (int t = lo; t <= hi; t++)
         {
-            var map = NoteMapper.Map(raw, t, manualBaseOctave: null);
+            var map = NoteMapper.Map(raw, t, manualBaseOctave: null, foldOctave: _cfg.FoldOctave);
             total = map.Notes.Count;   // 所有候选都映射同一份音符，每轮相等
 
             int natural = 0, accidental = 0, skip = 0;
@@ -3658,7 +3661,7 @@ public partial class MainWindow : Window
         }
 
         var raw = GetActiveRawNotes();
-        var m = raw.Count == 0 ? new MappingResult() : NoteMapper.Map(raw, CurrentTranspose, null);
+        var m = raw.Count == 0 ? new MappingResult() : MapAt(CurrentTranspose);
         _lastMapping = m;   // LblWarn 的「跳过明细」按这份结果显示
         // 声轨颜色：左侧列表的文字色与卷帘音符色用同一个序号
         var voiceMap = BuildVoiceMap(raw);
@@ -3677,7 +3680,7 @@ public partial class MainWindow : Window
         // 移调 ≠ 0 时，本来有键、试听也有声的音会被画成灰色（灰条与「能不能弹」不符）。
         // 两条分支都必须更新它：编辑路径不经过 SetNotes，否则改完音高颜色会按旧集合算。
         int rollTranspose = CurrentTranspose;
-        var inRangePitches = m.Notes.Where(n => n.InRange)
+        var inRangePitches = NoteMapper.Playable(m.Notes)
                                     .Select(n => n.Pitch - rollTranspose)
                                     .Distinct().ToList();
         if (pushToRoll)
@@ -3783,7 +3786,7 @@ public partial class MainWindow : Window
             InsertLog("没有可演奏的音，无法播放。请调整“移调”或换一行。");
             return;
         }
-        _playNotes = map.Notes.Where(n => n.InRange).ToList();
+        _playNotes = NoteMapper.Playable(map.Notes);
 
         SetBusy(true);
         _overlayMuted = false;   // 新一次播放：✕ 的「本次不显示」作废，浮窗该出还出
@@ -4027,6 +4030,7 @@ public partial class MainWindow : Window
         TrackList.IsEnabled = !busy;
         ChkLoop.IsEnabled = !busy;
         ChkTrimLead.IsEnabled = !busy;
+        ChkFoldOctave.IsEnabled = !busy;
         ChkAutoMinimize.IsEnabled = !busy;
         BtnPreview.IsEnabled = !busy;
         CountdownCombo.IsEnabled = !busy;

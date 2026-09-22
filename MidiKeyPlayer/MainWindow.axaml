@@ -544,6 +544,12 @@
                       IsChecked="True" VerticalAlignment="Center"
                       ToolTip.Tip="剪掉开头的休止，让旋律从第 0 秒开始。整条旋律会往前挪"
                       IsCheckedChanged="Option_Changed"/>
+
+            <!-- 音域窄的乐器专用：超范围的音上下折八度，而不是丢掉 -->
+            <CheckBox x:Name="ChkFoldOctave" Content="超范围的音折八度" FontSize="{DynamicResource FontSmall}"
+                      VerticalAlignment="Center"
+                      ToolTip.Tip="音域特别窄的乐器（例如只有 8 个音的手碟）打开它：超出能弹范围的音上下挪一个八度落回范围，而不是丢掉。折八度只改高八度点，不改音名。旋律会有八度跳，所以默认关"
+                      IsCheckedChanged="Option_Changed"/>
           </WrapPanel>
         </Border>
 

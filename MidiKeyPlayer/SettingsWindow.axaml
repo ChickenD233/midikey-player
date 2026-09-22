@@ -389,18 +389,18 @@
                            FontSize="{DynamicResource FontTitle}" FontWeight="SemiBold"/>
                 <TextBlock TextWrapping="Wrap" LineHeight="19"
                            FontSize="{DynamicResource FontSmall}"
-                           Text="几个人各自负责几个声部，锁定各自的移调，一同演奏同一首 MIDI。"/>
+                           Text="几个人各自选自己的声部，一同演奏同一首 MIDI。联机只同步「什么时候开始弹」与「谁弹哪个声部」。"/>
                 <StackPanel Orientation="Horizontal" Spacing="8">
                   <TextBlock Classes="caption" FontSize="{DynamicResource FontMicro}"
                              VerticalAlignment="Center"
-                             Text="试验阶段：消息是明文，房间码猜不到才安全。"/>
+                             Text="试验阶段。中转站走 Cloudflare，消息加密。"/>
                   <Button x:Name="BtnSyncIntro" Content="怎么看这个功能" Classes="secondary"
                           FontSize="{DynamicResource FontMicro}" Padding="8,2"
                           Click="SyncIntro_Click"/>
                 </StackPanel>
                 <TextBlock x:Name="TxtSyncIntro" TextWrapping="Wrap" LineHeight="18"
                            FontSize="{DynamicResource FontMicro}" Classes="caption" IsVisible="False"
-                           Text="每个人先导入同一份 MIDI 文件（两份文件的字节必须完全一样），再连到同一个房间。开演前程序核对曲目指纹与总时长，不一致就不开演。传输走公共 MQTT 代理，不需要任何人开服务器，也不需要公网 IP。"/>
+                           Text="每个人先自己导入一首 MIDI，再进同一个房间。房主填房间名与密码，点「创建房间」，把邀请串发给朋友；朋友粘进「加入房间」就进来了。声部各人选自己的。房主点「开演」时，全场倒数几秒之后同时开始 —— 倒数是在等各人的电脑收到信号，网络快的人等得久一点，所以大家落在同一拍上。不需要对时，也不需要公网 IP。"/>
               </StackPanel>
             </Border>
 
@@ -415,15 +415,30 @@
                   <TextBox x:Name="TxtSyncName" Width="180" FontSize="{DynamicResource FontSmall}"
                            Watermark="例如 小明"
                            ToolTip.Tip="同房间其他人看到的名字。不填就用本机用户名"/>
+                  <TextBlock Text="倒数" Classes="label" VerticalAlignment="Center"/>
+                  <ComboBox x:Name="CmbSyncCountdown" Width="86" FontSize="{DynamicResource FontSmall}"
+                            SelectionChanged="SyncCountdown_Changed"
+                            ToolTip.Tip="房主点开演之后等几秒开始。这几秒是用来等各人的电脑收到信号的">
+                    <ComboBoxItem Content="2 秒"/>
+                    <ComboBoxItem Content="3 秒"/>
+                    <ComboBoxItem Content="5 秒"/>
+                    <ComboBoxItem Content="10 秒"/>
+                    <ComboBoxItem Content="15 秒"/>
+                  </ComboBox>
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Text="房间名" Classes="label" VerticalAlignment="Center" Width="64"/>
+                  <TextBox x:Name="TxtSyncRoom" Width="180" FontSize="{DynamicResource FontSmall}"
+                           Watermark="例如 小明的琴房"
+                           ToolTip.Tip="自己取一个。朋友用这个房间名加密码进你的房间"/>
+                  <TextBlock Text="密码" Classes="label" VerticalAlignment="Center"/>
+                  <TextBox x:Name="TxtSyncPass" Width="140" FontSize="{DynamicResource FontSmall}"
+                           Watermark="自己定" PasswordChar="●"
+                           ToolTip.Tip="自己定一个。第一次创建房间时用哪个密码，以后进这个房间就得用哪个"/>
                   <Button x:Name="BtnSyncHost" Content="创建房间" Classes="accent"
                           FontSize="{DynamicResource FontSmall}" Padding="16,6"
-                          Click="SyncHost_Click"
-                          ToolTip.Tip="在本机建一个房间，然后把邀请串发给朋友"/>
-                  <TextBlock x:Name="TxtSyncSelfBroker" Classes="caption" VerticalAlignment="Center"
-                             FontSize="{DynamicResource FontMicro}"/>
+                          Click="SyncHost_Click"/>
                 </StackPanel>
 
                 <Border BorderBrush="{DynamicResource BrushBorder}" BorderThickness="0,1,0,0"
@@ -433,29 +448,29 @@
                     <TextBox x:Name="TxtSyncInvite" FontSize="{DynamicResource FontSmall}"
                              AcceptsReturn="False" TextWrapping="NoWrap"
                              Watermark="把朋友发来的邀请串粘在这里（一整行）"
-                             ToolTip.Tip="邀请串形如 mkp://代理地址|房间码|密钥。一次粘贴，地址与密钥都带上"/>
+                             ToolTip.Tip="邀请串形如 mkp://中转站|房间名|密码。一次粘贴，三样都带上"/>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                       <Button x:Name="BtnSyncJoin" Content="加入" Classes="secondary"
                               FontSize="{DynamicResource FontSmall}" Padding="16,5"
                               Click="SyncJoin_Click"/>
                       <TextBlock x:Name="TxtSyncJoinHint" Classes="caption" VerticalAlignment="Center"
-                                 FontSize="{DynamicResource FontMicro}"/>
+                                 FontSize="{DynamicResource FontMicro}" TextWrapping="Wrap"/>
                     </StackPanel>
                   </StackPanel>
                 </Border>
 
-                <!-- 代理地址。默认收起：多数人不需要动 -->
-                <Expander Header="高级：换一个代理地址" FontSize="{DynamicResource FontSmall}">
+                <!-- 中转站地址。默认收起：发布版会内置一个，用户不用管 -->
+                <Expander Header="高级：中转站地址" FontSize="{DynamicResource FontSmall}">
                   <StackPanel Spacing="6" Margin="0,6,0,0">
                     <TextBox x:Name="TxtSyncBroker" FontSize="{DynamicResource FontSmall}"
-                             Watermark="broker.emqx.io:8084/mqtt"
-                             ToolTip.Tip="公共 MQTT 代理的地址与端口。默认用 EMQX 的公开代理"/>
+                             Watermark="midikeyplayer-sync.你的名字.workers.dev"
+                             ToolTip.Tip="你自己部署的 Cloudflare Worker 地址。开头不用写 https://，结尾不用写斜杠"/>
                     <TextBlock TextWrapping="Wrap" LineHeight="18" Classes="caption"
                                FontSize="{DynamicResource FontMicro}"
-                               Text="换代理时，同房间所有人都要用同一个地址。加入房间时以邀请串里带的地址为准，这里的填写只用于建房。"/>
+                               Text="这是房主创建房间时用的地址。加入房间时以邀请串里带的地址为准，这里的填写不影响。"/>
                     <TextBlock TextWrapping="Wrap" LineHeight="18" Classes="caption"
                                FontSize="{DynamicResource FontMicro}"
-                               Text="连不上先查这些：代理是不是在维护；换一个代理试；本机网络能不能连出去。"/>
+                               Text="连不上先查这些：浏览器打开「地址/health」看是不是 ok；地址有没有多写 https:// 或结尾斜杠；密码是不是与第一次创建房间时一致。"/>
                   </StackPanel>
                 </Expander>
               </StackPanel>
@@ -487,7 +502,7 @@
                              FontSize="{DynamicResource FontMicro}"/>
                 </StackPanel>
 
-                <!-- 曲目指纹：开演前必须一致 -->
+                <!-- 曲目指纹：只做本机提示，不做联网核对 -->
                 <TextBlock x:Name="TxtSyncTrack" Classes="caption" TextWrapping="Wrap"
                            FontSize="{DynamicResource FontMicro}"/>
 
@@ -499,7 +514,7 @@
                     <ItemsControl x:Name="SyncPeerList">
                       <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                          <Grid ColumnDefinitions="14,140,110,80,*,70" Margin="0,1">
+                          <Grid ColumnDefinitions="14,180,140,90,*" Margin="0,1">
                             <TextBlock Grid.Column="0" Text="{Binding Mark}" FontSize="{DynamicResource FontMicro}"
                                        VerticalAlignment="Center"/>
                             <TextBlock Grid.Column="1" Text="{Binding Name}" Classes="label"
@@ -512,9 +527,6 @@
                                        FontSize="{DynamicResource FontSmall}" VerticalAlignment="Center"/>
                             <TextBlock Grid.Column="4" Text="{Binding ReadyText}" Classes="caption"
                                        FontSize="{DynamicResource FontMicro}" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Column="5" Text="{Binding RttText}" Classes="caption"
-                                       FontSize="{DynamicResource FontMicro}" VerticalAlignment="Center"
-                                       TextAlignment="Right"/>
                           </Grid>
                         </DataTemplate>
                       </ItemsControl.ItemTemplate>
@@ -522,22 +534,17 @@
                   </StackPanel>
                 </Border>
 
-                <!-- 我的声部 -->
+                <!-- 我的声部：各人选自己的，程序不做占用检查 -->
                 <Border BorderBrush="{DynamicResource BrushBorder}" BorderThickness="0,1,0,0"
                         Padding="0,8,0,0">
                   <StackPanel Spacing="6">
-                    <Grid ColumnDefinitions="Auto,*,Auto">
+                    <Grid ColumnDefinitions="Auto,*">
                       <TextBlock Grid.Column="0" Text="我的声部" Classes="label"
                                  FontSize="{DynamicResource FontSmall}" VerticalAlignment="Center"/>
                       <TextBlock Grid.Column="1" x:Name="TxtSyncAssignHint" Classes="caption"
                                  FontSize="{DynamicResource FontMicro}" Margin="10,0,0,0"
-                                 VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
-                        <Button x:Name="BtnSyncAutoAssign" Content="一键分配" Classes="secondary"
-                                FontSize="{DynamicResource FontMicro}" Padding="10,4"
-                                Click="SyncAutoAssign_Click"
-                                ToolTip.Tip="按在场人数轮流发牌，把声部平均分给每个人"/>
-                      </StackPanel>
+                                 VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                 Text="自己勾。别人勾了同一个也看得见，重了你们自己商量。"/>
                     </Grid>
                     <ItemsControl x:Name="SyncVoiceList">
                       <ItemsControl.ItemTemplate>
@@ -545,11 +552,8 @@
                           <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,1">
                             <CheckBox IsChecked="{Binding IsMine}" Content="{Binding Label}"
                                       FontSize="{DynamicResource FontSmall}"
-                                      IsEnabled="{Binding CanToggle}"
                                       Click="SyncVoiceToggle_Click"
                                       ToolTip.Tip="{Binding Tip}"/>
-                            <TextBlock Text="{Binding TakenBy}" Classes="caption"
-                                       FontSize="{DynamicResource FontMicro}" VerticalAlignment="Center"/>
                           </StackPanel>
                         </DataTemplate>
                       </ItemsControl.ItemTemplate>
@@ -560,15 +564,25 @@
                 <!-- 我的移调 -->
                 <Border BorderBrush="{DynamicResource BrushBorder}" BorderThickness="0,1,0,0"
                         Padding="0,8,0,0">
-                  <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="我的移调" Classes="label" FontSize="{DynamicResource FontSmall}"
-                               VerticalAlignment="Center" Width="64"/>
-                    <Slider x:Name="SliderSyncTranspose" Minimum="-24" Maximum="24"
-                            TickFrequency="1" IsSnapToTickEnabled="True" Width="240"
-                            ValueChanged="SyncTranspose_Changed"
-                            ToolTip.Tip="半音。开演后锁定，不能再改"/>
-                    <TextBlock x:Name="TxtSyncTranspose" Classes="value" FontSize="{DynamicResource FontSmall}"
-                               VerticalAlignment="Center" Width="40"/>
+                  <StackPanel Spacing="6">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <TextBlock Text="我的移调" Classes="label" FontSize="{DynamicResource FontSmall}"
+                                 VerticalAlignment="Center" Width="64"/>
+                      <Slider x:Name="SliderSyncTranspose" Minimum="-24" Maximum="24"
+                              TickFrequency="1" IsSnapToTickEnabled="True" Width="240"
+                              ValueChanged="SyncTranspose_Changed"
+                              ToolTip.Tip="半音。每个人各管各的"/>
+                      <TextBlock x:Name="TxtSyncTranspose" Classes="value" FontSize="{DynamicResource FontSmall}"
+                                 VerticalAlignment="Center" Width="40"/>
+                      <Button x:Name="BtnSyncUnifyTranspose" Content="统一为这个值" Classes="secondary"
+                              FontSize="{DynamicResource FontMicro}" Padding="10,4"
+                              Click="SyncUnifyTranspose_Click"
+                              ToolTip.Tip="把这个移调规定给全场。别人会跟着改"/>
+                      <Button x:Name="BtnSyncClearTranspose" Content="取消统一" Classes="secondary"
+                              FontSize="{DynamicResource FontMicro}" Padding="10,4"
+                              Click="SyncClearTranspose_Click"
+                              ToolTip.Tip="取消统一，各人回到自己设的移调"/>
+                    </StackPanel>
                   </StackPanel>
                 </Border>
 

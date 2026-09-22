@@ -58,7 +58,14 @@ public partial class MainWindow
         RefreshVoiceRolesForSettings();
     }
 
-    /// <summary>按新的声部掩码重算"参与演奏 / 声部序号"与卷帘配色。</summary>
+    /// <summary>设置页用：声部总数（= 当前参与演奏的声轨数）。</summary>
+    internal int SyncVoiceCountForSettings() => _mixOrder.Count;
+
+    /// <summary>设置页用：第 index 个声部的显示名。越界返回空串。</summary>
+    internal string SyncVoiceNameForSettings(int index)
+        => index >= 0 && index < _mixOrder.Count ? _mixOrder[index].Name : "";
+
+    /// <summary>设置页用：按新的声部掩码重算"参与演奏 / 声部序号"与卷帘配色。</summary>
     private void RefreshVoiceRolesForSettings()
     {
         UpdateVoiceRoles();
@@ -194,12 +201,6 @@ public partial class MainWindow
     {
         if (_engine is { IsRunning: true }) _engine.Stop();
         UpdateTransportUi();
-    }
-
-    /// <summary>设置页用：设漂移微调倍率（不改界面上的速度数字）。</summary>
-    internal void SetSyncTrimForSettings(double trim)
-    {
-        if (_engine != null) _engine.TrimRate = trim;
     }
 
     // ================= 给设置页用的小接口 =================

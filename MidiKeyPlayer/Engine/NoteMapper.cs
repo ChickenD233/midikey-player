@@ -26,8 +26,23 @@ public sealed class MappedNote
     /// <summary>八度档位：相对方案基准音所在八度的偏移（-1 / 0 / +1）。</summary>
     public int OctaveOffset { get; init; }
 
-    /// <summary>实际发声音高。规则固定为「有键就发、没键就不发」，命中时与 <see cref="Pitch"/> 相同。</summary>
+    /// <summary>
+    /// 实际发声音高。默认等于 <see cref="Pitch"/>；
+    /// 开了「超范围的音折八度」之后，超范围的音会被上下挪整八度，这里就是挪过之后的音高。
+    /// </summary>
     public int SoundingPitch { get; init; }
+
+    /// <summary>
+    /// 折八度挪动了多少半音（0 = 没折，+12 = 升一个八度，-12 = 降一个八度）。
+    /// 一定是 12 的整数倍。
+    /// </summary>
+    public int FoldedSemitones { get; init; }
+
+    /// <summary>
+    /// 这个音属于哪条声轨（合奏时的声部序号，0 起）；-1 = 未标注。
+    /// 从 <see cref="RawNote.Voice"/> 原样带过来，用于「同一个键撞车时谁让位」的裁决。
+    /// </summary>
+    public int Voice { get; init; } = -1;
 
     /// <summary>
     /// false → 演奏时跳过这个音。四种原因：移调后超出 MIDI 音域 0–127、键表为空、
@@ -36,9 +51,15 @@ public sealed class MappedNote
     /// </summary>
     public bool InRange { get; init; }
 
+    /// <summary>
+    /// true → 这个音有键，但同一时刻这个键已经被优先级更高的声部占着，按不下去。
+    /// 由 <see cref="NoteMapper.MarkKeyCollisions"/> 标记；演奏与导出都该跳过它。
+    /// </summary>
+    public bool SameKeyBlocked { get; set; }
+
     public string SkipReason { get; init; } = "";
 
-    /// <summary>发声了，但音高被挪过。现在只有「原样发声」一条路径，恒为 false。</summary>
+    /// <summary>发声了，但音高被挪过。只有折八度这一条路径会造成它。</summary>
     public bool Shifted => InRange && SoundingPitch != Pitch;
 }
 
@@ -48,6 +69,9 @@ public sealed class MappingResult
     /// <summary>基准八度（MIDI 编号，C4 = 第 4 八度）。</summary>
     public int BaseOctave { get; set; }
 
+    /// <summary>本次映射有没有开「超范围的音折八度」。</summary>
+    public bool FoldedOctave { get; set; }
+
     public List<MappedNote> Notes { get; init; } = new();
 
     /// <summary>有对应的键、演奏时会发声的音数。</summary>
@@ -56,7 +80,7 @@ public sealed class MappingResult
     /// <summary>没有对应的键（或超出能弹范围）而跳过的音数。卷帘画成灰色的就是它们。</summary>
     public int SkipCount => Notes.Count(n => !n.InRange);
 
-    /// <summary>发声但音高被挪过的音数。现在恒为 0（不再有改音高的路径）。</summary>
+    /// <summary>发声但音高被折八度挪过的音数。</summary>
     public int ShiftedCount => Notes.Count(n => n.Shifted);
 }
 
@@ -131,13 +155,16 @@ public static class NoteMapper
     }
 
     /// <summary>
-    /// 执行映射。notes 为主旋律原始音符；transpose 为整体移调半音数（-24..+24）；
-    /// manualBaseOctave 为手动基准八度，null 表示自动。
+    /// 执行映射。notes 为原始音符；transpose 为整体移调半音数（-24..+24）；
+    /// manualBaseOctave 为手动基准八度，null 表示自动；
+    /// foldOctave 为真时，超出能弹范围的音上下折八度落回范围，而不是直接丢掉。
     /// </summary>
-    public static MappingResult Map(IReadOnlyList<RawNote> notes, int transpose, int? manualBaseOctave)
+    public static MappingResult Map(IReadOnlyList<RawNote> notes, int transpose, int? manualBaseOctave,
+                                    bool foldOctave = false)
     {
         var profile = KeymapProfile.Current;
         var result = new MappingResult();
+        result.FoldedOctave = foldOctave;
 
         var valid = new List<int>();
         foreach (var n in notes)
@@ -171,12 +198,31 @@ public static class NoteMapper
             }
 
             int want = p - shift;
+            int folded = 0;
             if (!profile.InRange(want))
             {
-                // 超出能弹范围：固定不弹，没有折八度开关。对用户来说同样是「没有对应的键」
-                result.Notes.Add(Skipped(p, n,
-                    $"超出能弹范围（{Music.SolfegeRange(lo, hi)}），没有对应的键"));
-                continue;
+                if (foldOctave)
+                {
+                    // 折八度：把音上下挪整八度，落在能弹范围里最近的那个位置。
+                    // 找不到（例如手碟上没有 #4 与 7）就照旧不弹。
+                    if (TryFoldIntoRange(profile, want, out int foldedWant))
+                    {
+                        folded = foldedWant - want;
+                        want = foldedWant;
+                    }
+                    else
+                    {
+                        result.Notes.Add(Skipped(p, n,
+                            $"超出能弹范围（{Music.SolfegeRange(lo, hi)}），折八度后仍然没有对应的键"));
+                        continue;
+                    }
+                }
+                else
+                {
+                    result.Notes.Add(Skipped(p, n,
+                        $"超出能弹范围（{Music.SolfegeRange(lo, hi)}），没有对应的键"));
+                    continue;
+                }
             }
 
             if (!profile.TryKeyOfPitch(want, out string keyName, out int octaveOffset,
@@ -196,12 +242,41 @@ public static class NoteMapper
                 Sharp = sharp,
                 Flat = flat,
                 OctaveOffset = octaveOffset,
-                SoundingPitch = p,
+                // 折过八度的音：发声音高要跟着挪，否则试听与卷帘显示都会与手上按的对不上
+                SoundingPitch = p + folded,
+                FoldedSemitones = folded,
+                Voice = n.Voice,
                 InRange = true,
             });
         }
 
+        // 收尾：标出"同一个键同一时刻撞车"的音。只标记、不删除，理由见 MarkKeyCollisions。
+        MarkKeyCollisions(result.Notes);
         return result;
+    }
+
+    /// <summary>
+    /// 把一个超出能弹范围的音高折进范围：上下各试最多几个八度，取落到范围里、
+    /// 而且**真的有键**的那一个，优先取挪动最小的。
+    /// 找不到返回 false（例如手碟上没有 #4 与 7，这两个音在任何八度都没有键）。
+    /// </summary>
+    internal static bool TryFoldIntoRange(KeymapProfile profile, int pitch, out int folded)
+    {
+        folded = pitch;
+        // ±4 个八度足够覆盖任何现实音域；再远就没有音乐意义了。
+        for (int octaves = 1; octaves <= 4; octaves++)
+        {
+            foreach (int dir in new[] { 1, -1 })
+            {
+                int candidate = pitch + 12 * octaves * dir;
+                if (candidate < 0 || candidate > 127) continue;
+                if (!profile.InRange(candidate)) continue;
+                if (!profile.TryKeyOfPitch(candidate, out _, out _, out _, out _, out _)) continue;
+                folded = candidate;
+                return true;
+            }
+        }
+        return false;
     }
 
     private static MappedNote Skipped(int pitch, RawNote n, string reason) => new()
@@ -219,14 +294,20 @@ public static class NoteMapper
     };
 
     /// <summary>
-    /// 多声部合奏按优先级合并成一条谱面。
+    /// 多声部合奏把各条声轨的音合成一条谱面。
     ///
-    /// **同一条声轨（同一个 Rank）同一时刻的音是和弦，一个不丢，全部保留。**
-    /// 只有**不同声部**同刻相撞时才按优先级裁决：只保留编号最小（Rank 最小）的声部，
-    /// 低优先级音压在高优先级音尾音上的那一段让位。
-    /// 它不改音高，也不丢同声部的和弦音。
+    /// **只在"真的是同一个音"时才合并。** 同一个音高、同一刻起音、来自不同声部 ——
+    /// 这才是真正的一个音，合起来弹一次，不能弹两次。
     ///
-    /// 输出的每个音都写上 <see cref="RawNote.Voice"/> = 它的 Rank（声部序号），
+    /// 其余一律**全部保留**：同一个声部里的和弦不丢，不同声部同时响也各弹各的。
+    ///
+    /// 这里曾经按"声部编号小的优先"把相撞的音压掉，那是历史遗留：
+    /// 当时的目标乐器一次只能发出一个音（三角洲口琴），所以多声部必须裁成单音线。
+    /// 现在面向的是全功能 MIDI 乐器，能同时按多个键，再压就是白丢音。
+    /// 真正"按不下去"的情况只有一个：**两个音落到同一个键**，
+    /// 那个由 <see cref="CollapseKeyCollisions"/> 在映射之后处理，因为只有映射之后才知道键。
+    ///
+    /// 输出的每个音都写上 <see cref="RawNote.Voice"/> = 它的声部序号（Rank），
     /// 这样卷帘才知道「这个音属于哪条声轨」，不必再按音高猜。
     /// </summary>
     public static List<RawNote> MergeVoicesByPriority(IEnumerable<(int Rank, RawNote Note)> voices)
@@ -238,91 +319,75 @@ public static class NoteMapper
             .ToList();
         if (ordered.Count == 0) return new List<RawNote>();
 
+        // 起音在同一帧内就算"同一刻"。25 毫秒约等于一帧半，够容下文件里的微小抖动。
         const double eps = 0.025;
-        // 1) 同刻组内选 Rank 最小的声部：**该声部这一组的音全部留下**（它就是这一轨的和弦），
-        //    其余声部让位；被压掉的低优先级音若更长，"超出主声部结束"的尾巴稍后补回。
-        var items = new List<(int Rank, RawNote Note)>();
-        int i = 0;
-        while (i < ordered.Count)
+
+        var result = new List<RawNote>(ordered.Count);
+        // 已经保留过的"真正同一个音"：键是（音高，起音刻度）。用来去重。
+        var seen = new HashSet<(int Pitch, long StartTick)>();
+        // 声部序号 → 已经在响的同一个音高到几点。同声部同音高不重复起音（那是同一根键）。
+        var heldByVoice = new Dictionary<(int Voice, int Pitch), double>();
+
+        foreach (var (rank, note) in ordered)
         {
-            int j = i;
-            double s0 = ordered[i].Note.Start;
-            while (j + 1 < ordered.Count && ordered[j + 1].Note.Start - s0 <= eps) j++;
+            long tick = (long)Math.Round(note.Start / eps);
 
-            // 这一组归 Rank 最小的声部
-            int keepRank = ordered[i].Rank;
-            for (int k = i + 1; k <= j; k++)
-                if (ordered[k].Rank < keepRank) keepRank = ordered[k].Rank;
+            // 1) 跨声部的真正同一个音：只留一个，别的扔掉。
+            //    第一次保留时用它自己的 Rank 与时长。
+            if (!seen.Add((note.Pitch, tick))) continue;
 
-            // 该声部这一组最晚响到几点：和弦里各音长短可以不同，要看最长的那个
-            double keepEnd = double.MinValue;
-            for (int k = i; k <= j; k++)
-                if (ordered[k].Rank == keepRank && ordered[k].Note.End > keepEnd)
-                    keepEnd = ordered[k].Note.End;
+            // 2) 同一个声部里同一个音高还在响：这是同一根键的重复起音，丢掉。
+            //    不同声部不受这条限制 —— 两个人弹同一个音高由第 1 条处理。
+            if (heldByVoice.TryGetValue((rank, note.Pitch), out double until) && note.Start < until - 1e-9)
+                continue;
 
-            for (int k = i; k <= j; k++)
-            {
-                var o = ordered[k];
-                if (o.Rank == keepRank)
-                {
-                    items.Add(o);       // 和弦音：同一声部同刻的音全部保留
-                    continue;
-                }
-                if (o.Note.End > keepEnd)
-                {
-                    items.Add((o.Rank, new RawNote
-                    {
-                        Pitch = o.Note.Pitch,
-                        Start = keepEnd,                // 主声部结束后才轮到它
-                        End = o.Note.End,
-                        Velocity = o.Note.Velocity,
-                        Channel = o.Note.Channel,       // 打击乐判定要用声道，不能丢
-                        Voice = o.Rank                  // 补的尾巴段仍然属于它自己那条声轨
-                    }));
-                }
-            }
-            i = j + 1;
+            var copy = WithVoice(note, rank);
+            result.Add(copy);
+            heldByVoice[(rank, note.Pitch)] = copy.End;
         }
 
-        // 2) 排序后统一压制：低优先级音落在**优先级更高的音**持续期间 → 让位（超出部分补尾巴）。
-        //    这里按声部记「还响到几点」，不能只看上一个音：保留下来的和弦音长短不一，
-        //    只看最后一个会把长音后面的空档算错，低优先级音就会挤进来。
-        items = items.OrderBy(v => v.Note.Start).ThenBy(v => v.Rank).ThenBy(v => v.Note.Pitch).ToList();
-        var result = new List<RawNote>();
-        var endByRank = new Dictionary<int, double>();
-        foreach (var c in items)
-        {
-            // 比它优先（Rank 更小）而且还在响的声部，最晚响到几点
-            double blocker = double.MinValue;
-            foreach (var kv in endByRank)
-                if (kv.Key < c.Rank && kv.Value > blocker) blocker = kv.Value;
+        return result.OrderBy(n => n.Start).ThenBy(n => n.Voice).ToList();
+    }
 
-            if (blocker > c.Note.Start)
+    /// <summary>
+    /// 标记「按不下去」的音：**同一个键、同一时刻，被两个音同时占用**。
+    /// 一根键不能同时按两次，所以其中一个必须让位。
+    ///
+    /// 让位规则：先到先得；起音相同时声部序号小的优先。
+    /// 被让位的音**不删除**，只把 <see cref="MappedNote.SameKeyBlocked"/> 置真。
+    /// 为什么不删：调用方有六处（试听、演奏、导出、卷帘、统计），
+    /// 在这里删就得在六处都记得删，漏一处两边计数就对不上。
+    /// 标记一次，各处按同一个判据过滤，就不会分歧。
+    /// </summary>
+    internal static void MarkKeyCollisions(List<MappedNote> notes)
+    {
+        // 键 → 这个键已经被占到几点，以及占用它的声部序号
+        var usedUntil = new Dictionary<char, (double Until, int Voice)>();
+
+        foreach (var n in notes.OrderBy(x => x.Start).ThenBy(x => x.Voice))
+        {
+            bool blocked = false;
+            if (usedUntil.TryGetValue(n.Key, out var held) && n.Start < held.Until - 1e-9)
+                blocked = n.Voice >= held.Voice;   // 序号更靠后的让位；同序号也先到先得
+
+            if (blocked)
             {
-                if (c.Note.End > blocker)
-                {
-                    // 部分被吞：补回超出主声部的尾巴段，并登记它的结束时刻——
-                    // 不登记的话，落在尾巴区间里的后一个音会被整条加入，输出就重叠了。
-                    var tail = new RawNote
-                    {
-                        Pitch = c.Note.Pitch,
-                        Start = blocker,
-                        End = c.Note.End,
-                        Velocity = c.Note.Velocity,
-                        Channel = c.Note.Channel,
-                        Voice = c.Rank
-                    };
-                    result.Add(tail);
-                    endByRank[c.Rank] = tail.End;
-                }
+                n.SameKeyBlocked = true;
                 continue;
             }
-            result.Add(WithVoice(c.Note, c.Rank));
-            endByRank[c.Rank] = c.Note.End;
-        }
 
-        return result.OrderBy(n => n.Start).ToList();
+            double until = Math.Max(n.End, n.Start);
+            int voice = usedUntil.TryGetValue(n.Key, out var old) ? Math.Min(old.Voice, n.Voice) : n.Voice;
+            usedUntil[n.Key] = (until, voice);
+        }
     }
+
+    /// <summary>
+    /// 真正要发出去的那一批音：有键、而且没有因为撞键被判让位。
+    /// 演奏、试听、导出、统计都该用这个，别各写一份 Where。
+    /// </summary>
+    public static List<MappedNote> Playable(IEnumerable<MappedNote> notes)
+        => notes.Where(n => n.InRange && !n.SameKeyBlocked).ToList();
 
     /// <summary>复制一个音并写上声部序号。RawNote.Voice 是 init，只能复制，不能就地改。</summary>
     private static RawNote WithVoice(RawNote n, int voice) => new()

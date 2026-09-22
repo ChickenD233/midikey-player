@@ -63,7 +63,6 @@ public sealed class PlaybackEngine : IDisposable
     private List<MappedNote> _allNotes = new();   // 本轮全部可演奏音符（跳转/重建用）
     private double _totalMusic;          // 音乐时间总长
     private double _speed = 1.0;
-    private double _trimRate = 1.0;      // 漂移微调（远程同演）：1.0 = 不微调
     private double _leadSec;             // 提前量（音乐秒：物理预算 × 速度，与 _musicNow 同口径比较）
     private bool _loop;
 
@@ -105,23 +104,6 @@ public sealed class PlaybackEngine : IDisposable
         set => _speed = Math.Clamp(value, MinSpeed, MaxSpeed);
     }
 
-    /// <summary>
-    /// 漂移微调倍率（远程同演用，默认 1.0）。界面上的速度数字不变，只有内部积分乘上它。
-    /// 与 <see cref="Speed"/> 分开是刻意的：用户设的速度要看得见、不改动，
-    /// 而"为了追上别人而临时快 2%"是内部行为，不该出现在界面上。
-    /// 取值由 <see cref="SyncDrift.TrimLimit"/> 限制在 ±2%，超出的会被夹住。
-    /// </summary>
-    public double TrimRate
-    {
-        get => _trimRate;
-        set => _trimRate = Math.Clamp(value, 1.0 - SyncDrift.TrimLimit, 1.0 + SyncDrift.TrimLimit);
-    }
-
-    /// <summary>
-    /// 真正用于积分的速率 = 用户速度 × 漂移微调。
-    /// 所有"物理时间 → 音乐时间"的换算都必须用它，否则微调值会各算各的，对不上。
-    /// </summary>
-    private double Rate => _speed * _trimRate;
 
     /// <summary>输入时序预算（物理毫秒）。播放中可改，下一轮播放生效。</summary>
     public InputTiming Timing { get; set; } = InputTiming.Standard;
@@ -231,9 +213,6 @@ public sealed class PlaybackEngine : IDisposable
             if (_thread is { IsAlive: true } previous) previous.Join(200);
 
             _speed = speed <= 0 ? 1.0 : Math.Clamp(speed, MinSpeed, MaxSpeed);
-            // 新一轮播放：把上一轮留下的漂移微调清掉，否则新曲子会带着旧偏差起步。
-            // 远程同演会在播放中重新设它（见 SyncSession.Tick 与 MainWindow 的接线）。
-            _trimRate = 1.0;
             // 提前量在派发时与**音乐时间**比较（T 与 _musicNow 都是音乐时间），
             // 所以物理毫秒预算必须乘速度换成音乐秒，否则物理提前量 = lead / speed：
             // 400% 时只剩 14ms（小于一帧，预置修饰键被推到音键之后 → 音高全错）；
@@ -436,7 +415,7 @@ public sealed class PlaybackEngine : IDisposable
                     // 等锁期间用户可能已经点了暂停：这一趟不派发，回到外层的暂停分支等放行（R3-01）
                     if (_paused) continue;
                     // 积分累加进锁：与 SeekFraction / UpdateNotes 对 _musicNow 的写入同一口径
-                    if (dt > 0) _musicNow += dt * Rate;
+                    if (dt > 0) _musicNow += dt * _speed;
                     double lead = _leadSec;
                     while (_running && _nextIdx < _events.Count && _events[_nextIdx].T <= _musicNow + lead)
                     {
@@ -486,7 +465,7 @@ public sealed class PlaybackEngine : IDisposable
 
                 if (_musicNow < wakeMusic)
                 {
-                    double remainMs = (wakeMusic - _musicNow) / Rate * 1000.0;
+                    double remainMs = (wakeMusic - _musicNow) / _speed * 1000.0;
                     if (remainMs > 8)
                     {
                         _cancelEvent.Wait((int)Math.Min(remainMs - 4, 45));
@@ -505,7 +484,7 @@ public sealed class PlaybackEngine : IDisposable
                             _lastPhys = t2;
                             // 累加同样要进锁：这里也在跑时用户拖进度条（SeekFraction 锁内写 _musicNow）
                             // 会被锁外累加冲掉，与派发段同型竞态
-                            if (d2 > 0) { lock (_gate) { _musicNow += d2 * Rate; } }
+                            if (d2 > 0) { lock (_gate) { _musicNow += d2 * _speed; } }
                         }
                     }
                 }
@@ -550,7 +529,7 @@ public sealed class PlaybackEngine : IDisposable
             double dt = now - _lastPhys;
             _lastPhys = now;
             // 累加进锁，理由同派发段：长空拍正睡在这里，拖进度条不能被冲掉
-            if (dt > 0) { lock (_gate) { _musicNow += dt * Rate; } }
+            if (dt > 0) { lock (_gate) { _musicNow += dt * _speed; } }
             _cancelEvent.Wait(2);
         }
     }

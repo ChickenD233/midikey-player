@@ -581,26 +581,63 @@ internal static partial class GameSelfTest
         });
         Check("和弦保留：长音上叠三音和弦共 4 个音", layered.Count == 4, $"实际 {layered.Count} 个音");
 
-        // 5) 合奏规则不变：不同声部同刻相撞，只留编号小的那个
+        // 5) 不同声部同刻相撞：**两条声部的音都要留下**。
+        //    这里曾经只留编号小的那个，那是三角洲口琴时代的规定（当时乐器一次只能发一个音）。
+        //    现在面向全功能 MIDI 乐器，能同时按多个键，再压就是白丢音。
         var clash = NoteMapper.MergeVoicesByPriority(new List<(int, RawNote)>
         {
             (0, MergeNote(60, 0.0, 1.0)),
             (1, MergeNote(67, 0.0, 1.0)),
         });
-        Check("合奏：不同声部同刻相撞时低编号优先",
-              clash.Count == 1 && clash[0].Pitch == 60,
+        Check("合奏：不同声部同刻相撞时两个音都留下",
+              clash.Count == 2 && clash.Any(n => n.Pitch == 60) && clash.Any(n => n.Pitch == 67),
               $"实际 {clash.Count} 个音：" + string.Join(",", clash.Select(n => Music.NoteName(n.Pitch))));
+        Check("合奏：留下的音各自带着自己的声部序号",
+              clash.Count == 2 && clash.Any(n => n.Pitch == 60 && n.Voice == 0)
+              && clash.Any(n => n.Pitch == 67 && n.Voice == 1),
+              string.Join(" ", clash.Select(n => $"{Music.NoteName(n.Pitch)}→声部{n.Voice}")));
 
-        // 6) 合奏：低优先级长音被压掉的前段让位，超出的尾巴要补回来
-        var tail = NoteMapper.MergeVoicesByPriority(new List<(int, RawNote)>
+        // 6) 不同声部、不同音高、时值交叠：两条都要完整保留，谁也不许被截断或补尾巴
+        var overlap = NoteMapper.MergeVoicesByPriority(new List<(int, RawNote)>
         {
             (0, MergeNote(60, 0.0, 1.0)),
             (1, MergeNote(67, 0.0, 2.0)),
         });
-        var tailNote = tail.FirstOrDefault(n => n.Pitch == 67);
-        Check("合奏：低优先级音的尾巴从 1.0000 补到 2.0000",
-              tailNote != null && Math.Abs(tailNote.Start - 1.0) < 1e-9 && Math.Abs(tailNote.End - 2.0) < 1e-9,
-              tailNote == null ? "补的尾巴不见了" : $"{tailNote.Start:F4}~{tailNote.End:F4}");
+        Check("合奏：交叠的另一个声部不再被截断",
+              overlap.Count == 2, $"实际 {overlap.Count} 个音");
+        var longOne = overlap.FirstOrDefault(n => n.Pitch == 67);
+        Check("合奏：交叠音保持原时值 0.0000~2.0000（不被压掉前段）",
+              longOne != null && Math.Abs(longOne.Start) < 1e-9 && Math.Abs(longOne.End - 2.0) < 1e-9,
+              longOne == null ? "67 号音不见了" : $"{longOne.Start:F4}~{longOne.End:F4}");
+
+        // 6b) 不同声部同一个音高、同一刻：这是真正的一个音，只留一次
+        var unison = NoteMapper.MergeVoicesByPriority(new List<(int, RawNote)>
+        {
+            (0, MergeNote(64, 1.0, 2.0)),
+            (1, MergeNote(64, 1.0, 2.0)),
+        });
+        Check("合奏：不同声部的同刻同音只留一个（真正的一个音不弹两次）",
+              unison.Count == 1 && unison[0].Pitch == 64,
+              $"实际 {unison.Count} 个音");
+        Check("合奏：同刻同音留下的是优先级高的声部",
+              unison.Count == 1 && unison[0].Voice == 0, $"声部 {unison.FirstOrDefault()?.Voice}");
+
+        // 6c) 不同声部同一个音高但起音错开：这是两个音（先后各弹一次）
+        var sequential = NoteMapper.MergeVoicesByPriority(new List<(int, RawNote)>
+        {
+            (0, MergeNote(64, 0.0, 1.0)),
+            (1, MergeNote(64, 1.5, 2.5)),
+        });
+        Check("合奏：错开的同音高两个声部都保留", sequential.Count == 2, $"实际 {sequential.Count} 个音");
+
+        // 6d) 同一个声部里同一个音高重复起音（键还没松开又按一次）：丢掉重复的那次
+        var retrigger = NoteMapper.MergeVoicesByPriority(new List<(int, RawNote)>
+        {
+            (0, MergeNote(64, 0.0, 2.0)),
+            (0, MergeNote(64, 1.0, 3.0)),
+        });
+        Check("合奏：同一个声部里同音高未松开就重复起音，只留一次",
+              retrigger.Count == 1, $"实际 {retrigger.Count} 个音");
 
         // 7) 整条导入链路：写一份带和弦的 MIDI，解析后按界面口径（每行一个 Rank）合并
         string path = Path.Combine(Path.GetTempPath(), "midikey-chord-selftest.mid");

@@ -1,0 +1,15 @@
+name = "midikeyplayer-sync"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+# 远程同演的房间对象。一个房间 = 一个 Durable Object。
+#
+# 这里用 Cloudflare 现在的 exports 写法（替代旧的 migrations 数组，两者只能选一个）。
+# storage 必须是 sqlite：免费计划只支持 SQLite 存储后端。
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+[exports.Room]
+type = "durable-object"
+storage = "sqlite"
