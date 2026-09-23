@@ -86,6 +86,8 @@ internal static class DevSnapshotMode
 ///     打开设置窗口，切到第四页「实验功能」拍一张。
 ///     这一页默认是"未连接"的样子；拍图前先填一套假的房间状态，
 ///     否则拍到的是一张空表，看不出成员表与声部表长什么样。
+/// MIDIKEY_UI_SNAPSHOT_SYNC_STATE=idle|playing|paused|stopped
+///     配上面那条用，选拍哪个演出状态（房主视角）。前面加 member: 拍成员视角，例 member:paused。
 ///
 /// 各变量可以只设一个；全都不设则本文件无任何行为。
 /// 删本文件时记得同时删 MainWindow 里的 InstallDevSnapshot(this)。
@@ -710,8 +712,12 @@ public partial class MainWindow
         }
         Log("设置窗口已打开，准备切到实验功能页");
         win.SelectPageForDev(3);   // 实验功能页
-        win.FillSyncPageForDev();
-        Log("设置窗口已打开，当前页 = 实验功能（已填假房间状态）");
+        // 演出状态由 MIDIKEY_UI_SNAPSHOT_SYNC_STATE 选，默认 idle：
+        // idle / playing / paused / stopped，前面加 member: 拍成员视角（例 member:paused）。
+        // 状态 → 界面走的是真会话那条 ApplySyncTransportUi，所以拍到的就是真界面。
+        string syncState = Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_SYNC_STATE") ?? "idle";
+        win.FillSyncPageForDev(syncState);
+        Log($"设置窗口已打开，当前页 = 实验功能（假房间状态 = {syncState}）");
 
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) };
         timer.Tick += (_, _) =>

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using Avalonia.Threading;
 using MidiKeyPlayer.Engine;
 using MidiKeyPlayer.Midi;
 using MidiKeyPlayer.Persist;
@@ -52,6 +53,7 @@ public partial class MainWindow
     /// <summary>设置页用：退出远程模式，把声部与移调还给界面自己管。</summary>
     internal void ClearSyncMaskForSettings()
     {
+        CancelSyncLeadIn();   // 退出房间时把还没到点的开演等待一起取消
         if (_syncVoiceMask == null && _syncTranspose == null) return;
         _syncVoiceMask = null;
         _syncTranspose = null;
@@ -149,10 +151,65 @@ public partial class MainWindow
     /// <summary>设置页用：本机是否正在演奏。</summary>
     internal bool SyncPlayingForSettings => _engine is { IsRunning: true };
 
-    /// <summary>设置页用：按远程同演定好的时刻开始演奏。不走倒计时（时刻已经定好了）。</summary>
-    internal void StartSyncPlaybackForSettings(double positionSec)
+    /// <summary>
+    /// 【实验·远程同演】开演 / 继续前的那段等待。收到开演消息到「该真的开始」之间还差多久，
+    /// 就等多久。null = 现在没有在等。
+    ///
+    /// 为什么必须有它：房主发的 DelayMs 是「房主发出时刻 + DelayMs = 全场开演时刻」，
+    /// 各人收到的时刻不同（网络快慢不同），同步会话已经把差额算成 <c>LeadInMs</c>。
+    /// 不等就开弹的话，网络最快的人先响、慢的人后响 —— 差的就是这段等待。
+    /// </summary>
+    private DispatcherTimer? _syncLeadTimer;
+
+    /// <summary>取消还没到点的开演等待（暂停 / 停止 / 退出房间时用）。</summary>
+    private void CancelSyncLeadIn()
     {
-        if (_engine is { IsRunning: true }) return;   // 已经在弹就不重开
+        _syncLeadTimer?.Stop();
+        _syncLeadTimer = null;
+    }
+
+    /// <summary>
+    /// 设置页用：按远程同演定好的时刻开始演奏。
+    /// <paramref name="leadInMs"/> &gt; 0 时先等这么久（见 <see cref="_syncLeadTimer"/>）。
+    /// </summary>
+    internal void StartSyncPlaybackForSettings(double positionSec, int leadInMs = 0)
+    {
+        // 暂停中收到开演 = 房主点了「继续」。成员收到的正是这条（房主继续时发的就是开演消息）。
+        // 旧写法在这里直接 return（「已经在弹就不重开」），于是成员永远停在暂停上 ——
+        // 界面写着「演奏中」，耳朵里没声音，也没有任何按钮可点。
+        if (_engine is { IsRunning: true, IsPaused: true })
+        {
+            if (leadInMs > 0) WaitThenStartSync(positionSec, leadInMs, resume: true);
+            else ResumeSyncPlaybackForSettings();
+            return;
+        }
+        if (_engine is { IsRunning: true }) return;   // 真的在弹，不重开
+
+        if (leadInMs > 0) WaitThenStartSync(positionSec, leadInMs, resume: false);
+        else StartSyncPlaybackCore(positionSec);
+    }
+
+    /// <summary>等到开演时刻再动作（成员侧）。等待期间再收到暂停 / 停止会取消这次等待。</summary>
+    private void WaitThenStartSync(double positionSec, int leadInMs, bool resume)
+    {
+        CancelSyncLeadIn();
+        double sec = leadInMs / 1000.0;
+        InsertLog($"远程同演：{sec:F1} 秒后开始（等全场落在同一拍上）。");
+        LblStatus.Foreground = WarningBrush;
+        LblStatus.Text = $"远程同演：{sec:F1} 秒后开始…";
+
+        _syncLeadTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(Math.Max(1, leadInMs)) };
+        _syncLeadTimer.Tick += (_, _) =>
+        {
+            CancelSyncLeadIn();
+            if (resume) ResumeSyncPlaybackForSettings();
+            else StartSyncPlaybackCore(positionSec);
+        };
+        _syncLeadTimer.Start();
+    }
+
+    private void StartSyncPlaybackCore(double positionSec)
+    {
         if (positionSec > 0.05 && SliderProgress != null)
         {
             SliderProgress.Value = System.Math.Clamp(positionSec, 0, SliderProgress.Maximum);
@@ -160,18 +217,38 @@ public partial class MainWindow
         RequestPlay(skipCountdown: true);
     }
 
-    /// <summary>设置页用：暂停。</summary>
+    /// <summary>
+    /// 设置页用：暂停。走主窗自己的那条暂停链路（<see cref="SetPauseUi"/>）：
+    /// 状态大字、播放按钮、悬浮窗、声轨卡提示一起变。
+    /// 旧写法只调 <c>_engine.Pause()</c>，主界面还写着「演奏中…」，
+    /// 暂停了却看不出暂停，用户只能猜。
+    /// </summary>
     internal void PauseSyncPlaybackForSettings()
     {
-        if (_engine is { IsRunning: true, IsPaused: false }) _engine.Pause();
-        UpdateTransportUi();
+        CancelSyncLeadIn();
+        if (_engine is { IsRunning: true, IsPaused: false })
+        {
+            _engine.Pause();
+            SetPauseUi(true);
+        }
+        else
+        {
+            UpdateTransportUi();
+        }
     }
 
-    /// <summary>设置页用：继续。</summary>
+    /// <summary>设置页用：继续。同样走主窗那条链路，状态与按钮一起回到「演奏中」。</summary>
     internal void ResumeSyncPlaybackForSettings()
     {
-        if (_engine is { IsRunning: true, IsPaused: true }) _engine.Resume();
-        UpdateTransportUi();
+        if (_engine is { IsRunning: true, IsPaused: true })
+        {
+            _engine.Resume();
+            SetPauseUi(false);
+        }
+        else
+        {
+            UpdateTransportUi();
+        }
     }
 
     /// <summary>设置页用：把播放头挪到指定秒。拖进度条走的是同一条链路。</summary>
@@ -196,11 +273,15 @@ public partial class MainWindow
         if (SliderSpeed != null) SliderSpeed.Value = percent;   // 走滑块：界面数字与实际速度一致
     }
 
-    /// <summary>设置页用：停止演奏。</summary>
+    /// <summary>
+    /// 设置页用：停止。与主界面「■ 停止」走同一条收尾（停引擎、松开按着的键、清播放状态、
+    /// 收起悬浮窗）。旧写法只调 <c>_engine.Stop()</c>：主窗停在「播放中」的壳里，
+    /// 声轨列表还锁着，再点播放也没反应 —— 那就是「停了以后卡住」。
+    /// </summary>
     internal void StopSyncPlaybackForSettings()
     {
-        if (_engine is { IsRunning: true }) _engine.Stop();
-        UpdateTransportUi();
+        CancelSyncLeadIn();
+        StopPlaybackNow();
     }
 
     // ================= 给设置页用的小接口 =================

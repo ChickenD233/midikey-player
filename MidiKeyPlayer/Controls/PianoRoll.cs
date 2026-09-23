@@ -188,33 +188,37 @@ public sealed class PianoRoll : Control
     public const int VoiceCount = 12;
 
     /// <summary>
-    /// 声轨调色板。色值真源是 Styles\Theme.axaml 的 BrushVoice0..11，
-    /// 这里在首帧从资源字典读取；读不到（设计器里没挂主题）才用文档里的同一批色值兜底。
+    /// 声轨调色板。色值真源是 Styles\Theme.axaml 的 BrushVoice0..11（深浅各一套），
+    /// 从当前皮肤的资源里读；读不到（设计器里没挂主题）才用文档里的同一批色值兜底。
+    ///
+    /// 缓存必须带上是哪一套皮肤：色值是随皮肤变的，只按「取过没有」缓存，
+    /// 换皮肤后这里会一直发旧皮肤的颜色（白底上发深底那批亮色 = 黄字白底看不见）。
     /// </summary>
     private static IBrush[]? _palette;
+    private static ThemeVariant? _paletteVariant;
 
     private static IBrush[] Palette()
     {
+        var variant = Application.Current?.ActualThemeVariant;
         var cached = _palette;
-        if (cached != null) return cached;
+        if (cached != null && _paletteVariant == variant) return cached;
 
         var list = new IBrush[VoiceCount];
-        var app = Application.Current;
         for (int i = 0; i < VoiceCount; i++)
         {
-            IBrush? b = app?.TryFindResource("BrushVoice" + i, out var found) == true
-                ? found as IBrush : null;
-            list[i] = b ?? new SolidColorBrush(Color.Parse(FallbackVoice[i]));
+            list[i] = ThemeSwitch.BrushOf("BrushVoice" + i)
+                      ?? new SolidColorBrush(Color.Parse(FallbackVoice[i]));
         }
         _palette = list;
+        _paletteVariant = variant;
         return list;
     }
 
-    /// <summary>资源字典取不到时的兜底色值（与 Theme.axaml 一致）。</summary>
+    /// <summary>资源字典取不到时的兜底色值（白底那一套，与 Theme.axaml 的 Light 一致）。</summary>
     private static readonly string[] FallbackVoice =
     {
-        "#4EA1FF", "#4ED8A0", "#FFD166", "#F45B69", "#9BD34E", "#5CC8FF",
-        "#FF8A5C", "#C792EA", "#FF6E9C", "#7FE0E8", "#B0A0FF", "#F2A65A"
+        "#1660C8", "#0F7A46", "#8A6500", "#C22B2B", "#4C7A0A", "#0D6E8C",
+        "#AE4A10", "#7A45C8", "#C0185E", "#0E7A72", "#4A4ED0", "#96601A"
     };
 
     /// <summary>该声轨颜色号对应的画刷。</summary>

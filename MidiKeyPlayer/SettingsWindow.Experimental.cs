@@ -77,6 +77,9 @@ public partial class SettingsWindow
 
         if (SyncConnectCard != null) SyncConnectCard.IsVisible = !connected;
         if (SyncRoomCard != null) SyncRoomCard.IsVisible = connected;
+        // 连接之后收起顶上的说明卡：它会把这页底部的「下一步做什么」与演出按钮
+        // 挤到滚动条外面 —— 那两样才是暂停之后要看的东西。
+        if (SyncIntroCard != null) SyncIntroCard.IsVisible = !connected;
         if (!connected) return;
 
         var session = _sync!;
@@ -107,12 +110,8 @@ public partial class SettingsWindow
                 : $"本机曲目指纹 {local}。请自己确认与其他人是同一份文件。";
         }
 
-        // 房主才能按的按钮
-        if (BtnSyncStart != null) BtnSyncStart.IsEnabled = isHost;
-        if (BtnSyncPause != null) BtnSyncPause.IsEnabled = isHost && session.Transport == SyncTransport.Playing;
-        if (BtnSyncResume != null) BtnSyncResume.IsEnabled = isHost && session.Transport == SyncTransport.Paused;
-        if (BtnSyncSeek != null) BtnSyncSeek.IsEnabled = isHost;
-        if (BtnSyncStop != null) BtnSyncStop.IsEnabled = isHost && session.Transport != SyncTransport.Idle;
+        // 演出控制：只按「现在是什么状态」决定按钮与提示，见 ApplySyncTransportUi
+        ApplySyncTransportUi(BuildSyncUiState(session, isHost));
 
         // 统一移调只有房主能按；被别人统一之后，自己的滑块禁用
         if (BtnSyncUnifyTranspose != null) BtnSyncUnifyTranspose.IsVisible = isHost;
@@ -137,8 +136,11 @@ public partial class SettingsWindow
 
         if (TxtSyncSpeed != null)
         {
+            // 倒数报「还剩几秒」，不报设置里那个总数：开演消息已经带回了剩余等待时间，
+            // 报总数会让人以为刚点完开演。
             string state = session.Transport switch
             {
+                SyncTransport.Playing when session.LeadInMs > 0 => $"倒数 {session.LeadInMs / 1000.0:F1} 秒",
                 SyncTransport.Playing => "演奏中",
                 SyncTransport.Paused => "已暂停",
                 SyncTransport.Stopped => "已停止",
@@ -147,13 +149,11 @@ public partial class SettingsWindow
             string unified = session.UnifiedTranspose == null
                 ? ""
                 : $"　（房主统一移调 {session.UnifiedTranspose:+#;-#;0}）";
-            TxtSyncSpeed.Text = $"{state}　倒数 {session.CountdownSec} 秒　速度 {session.Speed * 100:F0}%{unified}";
+            TxtSyncSpeed.Text = $"{state}　速度 {session.Speed * 100:F0}%{unified}";
         }
 
-        if (TxtSyncHint != null)
-            TxtSyncHint.Text = isHost
-                ? "你是房主。把邀请串发给朋友，等他们都进来、都点「我就绪了」，再点「开演」。"
-                : "你是房间成员。等房主开演即可。移调只有房主能统一规定。";
+        // 提示行由 ApplySyncTransportUi 按状态写（旧写法是一句固定的「再点开演」，
+        // 停演之后还挂着，等于告诉用户一件已经做完的事）。
 
         RebuildSyncPeerRows();
         RebuildSyncVoiceRows();
@@ -371,7 +371,9 @@ public partial class SettingsWindow
     private void OnSyncStartRequested(double positionSec)
         => Dispatcher.UIThread.Post(() =>
         {
-            _mainWindow?.StartSyncPlaybackForSettings(positionSec);
+            // 把「还差多久才到全场开演时刻」一起交出去：各人收到的时刻不一样，
+            // 这段等待就是用来抹平网络快慢的（会话那边已经减掉了传输耗时）。
+            _mainWindow?.StartSyncPlaybackForSettings(positionSec, _sync?.LeadInMs ?? 0);
             RefreshSyncUi();
         });
 
@@ -444,29 +446,36 @@ public partial class SettingsWindow
 
     // ================= 演出控制 =================
 
-    private void SyncStart_Click(object? sender, RoutedEventArgs e)
+    /// <summary>
+    /// 一个按钮管三件事：开演 / 暂停 / 继续。按一下先看现在是什么状态，再做对应的事。
+    ///
+    /// 为什么合并：旧界面把「开演 / 暂停 / 继续 / 跳转 / 停止」平铺成五个按钮，
+    /// 暂停与继续互斥却并排摆着。暂停之后要在一排长得差不多的按钮里找「继续」，
+    /// 找不到就以为卡住了。现在暂停之后，同一个大按钮自己写着「▶ 继续」。
+    /// </summary>
+    private void SyncPrimary_Click(object? sender, RoutedEventArgs e)
     {
-        if (_sync is not { IsHost: true }) return;
-        if (_syncFingerprint.Length == 0)
+        if (_sync is not { IsHost: true } session) return;
+        switch (session.Transport)
         {
-            SaySync("本机还没载入 MIDI，无法开演。");
-            return;
+            case SyncTransport.Playing:
+                session.HostPause();
+                break;
+            case SyncTransport.Paused:
+                session.HostResume(_mainWindow?.SyncProgressSecondsForSettings() ?? 0);
+                break;
+            default:
+                if (_syncFingerprint.Length == 0)
+                {
+                    SaySync("本机还没载入 MIDI，无法开演。先回主界面导入一首。");
+                    return;
+                }
+                // 允许抢开演，但要留一条日志：之后对不上拍时能看出是少人等过。
+                if (!session.AllReady())
+                    _mainWindow?.InsertSyncLogForSettings("远程同演：还有人没就绪，房主仍然开演。");
+                session.HostStart(_mainWindow?.SyncProgressSecondsForSettings() ?? 0);
+                break;
         }
-        if (!_sync.AllReady() && TxtSyncHint != null)
-            TxtSyncHint.Text = "还有人没就绪，仍然开演。";
-        _sync.HostStart(_mainWindow?.SyncProgressSecondsForSettings() ?? 0);
-        RefreshSyncUi();
-    }
-
-    private void SyncPause_Click(object? sender, RoutedEventArgs e)
-    {
-        _sync?.HostPause();
-        RefreshSyncUi();
-    }
-
-    private void SyncResume_Click(object? sender, RoutedEventArgs e)
-    {
-        _sync?.HostResume(_mainWindow?.SyncProgressSecondsForSettings() ?? 0);
         RefreshSyncUi();
     }
 
@@ -480,6 +489,117 @@ public partial class SettingsWindow
     {
         _sync?.HostStop();
         RefreshSyncUi();
+    }
+
+    // ================= 状态 → 界面 =================
+    //
+    // 演出控制只认「现在处于哪个状态」：主按钮按哪个、次要按钮能不能按、下一步做什么。
+    // 真会话（RefreshSyncUi）与开发快照（FillSyncPageForDev）走同一个入口，
+    // 所以快照拍到的就是真状态下用户会看到的界面。
+
+    /// <summary>一次界面判定要用到的全部状态。</summary>
+    private sealed class SyncUiState
+    {
+        public bool IsHost;
+        public SyncTransport Transport = SyncTransport.Idle;
+        public bool HasTrack;
+        public int Peers;
+        public int Ready;
+        public string NotReadyNames = "";
+        public bool LeadIn;
+    }
+
+    private SyncUiState BuildSyncUiState(SyncSession session, bool isHost)
+    {
+        var peers = session.SnapshotPeers();
+        int ready = 0;
+        var notReady = new List<string>();
+        foreach (var p in peers)
+        {
+            if (p.Ready) ready++;
+            else notReady.Add(p.Name.Length > 0 ? p.Name : "（没写名字）");
+        }
+        return new SyncUiState
+        {
+            IsHost = isHost,
+            Transport = session.Transport,
+            HasTrack = _syncFingerprint.Length > 0,
+            Peers = peers.Count,
+            Ready = ready,
+            NotReadyNames = string.Join("、", notReady),
+            LeadIn = session.Transport == SyncTransport.Playing && session.LeadInMs > 0,
+        };
+    }
+
+    private void ApplySyncTransportUi(SyncUiState s)
+    {
+        if (BtnSyncPrimary != null)
+        {
+            BtnSyncPrimary.IsVisible = s.IsHost;
+            BtnSyncPrimary.Content = s.Transport switch
+            {
+                SyncTransport.Playing => "暂停",
+                SyncTransport.Paused => "▶ 继续",
+                SyncTransport.Stopped => "重新开演",
+                _ => "开演",
+            };
+            BtnSyncPrimary.IsEnabled = s.IsHost && s.Transport switch
+            {
+                SyncTransport.Playing => true,      // 播放中：暂停
+                SyncTransport.Paused => true,       // 暂停中：继续
+                _ => s.HasTrack,                    // 空闲 / 已停止：开演，得先载入曲目
+            };
+            Avalonia.Controls.ToolTip.SetTip(BtnSyncPrimary, s.IsHost
+                ? "按当前状态来：没开演就是开演，演奏中就是暂停，暂停中就是继续"
+                : null);
+        }
+        // 跳转与停止是次要动作：只有正在演或暂停中才有意义。
+        // 成员看不到这三个按钮，改看右边那行字 —— 一排灰按钮只会让人以为自己点错了。
+        bool hostCanControl = s.IsHost && s.Transport is SyncTransport.Playing or SyncTransport.Paused;
+        if (BtnSyncSeek != null)
+        {
+            BtnSyncSeek.IsVisible = s.IsHost;
+            BtnSyncSeek.IsEnabled = hostCanControl;
+        }
+        if (BtnSyncStop != null)
+        {
+            BtnSyncStop.IsVisible = s.IsHost;
+            BtnSyncStop.IsEnabled = hostCanControl;
+        }
+        if (TxtSyncMemberControl != null) TxtSyncMemberControl.IsVisible = !s.IsHost;
+        if (TxtSyncHint != null) TxtSyncHint.Text = SyncHintText(s);
+    }
+
+    /// <summary>
+    /// 「下一步做什么」。房主与成员分开写：成员那三个按钮是隐藏的，
+    /// 必须有一句话明确告诉他「不用你操作、等房主」，否则他只能猜。
+    /// </summary>
+    private static string SyncHintText(SyncUiState s)
+    {
+        switch (s.Transport)
+        {
+            case SyncTransport.Playing when s.LeadIn:
+                return s.IsHost ? "倒数中 —— 到点全场一起开始。" : "倒数中 —— 到点跟大家一起开始。";
+            case SyncTransport.Playing:
+                return s.IsHost
+                    ? "演奏中 —— 要停就点「暂停」；要挪位置，先拖主界面的进度条再点「跳转」。"
+                    : "演奏中 —— 暂停 / 继续 / 跳转 / 停止都由房主控制，你不用操作。";
+            case SyncTransport.Paused:
+                return s.IsHost
+                    ? "已暂停 —— 点「▶ 继续」接着弹（会再倒数几秒），或点「停止」结束本轮。"
+                    : "已暂停 —— 等房主点「继续」，你不用操作。";
+            case SyncTransport.Stopped:
+                return s.IsHost
+                    ? "已停止 —— 点「重新开演」从当前位置再来一轮。"
+                    : "已停止 —— 等房主重新开演。";
+        }
+
+        // 还没开演
+        if (!s.HasTrack) return "主界面还没载入 MIDI。先回主界面导入一首，再回来开演。";
+        if (!s.IsHost) return "等房主开演。你先勾好自己的声部，再点「我就绪了」。";
+        if (s.Peers < 2) return "还没有别人进来 —— 点「复制邀请串」把朋友叫进来。";
+        if (s.Ready < s.Peers) return $"还有 {s.Peers - s.Ready} 人没就绪：{s.NotReadyNames}。都就绪后点「开演」。";
+        return "所有人都就绪 —— 点「开演」，倒数结束后全场一起开始。";
     }
 
     /// <summary>展开 / 收起「怎么看这个功能」那段说明。</summary>
@@ -523,28 +643,69 @@ public partial class SettingsWindow
         _mainWindow?.ApplySyncMaskForSettings(ParseVoices(session.SelfVoice), session.SelfTranspose);
     }
 
-    /// <summary>【开发用】切到这一页后填一套假的房间状态，供界面快照拍出有内容的一页。</summary>
-    internal void FillSyncPageForDev()
+    /// <summary>
+    /// 【开发用】切到这一页后填一套假的房间状态，供界面快照拍出有内容的一页。
+    ///
+    /// <paramref name="state"/> 选拍哪个演出状态：idle（默认，等待开演）/ playing / paused / stopped，
+    /// 前面加 <c>member:</c> 拍成员视角（例：<c>member:paused</c>）。
+    /// 状态 → 界面这一段走的是 <see cref="ApplySyncTransportUi"/>，与真会话完全同一条路。
+    /// </summary>
+    internal void FillSyncPageForDev(string state = "idle")
     {
+        bool isHost = true;
+        string name = state;
+        int colon = state.IndexOf(':');
+        if (colon >= 0)
+        {
+            isHost = !state[..colon].Equals("member", StringComparison.OrdinalIgnoreCase);
+            name = state[(colon + 1)..];
+        }
+
+        var transport = name.ToLowerInvariant() switch
+        {
+            "playing" => SyncTransport.Playing,
+            "paused" => SyncTransport.Paused,
+            "stopped" => SyncTransport.Stopped,
+            _ => SyncTransport.Idle,
+        };
+
         if (SyncConnectCard != null) SyncConnectCard.IsVisible = false;
         if (SyncRoomCard != null) SyncRoomCard.IsVisible = true;
+        if (SyncIntroCard != null) SyncIntroCard.IsVisible = false;   // 与真会话一致：连接后收起
         if (TxtSyncStatus != null) TxtSyncStatus.Text = "已连接　3 人　2 人就绪";
-        if (SyncInviteRow != null) SyncInviteRow.IsVisible = true;
+        if (SyncInviteRow != null) SyncInviteRow.IsVisible = isHost;
         if (TxtSyncInviteShown != null)
             TxtSyncInviteShown.Text = "mkp://midikeyplayer-sync.example.workers.dev|小明的琴房|letmein";
         if (TxtSyncTrack != null)
             TxtSyncTrack.Text = "本机曲目指纹 3f2a91c4d8e05b76。请自己确认与其他人是同一份文件。";
-        if (TxtSyncHint != null)
-            TxtSyncHint.Text = "你是房主。把邀请串发给朋友，等他们都进来、都点「我就绪了」，再点「开演」。";
         if (TxtSyncSpeed != null)
-            TxtSyncSpeed.Text = "演奏中　倒数 3 秒　速度 100%　（房主统一移调 -5）";
+        {
+            string stateText = transport switch
+            {
+                SyncTransport.Playing => "演奏中",
+                SyncTransport.Paused => "已暂停",
+                SyncTransport.Stopped => "已停止",
+                _ => "等待开演",
+            };
+            TxtSyncSpeed.Text = $"{stateText}　速度 100%　（房主统一移调 -5）";
+        }
         if (TxtSyncTranspose != null) TxtSyncTranspose.Text = "-5";
         if (SliderSyncTranspose != null) { SliderSyncTranspose.Value = -5; SliderSyncTranspose.IsEnabled = false; }
         if (ChkSyncReady != null) ChkSyncReady.IsChecked = true;
         if (CmbSyncCountdown != null) CmbSyncCountdown.SelectedIndex = 1;
         if (TxtSyncJoinHint != null) TxtSyncJoinHint.Text = "";
-        if (BtnSyncUnifyTranspose != null) BtnSyncUnifyTranspose.IsVisible = true;
-        if (BtnSyncClearTranspose != null) BtnSyncClearTranspose.IsVisible = true;
+        if (BtnSyncUnifyTranspose != null) BtnSyncUnifyTranspose.IsVisible = isHost;
+        if (BtnSyncClearTranspose != null) BtnSyncClearTranspose.IsVisible = isHost;
+
+        ApplySyncTransportUi(new SyncUiState
+        {
+            IsHost = isHost,
+            Transport = transport,
+            HasTrack = true,
+            Peers = 3,
+            Ready = 2,
+            NotReadyNames = "老王",
+        });
 
         _syncPeerRows.Clear();
         _syncPeerRows.Add(new SyncPeerRow { Mark = "●", Name = "小明（我）", Voices = "1、3", Transpose = "移调 -5", ReadyText = "已就绪" });

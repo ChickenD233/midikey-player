@@ -73,6 +73,24 @@
       <SolidColorBrush x:Key="BrushRollReadoutBorder" Color="#C3D6F2"/>
       <SolidColorBrush x:Key="BrushRollMarquee" Color="#331F6FEB"/>
 
+      <!-- 声轨配色（12 色）：白底那一套，色号与 Dark 一一对应（同色号 = 同一路声部）。
+           白底上原样用深色皮肤那批亮色（黄 #FFD166、青 #7FE0E8 等）只有 1.4:1 左右，
+           列表里的轨名与卡片底融为一体，等于看不见，所以白底换一批「深而饱和」的。
+           取值口径：对 #F4F6F9 画布对比度 ≥ 4.7:1（WCAG AA 正文 4.5:1 留余量），
+           对 #FFFFFF 卡片 ≥ 5.1:1。改色值必须重跑这条对比度。 -->
+      <SolidColorBrush x:Key="BrushVoice0"  Color="#1660C8"/>
+      <SolidColorBrush x:Key="BrushVoice1"  Color="#0F7A46"/>
+      <SolidColorBrush x:Key="BrushVoice2"  Color="#8A6500"/>
+      <SolidColorBrush x:Key="BrushVoice3"  Color="#C22B2B"/>
+      <SolidColorBrush x:Key="BrushVoice4"  Color="#4C7A0A"/>
+      <SolidColorBrush x:Key="BrushVoice5"  Color="#0D6E8C"/>
+      <SolidColorBrush x:Key="BrushVoice6"  Color="#AE4A10"/>
+      <SolidColorBrush x:Key="BrushVoice7"  Color="#7A45C8"/>
+      <SolidColorBrush x:Key="BrushVoice8"  Color="#C0185E"/>
+      <SolidColorBrush x:Key="BrushVoice9"  Color="#0E7A72"/>
+      <SolidColorBrush x:Key="BrushVoice10" Color="#4A4ED0"/>
+      <SolidColorBrush x:Key="BrushVoice11" Color="#96601A"/>
+
       <!-- Fluent 的 SplitButton 模板按这几个键名取色（本窗口只有一个 SplitButton，见 MainWindow.axaml）。
            放在主题字典里、深浅各指一份，按钮才跟着皮肤走。 -->
       <StaticResource x:Key="SplitButtonBackground" ResourceKey="BrushAccent"/>
@@ -145,6 +163,21 @@
       <SolidColorBrush x:Key="BrushRollReadoutBorder" Color="#33507A"/>
       <SolidColorBrush x:Key="BrushRollMarquee" Color="#404C9AFF"/>
 
+      <!-- 声轨配色（12 色）：黑底那一套。深底上用亮色，对 #1A2027 画布 5.1:1 起。
+           与白底那套同色号一一对应，换皮肤时同一路声部换的只是明度，不改色相。 -->
+      <SolidColorBrush x:Key="BrushVoice0"  Color="#4EA1FF"/>
+      <SolidColorBrush x:Key="BrushVoice1"  Color="#4ED8A0"/>
+      <SolidColorBrush x:Key="BrushVoice2"  Color="#FFD166"/>
+      <SolidColorBrush x:Key="BrushVoice3"  Color="#F45B69"/>
+      <SolidColorBrush x:Key="BrushVoice4"  Color="#9BD34E"/>
+      <SolidColorBrush x:Key="BrushVoice5"  Color="#5CC8FF"/>
+      <SolidColorBrush x:Key="BrushVoice6"  Color="#FF8A5C"/>
+      <SolidColorBrush x:Key="BrushVoice7"  Color="#C792EA"/>
+      <SolidColorBrush x:Key="BrushVoice8"  Color="#FF6E9C"/>
+      <SolidColorBrush x:Key="BrushVoice9"  Color="#7FE0E8"/>
+      <SolidColorBrush x:Key="BrushVoice10" Color="#B0A0FF"/>
+      <SolidColorBrush x:Key="BrushVoice11" Color="#F2A65A"/>
+
       <!-- 同白皮肤：SplitButton 的八个画刷键指向本套的品牌绿 -->
       <StaticResource x:Key="SplitButtonBackground" ResourceKey="BrushAccent"/>
       <StaticResource x:Key="SplitButtonBackgroundPointerOver" ResourceKey="BrushAccentHover"/>
@@ -159,23 +192,13 @@
 
   </ResourceDictionary.ThemeDictionaries>
 
-  <!-- ===================== 声轨配色（12 色，唯一真源，两套皮肤共用） =====================
-       深色底与浅色底上都能读。分配：声轨序号 % 12。
+  <!-- ===================== 声轨配色说明 =====================
+       12 个色号 BrushVoice0..11 分深浅两套，写在上面各自的 ThemeDictionaries 里。
+       分配：声轨在列表里的序号（从上往下）% 12。
        左侧列表文字与卷帘音符共用同一号色，声轨一一对应。
        未参与演奏的声轨统一用弱化灰 BrushTextMuted（不叠加不透明度，否则对比度不足）。
-       卷帘与列表都不写裸色值，一律按序号取这里的资源。 -->
-  <SolidColorBrush x:Key="BrushVoice0"  Color="#4EA1FF"/>
-  <SolidColorBrush x:Key="BrushVoice1"  Color="#4ED8A0"/>
-  <SolidColorBrush x:Key="BrushVoice2"  Color="#FFD166"/>
-  <SolidColorBrush x:Key="BrushVoice3"  Color="#F45B69"/>
-  <SolidColorBrush x:Key="BrushVoice4"  Color="#9BD34E"/>
-  <SolidColorBrush x:Key="BrushVoice5"  Color="#5CC8FF"/>
-  <SolidColorBrush x:Key="BrushVoice6"  Color="#FF8A5C"/>
-  <SolidColorBrush x:Key="BrushVoice7"  Color="#C792EA"/>
-  <SolidColorBrush x:Key="BrushVoice8"  Color="#FF6E9C"/>
-  <SolidColorBrush x:Key="BrushVoice9"  Color="#7FE0E8"/>
-  <SolidColorBrush x:Key="BrushVoice10" Color="#B0A0FF"/>
-  <SolidColorBrush x:Key="BrushVoice11" Color="#F2A65A"/>
+       卷帘与列表都不写裸色值，一律按序号取这里的资源。
+       两套都必须对各自的画布过 WCAG AA 正文 4.5:1：白底漏了会把轨名写成看不见的浅黄。 -->
 
   <!-- ===================== 声部标牌配色（唯一真源，两套皮肤共用） =====================
        左侧列表「声部」列的小标牌按角色分组取色，白字压在色块上：

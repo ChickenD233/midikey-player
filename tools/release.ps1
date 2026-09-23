@@ -1,4 +1,4 @@
-﻿#Requires -Version 5.1
+#Requires -Version 5.1
 <#
 .SYNOPSIS
     发一个新版本：版本号自动加一，写更新日志，构建、自检、提交、打 tag、上传。
@@ -252,6 +252,17 @@ function Invoke-Snapshot([string]$exe, [string]$tag) {
     if ($sy.ExitCode -ne 0) { throw "实验功能页快照退出码 $($sy.ExitCode)。" }
     Remove-Item Env:\MIDIKEY_UI_SNAPSHOT_SYNC -ErrorAction SilentlyContinue
 
+    # 实验功能页的「已暂停」：这一版修的就是暂停之后不知道点哪。
+    # 主按钮在这一态必须变成「▶ 继续」，提示行必须写出下一步。
+    $syncPaused = Join-Path $env:TEMP "midikey-release-$tag-sync-paused.png"
+    Remove-Item $syncPaused -ErrorAction SilentlyContinue
+    $env:MIDIKEY_UI_SNAPSHOT_SYNC = $syncPaused
+    $env:MIDIKEY_UI_SNAPSHOT_SYNC_STATE = 'paused'
+    $sp2 = Start-Process -FilePath $exe -PassThru
+    [void]$sp2.WaitForExit(180000)
+    if ($sp2.ExitCode -ne 0) { throw "实验功能页暂停态快照退出码 $($sp2.ExitCode)。" }
+    Remove-Item Env:\MIDIKEY_UI_SNAPSHOT_SYNC, Env:\MIDIKEY_UI_SNAPSHOT_SYNC_STATE -ErrorAction SilentlyContinue
+
     # 深色皮肤：拍图前用设置里那个下拉框切到「深色（黑）」，验证不重启也能换色。
     # 探针只切不落盘，不会改掉跑脚本这台机器的皮肤档位。
     $dark = Join-Path $env:TEMP "midikey-release-$tag-dark.png"
@@ -264,12 +275,12 @@ function Invoke-Snapshot([string]$exe, [string]$tag) {
     if ($s.ExitCode -ne 0) { throw "深色皮肤快照退出码 $($s.ExitCode)。" }
     Remove-Item Env:\MIDIKEY_UI_SNAPSHOT, Env:\MIDIKEY_UI_SNAPSHOT_THEME -ErrorAction SilentlyContinue
 
-    foreach ($f in @($main, $keymap, $advanced, $sponsor, $sync, $dark)) {
+    foreach ($f in @($main, $keymap, $advanced, $sponsor, $sync, $syncPaused, $dark)) {
         if (-not (Test-Path -LiteralPath $f)) { throw "快照没出图：$f" }
         if ((Get-Item -LiteralPath $f).Length -lt 10000) { throw "快照太小，可能是空白：$f" }
     }
-    Write-Host ("   主窗 " + (Get-Item $main).Length + " 字节；键位窗 " + (Get-Item $keymap).Length + " 字节；高级窗 " + (Get-Item $advanced).Length + " 字节；赞助页 " + (Get-Item $sponsor).Length + " 字节；实验功能页 " + (Get-Item $sync).Length + " 字节；深色主窗 " + (Get-Item $dark).Length + " 字节")
-    return @{ Main = $main; Keymap = $keymap; Advanced = $advanced; Sponsor = $sponsor; Sync = $sync; Dark = $dark }
+    Write-Host ("   主窗 " + (Get-Item $main).Length + " 字节；键位窗 " + (Get-Item $keymap).Length + " 字节；高级窗 " + (Get-Item $advanced).Length + " 字节；赞助页 " + (Get-Item $sponsor).Length + " 字节；实验功能页 " + (Get-Item $sync).Length + " 字节；实验功能页暂停态 " + (Get-Item $syncPaused).Length + " 字节；深色主窗 " + (Get-Item $dark).Length + " 字节")
+    return @{ Main = $main; Keymap = $keymap; Advanced = $advanced; Sponsor = $sponsor; Sync = $sync; SyncPaused = $syncPaused; Dark = $dark }
 }
 
 # 文件夹曲目卡换歌回归：连续点三首，每步都要换过去，列表行数不能塌。
@@ -548,5 +559,6 @@ finally {
     Remove-Item Env:\MIDIKEY_UI_SNAPSHOT, Env:\MIDIKEY_UI_SNAPSHOT_KEYMAP, Env:\MIDIKEY_UI_SNAPSHOT_MIX, `
         Env:\MIDIKEY_UI_SNAPSHOT_MIDI, Env:\MIDIKEY_UI_SNAPSHOT_REPORT, Env:\MIDIKEY_UI_SNAPSHOT_THEME, `
         Env:\MIDIKEY_UI_SNAPSHOT_ADVANCED, Env:\MIDIKEY_UI_SNAPSHOT_SPONSOR, Env:\MIDIKEY_UI_SNAPSHOT_SYNC, `
+        Env:\MIDIKEY_UI_SNAPSHOT_SYNC_STATE, `
         Env:\MIDIKEY_UI_SNAPSHOT_FOLDER, Env:\MIDIKEY_UI_SNAPSHOT_FOLDER_REPORT -ErrorAction SilentlyContinue
 }

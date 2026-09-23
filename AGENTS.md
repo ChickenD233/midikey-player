@@ -14,6 +14,16 @@
   「选了一首之后别的点不动」，改 `FolderList_SelectionChanged` 或 `RefreshFolderUi` 之后必须跑。
 - 设置窗口的「常规」页内容住在 MainWindow.axaml 的 AdvancedStash 里，开窗搬进去、关窗搬回来。
   动 `SettingsWindow` 或那段 XAML 之后，必须跑设置窗快照（它自带开→关→再开）。
+- 实验功能页（远程同演）的快照有两个态：默认态与 `MIDIKEY_UI_SNAPSHOT_SYNC_STATE=paused`。
+  改 `SettingsWindow.Experimental.cs`、`MainWindow.Sync.cs` 或那段 XAML 之后两条都要跑：
+  暂停态拍出来主按钮必须是「▶ 继续」，提示行必须写出下一步。
+- 远程同演的三种状态必须一起对：会话状态（SyncTransport）、页面按钮与提示、主窗播放状态。
+  页面只认 `ApplySyncTransportUi` 这一个入口（开发快照也走它），
+  主窗那三件事（暂停 / 继续 / 停止）只准走 `SetPauseUi` 与 `StopPlaybackNow`，
+  不许直接调播放引擎 —— 只动引擎会让主界面停在「演奏中…」并且再点播放没反应。
+- 声轨色号 `BrushVoice0..11` 深浅两套都写在 `Styles\Theme.axaml` 的 ThemeDictionaries 里，
+  白底那套必须对画布过 WCAG AA 4.5:1（漏了就是「轨名和白底一个色，看不见」）。
+  卷帘色板按皮肤缓存，换色值不必动 `PianoRoll.Palette`，但别把皮肤判断去掉。
 - 发版走脚本：`powershell -File tools\release.ps1`。
 - 想先看会发什么：`powershell -File tools\release.ps1 -DryRun`。
 - 想只构建不发布：`powershell -File tools\release.ps1 -SkipPush`。

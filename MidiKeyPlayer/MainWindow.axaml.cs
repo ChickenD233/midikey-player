@@ -225,6 +225,16 @@ public partial class MainWindow : Window
         if (RollHelp != null) UpdateHelpVisibility();
         SizeChanged += (_, _) => UpdateHelpVisibility();
 
+        // 跟随系统（设置里的「自动」档）时系统自己换深浅色：走 DynamicResource 的控件
+        // Avalonia 会重算，但代码赋色的地方不会 —— 声轨文字色（TrackRowVM.VoiceBrush）、
+        // 自检的 ✔ / ✘、卷帘的色板缓存都停在旧皮肤上，白底切黑底会留下一批浅色字。
+        // 皮肤一变就重涂一遍，与设置里手动换档位走的是同一条 ApplyThemeColors。
+        ActualThemeVariantChanged += (_, _) =>
+        {
+            if (!_uiReady) return;   // 构造期资源还没就位，主题变体也在初始化
+            ApplyThemeColors();
+        };
+
         _previewDeb = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
         _previewDeb.Tick += (_, _) =>
         {

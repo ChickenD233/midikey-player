@@ -383,9 +383,9 @@
           <StackPanel Margin="14,12,14,10" Spacing="10">
 
             <!-- 顶上的定位说明。实验功能会改行为，先说清楚它是什么。
-                 说明本身收进 Expander：这一页真正要用的按钮在下面，
-                 展开态的说明会把这些按钮挤到滚动条外面去。 -->
-            <Border Classes="card" Padding="12,10">
+                 连接之后就收起来：房间卡里该有的都有，留着它只会把这页底部的
+                 「下一步做什么」与演出按钮挤到滚动条外面（那两样才是要看的）。 -->
+            <Border Classes="card" Padding="12,10" x:Name="SyncIntroCard">
               <StackPanel Spacing="4">
                 <TextBlock Text="远程同演（实验功能）" Classes="label"
                            FontSize="{DynamicResource FontTitle}" FontWeight="SemiBold"/>
@@ -588,31 +588,33 @@
                   </StackPanel>
                 </Border>
 
-                <!-- 演出控制 -->
+                <!-- 演出控制。原来「开演 / 暂停 / 继续 / 跳转 / 停止」五个按钮平铺一行：
+                     暂停与继续互斥却并排摆着，暂停之后要在一排长得差不多的按钮里找「继续」；
+                     成员那几个按钮全是灰的，只知道自己按不动、不知道该怎么办。
+                     现在只留一个跟着状态变的主按钮（开演 → 暂停 → ▶ 继续 → 重新开演），
+                     跳转与停止压成次要按钮；成员看到的是右边那行「由房主控制」，不再给一排灰按钮。 -->
                 <Border BorderBrush="{DynamicResource BrushBorder}" BorderThickness="0,1,0,0"
                         Padding="0,8,0,0">
                   <StackPanel Spacing="6">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                       <CheckBox x:Name="ChkSyncReady" Content="我就绪了" FontSize="{DynamicResource FontSmall}"
                                 Click="SyncReady_Click"
-                                ToolTip.Tip="主机要看到所有人都就绪才好开演"/>
-                      <Button x:Name="BtnSyncStart" Content="开演" Classes="accent"
+                                ToolTip.Tip="房主要看到所有人都就绪才好开演"/>
+                      <Button x:Name="BtnSyncPrimary" Content="开演" Classes="accent"
                               FontSize="{DynamicResource FontSmall}" Padding="18,5"
-                              Click="SyncStart_Click"
-                              ToolTip.Tip="先等一个全场统一的时刻，到点所有人一起开始"/>
-                      <Button x:Name="BtnSyncPause" Content="暂停" Classes="secondary"
-                              FontSize="{DynamicResource FontMicro}" Padding="12,4"
-                              Click="SyncPause_Click"/>
-                      <Button x:Name="BtnSyncResume" Content="继续" Classes="secondary"
-                              FontSize="{DynamicResource FontMicro}" Padding="12,4"
-                              Click="SyncResume_Click"/>
+                              Click="SyncPrimary_Click"
+                              ToolTip.Tip="按当前状态来：没开演就是开演，演奏中就是暂停，暂停中就是继续"/>
                       <Button x:Name="BtnSyncSeek" Content="跳转" Classes="secondary"
                               FontSize="{DynamicResource FontMicro}" Padding="12,4"
                               Click="SyncSeek_Click"
-                              ToolTip.Tip="跳到本机进度条当前的位置，所有人一起跳"/>
+                              ToolTip.Tip="跳到本机进度条当前的位置，全场一起跳。先拖主界面的进度条定位置"/>
                       <Button x:Name="BtnSyncStop" Content="停止" Classes="secondary"
                               FontSize="{DynamicResource FontMicro}" Padding="12,4"
-                              Click="SyncStop_Click"/>
+                              Click="SyncStop_Click"
+                              ToolTip.Tip="本轮演出到此为止，全场一起停。之后可以「重新开演」"/>
+                      <TextBlock x:Name="TxtSyncMemberControl" IsVisible="False" VerticalAlignment="Center"
+                                 Classes="caption" FontSize="{DynamicResource FontMicro}"
+                                 Text="演出由房主控制：暂停 / 继续 / 跳转 / 停止"/>
                     </StackPanel>
                     <TextBlock x:Name="TxtSyncSpeed" Classes="caption"
                                FontSize="{DynamicResource FontMicro}" TextWrapping="Wrap"/>
