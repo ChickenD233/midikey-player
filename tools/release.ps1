@@ -20,6 +20,11 @@
 .PARAMETER Notes
     新版本日志一节的正文。可以是一段话，也可以是多行（每行前自己写「- 」）。
 
+.PARAMETER NotesFile
+    日志正文所在的文本文件，UTF-8（带不带 BOM 都行）。脚本用 File.ReadAllText 显式按 UTF-8 读。
+    手写日志时用这个，不要用 -Notes (Get-Content -Raw ...)：Windows PowerShell 5.1 的 Get-Content
+    会把无 BOM 的 UTF-8 按本地代码页解码，中文整段变乱码。
+
 .PARAMETER Bump
     Patch（默认）/ Minor / Major。Patch 就是补丁号 +1。
 
@@ -48,6 +53,9 @@
 [CmdletBinding()]
 param(
     [string]$Notes = '',
+    # 日志正文所在的文本文件（UTF-8）。脚本用 File.ReadAllText 显式按 UTF-8 读，不经过 Get-Content。
+    # -Notes 与 -NotesFile 只给一个；两个都给时 -NotesFile 优先。
+    [string]$NotesFile = '',
     [ValidateSet('Patch', 'Minor', 'Major')][string]$Bump = 'Patch',
     [switch]$DryRun,
     [switch]$SkipPush,
@@ -454,9 +462,18 @@ try {
 
     Write-Host "   当前版本 $current → 新版本 $next"
 
+    # 日志正文：优先读 -NotesFile（显式 UTF-8），否则用 -Notes。
+    # 不要用 `-Notes (Get-Content -Raw 文件)`：Windows PowerShell 5.1 的 Get-Content 把无 BOM 的
+    # UTF-8 当成本地代码页解码，中文会整段变乱码（v1.1.17 的日志就这么坏过一次）。
+    $notes = $Notes
+    if (-not [string]::IsNullOrWhiteSpace($NotesFile)) {
+        if (-not (Test-Path -LiteralPath $NotesFile)) { throw "找不到 -NotesFile 指的文件：$NotesFile" }
+        $notes = [System.IO.File]::ReadAllText($NotesFile, [System.Text.Encoding]::UTF8)
+    }
+
     $lines = @()
-    if (-not [string]::IsNullOrWhiteSpace($Notes)) {
-        $lines = @($Notes -split "`r?`n" | Where-Object { $_.Trim().Length -gt 0 })
+    if (-not [string]::IsNullOrWhiteSpace($notes)) {
+        $lines = @($notes -split "`r?`n" | Where-Object { $_.Trim().Length -gt 0 })
     }
     else {
         $lastTag = Get-LastTag
