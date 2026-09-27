@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     发一个新版本：版本号自动加一，写更新日志，构建、自检、提交、打 tag、上传。
