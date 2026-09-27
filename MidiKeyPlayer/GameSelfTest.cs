@@ -80,6 +80,7 @@ internal static partial class GameSelfTest
             TestFlatModifier();
             TestRobloxPiano();
             TestFf14Piano();
+            TestXindong();
             TestChordScheduling();
             TestChordMerge();
             TestTrackRoles();
@@ -467,6 +468,71 @@ internal static partial class GameSelfTest
                 && round.Keys[i].Row == p.Keys[i].Row
                 && round.Keys[i].Shift == p.Keys[i].Shift;
         Check("FF14 钢琴：方案 JSON 往返后 37 条键位一字不差", same,
+              same ? "" : $"原 {p.Keys.Count} 条 / 回读 {round.Keys.Count} 条");
+    }
+
+    // ================= 心动小镇 =================
+
+    /// <summary>
+    /// 心动小镇（本版新增）：37 键，**一个半音一条键位**，不用功能键，也不按 Shift。
+    /// 三排各一个八度：低音排偏移 −12、中音排 0、高音排 +12（高音排末尾多一个高音 do）。
+    /// 每排白键 7 个，黑键是数字排与符号键上的那 5 个。
+    /// 逐条写在这里：偏移或键名改错一个音，这一条就红。
+    /// </summary>
+    private static void TestXindong()
+    {
+        var p = KeymapProfile.PresetByName("心动小镇");
+        Check("心动小镇：37 条键位、功能键全关、不用 Shift",
+              p != null && p.Keys.Count == 37 && p.Keys.Count(k => k.Shift) == 0
+              && !p.ModifiersEnabled && p.Sharp == null && p.OctaveUp == null
+              && p.OctaveDown == null && p.Flat == null && !p.HasSelfShiftKeys,
+              p == null ? "取不到" : $"键 {p.Keys.Count} 条（带 Shift {p.Keys.Count(k => k.Shift)} 条）"
+                                      + $"；开关={p.ModifiersEnabled} Sharp=「{p.Sharp}」");
+        if (p == null) return;
+
+        // 全部 37 个音：音高 → 键名。48..84 一个半音一条键位，音高连成一条不断档。
+        var table = new (string Key, int Pitch)[]
+        {
+            (".", 48), (",", 49), (";", 50), ("'", 51), ("/", 52), ("O", 53), ("0", 54),
+            ("P", 55), ("-", 56), ("[", 57), ("=", 58), ("]", 59),
+            ("Z", 60), ("S", 61), ("X", 62), ("D", 63), ("C", 64), ("V", 65), ("G", 66),
+            ("B", 67), ("H", 68), ("N", 69), ("J", 70), ("M", 71),
+            ("Q", 72), ("1", 73), ("W", 74), ("2", 75), ("E", 76), ("R", 77), ("4", 78),
+            ("T", 79), ("5", 80), ("Y", 81), ("6", 82), ("U", 83), ("I", 84),
+        };
+        string bad = "";
+        foreach (var (key, pitch) in table)
+            if (!p.TryKeyOfPitch(pitch, out string got, out _, out bool sharp, out bool flat, out _)
+                || got != key || sharp || flat)
+                bad += $"{pitch}→「{got}」(升={sharp} 降={flat}) 应为「{key}」 ";
+        Check("心动小镇：37 个音逐个对上键名", bad.Length == 0, bad);
+
+        Check("心动小镇：音域 48..84（C3..C6）",
+              p.ResolveMinNote() == 48 && p.ResolveMaxNote() == 84,
+              $"实际 {p.ResolveMinNote()}..{p.ResolveMaxNote()}");
+
+        Check("心动小镇：演奏时不按任何修饰键", p.SharpKeyToHold == null,
+              $"SharpKeyToHold=「{p.SharpKeyToHold}」");
+
+        // 一行一个八度：低音 12 条（偏移 −12..−1）、中音 12 条（0..11）、高音 13 条（12..24，末尾多一个 do）。
+        bool rowsOk = p.Keys.Count(k => k.Row == 0) == 12 && p.Keys.Count(k => k.Row == 1) == 12
+                      && p.Keys.Count(k => k.Row == 2) == 13
+                      && p.Keys.Where(k => k.Row == 0).All(k => k.Offset is >= -12 and <= -1)
+                      && p.Keys.Where(k => k.Row == 1).All(k => k.Offset is >= 0 and <= 11)
+                      && p.Keys.Where(k => k.Row == 2).All(k => k.Offset is >= 12 and <= 24);
+        Check("心动小镇：三排各一个八度（低音 12 / 中音 12 / 高音 13）",
+              rowsOk, string.Join(" | ", p.Keys.GroupBy(k => k.Row).OrderBy(g => g.Key)
+                                                  .Select(g => $"第{g.Key}行 {g.Count()} 条")));
+
+        // 方案 JSON 往返后键名、偏移、行号一字不差（预设要存成文件、要能分享）。
+        var round = KeymapProfile.FromJson(p.ToJson());
+        bool same = round.Keys.Count == p.Keys.Count;
+        for (int i = 0; same && i < p.Keys.Count; i++)
+            same = round.Keys[i].Key == p.Keys[i].Key
+                && round.Keys[i].Offset == p.Keys[i].Offset
+                && round.Keys[i].Row == p.Keys[i].Row
+                && round.Keys[i].Shift == p.Keys[i].Shift;
+        Check("心动小镇：方案 JSON 往返后 37 条键位一字不差", same,
               same ? "" : $"原 {p.Keys.Count} 条 / 回读 {round.Keys.Count} 条");
     }
 

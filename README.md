@@ -217,7 +217,7 @@ v1.1.8 已移除。
 
 ## 键位方案
 
-程序内置七套方案。方案名就是下表的七个名字。
+程序内置八套方案。方案名就是下表的八个名字。
 
 | 方案 | 键位 | 音域 | 功能键 |
 |---|---|---|---|
@@ -228,6 +228,7 @@ v1.1.8 已移除。
 | 洛克王国手碟 | `T Y U` = 高音 do re mi（`1˙` ~ `3˙`）；`F G H J K` = 中音 mi fa sol la si（`3` ~ `7`）；`B` = 低音 la（`6.`）。只有自然音 | `6.` ~ `3˙` | 不用 |
 | Roblox 钢琴键位 | 一个半音一条键位，共 61 条。白键同四排（`1..0` = C2..E3、`Q..P` = F3..A4、`A..L` = B4..C6、`Z..M` = D6..C7）；黑键写的是「同一个键 + `Shift`」，键帽上显示成 `! @ $ % ^ * (` 与 `Q W E …` | `1..` ~ `1˙˙`（C2..C7） | 不用 |
 | FF14 钢琴键位 | 一个半音一条键位，共 37 条。低八度 `Z 1 X 2 C V 3 B 4 N 5 M`、中八度 `A 6 S 7 D F 8 G 9 H 0 J`、高八度 `K Y L U Q W I E O R P T`，最后 `,` = 最高的 do | `1.` ~ `1˙˙`（C4..C7，MIDI 60..96） | 不用 |
+| 心动小镇 | 一个半音一条键位，共 37 条，三排各一个八度。白键：低音 `. ; / O P [ ]`、中音 `Z X C V B N M`、高音 `Q W E R T Y U I`；黑键：低音 `, ' 0 - =`、中音 `S D G H J`、高音 `1 2 4 5 6` | `1.` ~ `1˙˙`（C3..C6，MIDI 48..84） | 不用 |
 
 「21 键半音」与「8 键半音」都开着功能键：不按修饰键是自然音，按住就得到变化的音
 （`Shift`+`Z` 升半音、`Ctrl`+`Z` 降半音，或按住鼠标中键再按 `Z`）。「8 键半音」的两个鼠标键还能整排上下挪一个八度。
@@ -240,10 +241,11 @@ v1.1.8 已移除。
 数字后面加 `.` 是低一个八度，加 `..` 是再低一个八度。
 
 **没有对应键的音不弹。** 音域里缺哪个半音，就跳过哪个音，不换音高。这条行为固定，界面里没有开关。
-「第五人格键位」与「FF14 钢琴键位」是完整半音阶：每个半音都有自己的键，不用八度键与升半音键。
+「第五人格键位」「FF14 钢琴键位」「心动小镇」是完整半音阶：每个半音都有自己的键，不用八度键与升半音键。
 「8 键半音」只有自然音键，半音靠鼠标中键补。
 「Roblox 钢琴键位」的 61 条键位 = 36 个白键 + 25 个黑键：E、B 与最高的 C7 上面没有黑键，所以正好 25 条。
 「FF14 钢琴键位」的 37 条键位 = 三排各 12 个半音，再加最高的一个 do。`Shift` 一条都不用按。
+「心动小镇」的 37 条键位 = 低音 12 条 + 中音 12 条 + 高音 13 条，白键 7 + 7 + 8 个，黑键每排 5 个。`Shift` 一条都不用按。
 
 **功能键。** 「功能键」区块顶上有一个「启用功能键」勾选框。
 勾上后，可以绑升高八度、降低八度、升半音、降低半音四个键。音域随之向上下各扩一个八度，
@@ -264,7 +266,7 @@ v1.1.8 已移除。
 
 **按行排。** 一行里的键从左到右按音高排。行内不换行，太长就左右滚动。
 21 键的两套方案就是整齐的三行七列，36 键那套就是整齐的三行十二列，Roblox 钢琴键位是四排（白键与它的黑键排在同一行），
-FF14 钢琴键位是三行十二列再挂一个音。
+FF14 钢琴键位是三行十二列再挂一个音，心动小镇是三行（低音 12 条、中音 12 条、高音 13 条）。
 行尾的「+」在这一行末尾加一个音。最后一行下面的「+ 加一行」加一整行，音高比上一行高一个八度。
 
 **等待按键。** 点按键方块后它变成「按一个键…」，按一下键盘或鼠标就绑上。按 Esc 取消。
@@ -639,7 +641,7 @@ while idle it only loads without auto-playing. With unexported piano-roll edits,
 
 ## Key Layout Schemes
 
-The program ships with seven built-in schemes. The scheme names are the seven names in the table below.
+The program ships with eight built-in schemes. The scheme names are the eight names in the table below.
 
 | Scheme | Keys | Range | Function keys |
 |---|---|---|---|
@@ -650,6 +652,7 @@ The program ships with seven built-in schemes. The scheme names are the seven na
 | Roco Kingdom handpan (洛克王国手碟) | `T Y U` = high do re mi (`1˙` ~ `3˙`); `F G H J K` = middle mi fa sol la si (`3` ~ `7`); `B` = low la (`6.`). Natural notes only | `6.` ~ `3˙` | Not used |
 | Roblox piano layout (Roblox 钢琴键位) | One binding per semitone, 61 in total. The white keys are the same four rows (`1..0` = C2..E3, `Q..P` = F3..A4, `A..L` = B4..C6, `Z..M` = D6..C7); each black key is written as "the same key + `Shift`" and shows as `! @ $ % ^ * (` or `Q W E …` on the key cap | `1..` ~ `1˙˙` (C2..C7) | Not used |
 | FF14 piano layout (FF14 钢琴键位) | One binding per semitone, 37 in total. Low octave `Z 1 X 2 C V 3 B 4 N 5 M`, middle octave `A 6 S 7 D F 8 G 9 H 0 J`, high octave `K Y L U Q W I E O R P T`, then `,` for the top do | `1.` ~ `1˙˙` (C4..C7, MIDI 60..96) | Not used |
+| 心动小镇 | One binding per semitone, 37 in total, one octave per row. White keys: low `. ; / O P [ ]`, middle `Z X C V B N M`, high `Q W E R T Y U I`; black keys: low `, ' 0 - =`, middle `S D G H J`, high `1 2 4 5 6` | `1.` ~ `1˙˙` (C3..C6, MIDI 48..84) | Not used |
 
 "21-key chromatic" and "8-key chromatic" both have function keys on: without a modifier key you get natural notes; hold one to get altered notes
 (`Shift`+`Z` raises a semitone, `Ctrl`+`Z` lowers a semitone, or hold the middle mouse button and press `Z`). The two mouse buttons of "8-key chromatic" can also shift the whole row up or down an octave.
@@ -662,10 +665,11 @@ A `˙` after the digit is one octave higher; `˙˙` is another octave higher.
 A `.` after the digit is one octave lower; `..` is another octave lower.
 
 **Notes with no corresponding key are not played.** Whichever semitone is missing from the range is skipped — no pitch substitution. This behavior is fixed; there is no switch for it in the UI.
-"Identity V layout" and "FF14 piano layout" are full chromatic scales: every semitone has its own key, no octave keys or semitone-up keys needed.
+"Identity V layout", "FF14 piano layout", and 心动小镇 are full chromatic scales: every semitone has its own key, no octave keys or semitone-up keys needed.
 "8-key chromatic" has only natural-note keys; semitones are filled in with the middle mouse button.
 "Roblox piano layout" has 61 bindings: 36 white keys plus 25 black keys. E, B, and the top C7 have no black key above them, which is exactly why there are 25.
 "FF14 piano layout" has 37 bindings: three rows of 12 semitones plus the top do. No `Shift` at all.
+心动小镇 has 37 bindings: low 12 + middle 12 + high 13, with 7 + 7 + 8 white keys and 5 black keys per row. No `Shift` at all.
 
 **Function keys.** At the top of the "Function Keys" (功能键) block there is an "Enable function keys" (启用功能键) checkbox.
 When ticked, you can bind four keys: octave up, octave down, semitone up, semitone down. The range expands one octave up and down accordingly,
@@ -686,7 +690,7 @@ the semitone-up key is always used. The semitone-down key is used in two places:
 
 **Row layout.** Keys in a row are ordered by pitch from left to right. A row does not wrap; if it is too long it scrolls horizontally.
 The two 21-key schemes form a neat three-row seven-column grid; the 36-key one forms a neat three-row twelve-column grid; the Roblox piano scheme is four rows (a white key and its black key share a row).
-The FF14 piano scheme is three rows of twelve keys plus one more note.
+The FF14 piano scheme is three rows of twelve keys plus one more note. 心动小镇 is three rows (low 12, middle 12, high 13).
 The "+" at the end of a row adds a note at the end of that row. The "+ Add a Row" (+ 加一行) below the last row adds a whole row, one octave above the previous row.
 
 **Waiting for a key.** After you click a key block it turns into "Press a key…" (按一个键…); press a keyboard or mouse button to bind it. Press Esc to cancel.

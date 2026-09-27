@@ -74,7 +74,7 @@ public sealed class KeymapFormatException : Exception
 public sealed class KeymapProfile
 {
     /// <summary>
-    /// 默认方案名。内置几套都用直白名字（自然音 / 半音 / 第五人格键位 / 8 键半音 / 洛克王国手碟 / Roblox 钢琴键位 / FF14 钢琴键位），
+    /// 默认方案名。内置几套都用直白名字（自然音 / 半音 / 第五人格键位 / 8 键半音 / 洛克王国手碟 / Roblox 钢琴键位 / FF14 钢琴键位 / 心动小镇），
     /// 不再由几何量拼出来 ——「36 键 4 排 3 个八度」这类名字会把用户绕晕，实际只有三排。
     /// 默认方案（v1.0.17 起）：Z X C V B N M , 一排 do..高音 do，
     /// 鼠标左键降八度、右键升八度、中键升半音，能弹 48..85。
@@ -440,6 +440,55 @@ public sealed class KeymapProfile
         };
     }
 
+    /// <summary>
+    /// 第 8 套（心动小镇）：三排各一个八度，**一个半音一条键位**，共 37 条，不用功能键。
+    /// 一排 7 个白键（最高那排多一个高音 do），5 个黑键散在数字排与符号键上，都按游戏里的位置写死。
+    ///
+    ///   低音排（偏移 −12..−1）：  . = do   , = #do   ; = re   ' = #re   / = mi   O = fa
+    ///                              0 = #fa  P = sol   - = #sol  [ = la   = = #la   ] = si
+    ///   中音排（偏移 0..11）：    Z = do   S = #do   X = re   D = #re   C = mi   V = fa
+    ///                              G = #fa  B = sol   H = #sol  N = la   J = #la   M = si
+    ///   高音排（偏移 12..24）：   Q = do   1 = #do   W = re   2 = #re   E = mi   R = fa
+    ///                              4 = #fa  T = sol   5 = #sol  Y = la   6 = #la   U = si
+    ///                              I = 高音 do
+    ///
+    /// 行号按**八度**分，不按物理键盘的排：一行正好一个八度，界面排出来就是三行
+    /// （低音 12 条、中音 12 条、高音 13 条），与钢琴从左到右排一样。
+    /// 按物理排分组不行 —— 低音排的键散在四个物理排上（, . / 在 ZXCV 排、; ' 在 ASDF 排、
+    /// O P [ ] 在 QWERTY 排、0 - = 在数字排）。
+    /// 基准音是中音 C4 = 60，能弹 48..84（C3..C6）。
+    /// </summary>
+    private static KeymapProfile BuildXindong()
+    {
+        var keys = new List<KeyBinding>();
+        // (行号, 这一行从 do 起按半音往上排的键)：白键与它上面的黑键轮流出现。
+        (int Row, string[] Keys)[] rows =
+        {
+            (0, new[] { ".", ",", ";", "'", "/", "O", "0", "P", "-", "[", "=", "]" }),   // 低音八度
+            (1, new[] { "Z", "S", "X", "D", "C", "V", "G", "B", "H", "N", "J", "M" }),   // 中音八度
+            (2, new[] { "Q", "1", "W", "2", "E", "R", "4", "T", "5", "Y", "6", "U", "I" }), // 高音八度 + 高音 do
+        };
+
+        foreach (var (row, rowKeys) in rows)
+            for (int c = 0; c < rowKeys.Length; c++)
+                keys.Add(new KeyBinding { Key = rowKeys[c], Offset = 12 * (row - 1) + c, Row = row });
+
+        return new KeymapProfile
+        {
+            Version = CurrentVersion,
+            Description = "心动小镇（37 键）：一个半音一条键位，三排各一个八度。"
+                        + "低音排白键 . ; / O P [ ] 加黑键 , ' 0 - =、"
+                        + "中音排白键 Z X C V B N M 加黑键 S D G H J、"
+                        + "高音排白键 Q W E R T Y U I 加黑键 1 2 4 5 6。能弹 C3 到 C6",
+            BaseNote = 60,
+            Keys = keys,
+            ModifiersEnabled = false,
+            OctaveUp = null,
+            OctaveDown = null,
+            Sharp = null,
+        };
+    }
+
     /// <summary>这个音高上面有没有黑键：C D F G A 有，E 与 B 没有。参数是 MIDI 音高（非负）。</summary>
     private static bool HasSharpAbove(int pitch) => pitch % 12 is 0 or 2 or 5 or 7 or 9;
 
@@ -518,6 +567,7 @@ public sealed class KeymapProfile
             Preset(BuildHandpan(), "洛克王国手碟"),             // 第 5 套：手碟键位（T Y U / F G H J K / B）
             Preset(BuildRobloxPiano(), "Roblox 钢琴键位"),       // 第 6 套：Roblox 虚拟钢琴 61 键（四排白键 + Shift 黑键）
             Preset(BuildFf14Piano(), "FF14 钢琴键位"),           // 第 7 套：FF14 演奏模式 37 键（三排各 12 个半音）
+            Preset(BuildXindong(), "心动小镇"),                  // 第 8 套：心动小镇 37 键（三排各一个八度，白键 7 + 7 + 8）
         };
         if (!string.Equals(list[0].Name, DefaultName, StringComparison.Ordinal))
             LogFile.Append($"[键位] 默认方案名是「{list[0].Name}」，与常量「{DefaultName}」不同，请同步。");
@@ -570,7 +620,7 @@ public sealed class KeymapProfile
 
     /// <summary>
     /// 已经删掉的预设：读到这些名字就回退到默认方案。
-    /// 现在保留 21 键自然音 / 21 键半音 / 第五人格键位 / 8 键半音 / 洛克王国手碟 / Roblox 钢琴键位 / FF14 钢琴键位七套，其余历史名字全部列在这里。
+    /// 现在保留 21 键自然音 / 21 键半音 / 第五人格键位 / 8 键半音 / 洛克王国手碟 / Roblox 钢琴键位 / FF14 钢琴键位 / 心动小镇八套，其余历史名字全部列在这里。
     /// 改过名但键位还在的（例如「36 键半音三排」「8 键单排（含高八度 do，默认）」）走
     /// <see cref="LegacyPresetAlias"/>，不要写在这里。
     /// </summary>
