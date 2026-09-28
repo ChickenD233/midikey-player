@@ -228,7 +228,7 @@ v1.1.8 已移除。
 | 洛克王国手碟 | `T Y U` = 高音 do re mi（`1˙` ~ `3˙`）；`F G H J K` = 中音 mi fa sol la si（`3` ~ `7`）；`B` = 低音 la（`6.`）。只有自然音 | `6.` ~ `3˙` | 不用 |
 | Roblox 钢琴键位 | 一个半音一条键位，共 61 条。白键同四排（`1..0` = C2..E3、`Q..P` = F3..A4、`A..L` = B4..C6、`Z..M` = D6..C7）；黑键写的是「同一个键 + `Shift`」，键帽上显示成 `! @ $ % ^ * (` 与 `Q W E …` | `1..` ~ `1˙˙`（C2..C7） | 不用 |
 | FF14 钢琴键位 | 一个半音一条键位，共 37 条。低八度 `Z 1 X 2 C V 3 B 4 N 5 M`、中八度 `A 6 S 7 D F 8 G 9 H 0 J`、高八度 `K Y L U Q W I E O R P T`，最后 `,` = 最高的 do | `1.` ~ `1˙˙`（C4..C7，MIDI 60..96） | 不用 |
-| 心动小镇 | 一个半音一条键位，共 37 条，三排各一个八度。白键：低音 `. ; / O P [ ]`、中音 `Z X C V B N M`、高音 `Q W E R T Y U I`；黑键：低音 `, ' 0 - =`、中音 `S D G H J`、高音 `1 2 4 5 6` | `1.` ~ `1˙˙`（C3..C6，MIDI 48..84） | 不用 |
+| 心动小镇 | 一个半音一条键位，共 37 条，三排各一个八度。白键：低音 `, . / O P [ ]`、中音 `Z X C V B N M`、高音 `Q W E R T Y U I`；黑键：低音 `L ; 0 - =`、中音 `S D G H J`、高音 `2 3 5 6 7` | `1.` ~ `1˙˙`（C3..C6，MIDI 48..84） | 不用 |
 
 「21 键半音」与「8 键半音」都开着功能键：不按修饰键是自然音，按住就得到变化的音
 （`Shift`+`Z` 升半音、`Ctrl`+`Z` 降半音，或按住鼠标中键再按 `Z`）。「8 键半音」的两个鼠标键还能整排上下挪一个八度。
@@ -652,7 +652,7 @@ The program ships with eight built-in schemes. The scheme names are the eight na
 | Roco Kingdom handpan (洛克王国手碟) | `T Y U` = high do re mi (`1˙` ~ `3˙`); `F G H J K` = middle mi fa sol la si (`3` ~ `7`); `B` = low la (`6.`). Natural notes only | `6.` ~ `3˙` | Not used |
 | Roblox piano layout (Roblox 钢琴键位) | One binding per semitone, 61 in total. The white keys are the same four rows (`1..0` = C2..E3, `Q..P` = F3..A4, `A..L` = B4..C6, `Z..M` = D6..C7); each black key is written as "the same key + `Shift`" and shows as `! @ $ % ^ * (` or `Q W E …` on the key cap | `1..` ~ `1˙˙` (C2..C7) | Not used |
 | FF14 piano layout (FF14 钢琴键位) | One binding per semitone, 37 in total. Low octave `Z 1 X 2 C V 3 B 4 N 5 M`, middle octave `A 6 S 7 D F 8 G 9 H 0 J`, high octave `K Y L U Q W I E O R P T`, then `,` for the top do | `1.` ~ `1˙˙` (C4..C7, MIDI 60..96) | Not used |
-| 心动小镇 | One binding per semitone, 37 in total, one octave per row. White keys: low `. ; / O P [ ]`, middle `Z X C V B N M`, high `Q W E R T Y U I`; black keys: low `, ' 0 - =`, middle `S D G H J`, high `1 2 4 5 6` | `1.` ~ `1˙˙` (C3..C6, MIDI 48..84) | Not used |
+| 心动小镇 | One binding per semitone, 37 in total, one octave per row. White keys: low `, . / O P [ ]`, middle `Z X C V B N M`, high `Q W E R T Y U I`; black keys: low `L ; 0 - =`, middle `S D G H J`, high `2 3 5 6 7` | `1.` ~ `1˙˙` (C3..C6, MIDI 48..84) | Not used |
 
 "21-key chromatic" and "8-key chromatic" both have function keys on: without a modifier key you get natural notes; hold one to get altered notes
 (`Shift`+`Z` raises a semitone, `Ctrl`+`Z` lowers a semitone, or hold the middle mouse button and press `Z`). The two mouse buttons of "8-key chromatic" can also shift the whole row up or down an octave.

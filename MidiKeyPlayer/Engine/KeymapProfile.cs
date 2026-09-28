@@ -444,17 +444,17 @@ public sealed class KeymapProfile
     /// 第 8 套（心动小镇）：三排各一个八度，**一个半音一条键位**，共 37 条，不用功能键。
     /// 一排 7 个白键（最高那排多一个高音 do），5 个黑键散在数字排与符号键上，都按游戏里的位置写死。
     ///
-    ///   低音排（偏移 −12..−1）：  . = do   , = #do   ; = re   ' = #re   / = mi   O = fa
+    ///   低音排（偏移 −12..−1）：  , = do   L = #do   . = re   ; = #re   / = mi   O = fa
     ///                              0 = #fa  P = sol   - = #sol  [ = la   = = #la   ] = si
     ///   中音排（偏移 0..11）：    Z = do   S = #do   X = re   D = #re   C = mi   V = fa
     ///                              G = #fa  B = sol   H = #sol  N = la   J = #la   M = si
-    ///   高音排（偏移 12..24）：   Q = do   1 = #do   W = re   2 = #re   E = mi   R = fa
-    ///                              4 = #fa  T = sol   5 = #sol  Y = la   6 = #la   U = si
+    ///   高音排（偏移 12..24）：   Q = do   2 = #do   W = re   3 = #re   E = mi   R = fa
+    ///                              5 = #fa  T = sol   6 = #sol  Y = la   7 = #la   U = si
     ///                              I = 高音 do
     ///
     /// 行号按**八度**分，不按物理键盘的排：一行正好一个八度，界面排出来就是三行
     /// （低音 12 条、中音 12 条、高音 13 条），与钢琴从左到右排一样。
-    /// 按物理排分组不行 —— 低音排的键散在四个物理排上（, . / 在 ZXCV 排、; ' 在 ASDF 排、
+    /// 按物理排分组不行 —— 低音排的键散在四个物理排上（, . / 在 ZXCV 排、L ; 在 ASDF 排、
     /// O P [ ] 在 QWERTY 排、0 - = 在数字排）。
     /// 基准音是中音 C4 = 60，能弹 48..84（C3..C6）。
     /// </summary>
@@ -464,9 +464,9 @@ public sealed class KeymapProfile
         // (行号, 这一行从 do 起按半音往上排的键)：白键与它上面的黑键轮流出现。
         (int Row, string[] Keys)[] rows =
         {
-            (0, new[] { ".", ",", ";", "'", "/", "O", "0", "P", "-", "[", "=", "]" }),   // 低音八度
+            (0, new[] { ",", "L", ".", ";", "/", "O", "0", "P", "-", "[", "=", "]" }),   // 低音八度
             (1, new[] { "Z", "S", "X", "D", "C", "V", "G", "B", "H", "N", "J", "M" }),   // 中音八度
-            (2, new[] { "Q", "1", "W", "2", "E", "R", "4", "T", "5", "Y", "6", "U", "I" }), // 高音八度 + 高音 do
+            (2, new[] { "Q", "2", "W", "3", "E", "R", "5", "T", "6", "Y", "7", "U", "I" }), // 高音八度 + 高音 do
         };
 
         foreach (var (row, rowKeys) in rows)
@@ -477,9 +477,9 @@ public sealed class KeymapProfile
         {
             Version = CurrentVersion,
             Description = "心动小镇（37 键）：一个半音一条键位，三排各一个八度。"
-                        + "低音排白键 . ; / O P [ ] 加黑键 , ' 0 - =、"
+                        + "低音排白键 , . / O P [ ] 加黑键 L ; 0 - =、"
                         + "中音排白键 Z X C V B N M 加黑键 S D G H J、"
-                        + "高音排白键 Q W E R T Y U I 加黑键 1 2 4 5 6。能弹 C3 到 C6",
+                        + "高音排白键 Q W E R T Y U I 加黑键 2 3 5 6 7。能弹 C3 到 C6",
             BaseNote = 60,
             Keys = keys,
             ModifiersEnabled = false,
