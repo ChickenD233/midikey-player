@@ -81,6 +81,8 @@ internal static partial class GameSelfTest
             TestRobloxPiano();
             TestFf14Piano();
             TestXindong();
+            TestLegacyCopyMigration();
+            TestLegacyCopyRewrite();
             TestChordScheduling();
             TestChordMerge();
             TestTrackRoles();
@@ -534,6 +536,113 @@ internal static partial class GameSelfTest
                 && round.Keys[i].Shift == p.Keys[i].Shift;
         Check("心动小镇：方案 JSON 往返后 37 条键位一字不差", same,
               same ? "" : $"原 {p.Keys.Count} 条 / 回读 {round.Keys.Count} 条");
+    }
+
+    /// <summary>
+    /// 旧副本迁移：内置键位改版之后，用户目录里那份「一字不差还是上一版」的副本会被换成当前内置键位。
+    /// 用户自己动过一个键、或说明已经不是那一版的，都必须原样保留 —— 迁移只认历史版本的完整样子。
+    /// </summary>
+    private static void TestLegacyCopyMigration()
+    {
+        var old = KeymapProfile.BuildXindongV1117();   // v1.1.17 / v1.1.18 的样子
+        Check("旧副本：v1.1.17 的心动小镇副本认得出是旧副本",
+              KeymapProfile.IsUntouchedLegacyCopy("心动小镇", old));
+
+        var now = KeymapProfile.PresetByName("心动小镇");
+        Check("旧副本：当前内置键位不算旧副本（说明两版确实不同）",
+              now != null && !KeymapProfile.IsUntouchedLegacyCopy("心动小镇", now));
+
+        // 用户把低音 do 换成 A：这是他自己的方案，不能拿内置键位盖掉。
+        var mine = KeymapProfile.FromJson(old.ToJson());
+        mine.Keys[0].Key = "A";
+        Check("旧副本：用户改过一个键就不动他",
+              !KeymapProfile.IsUntouchedLegacyCopy("心动小镇", mine));
+
+        // 键位还是旧的、说明已经是新的：这份副本是 v1.1.19 之后存下来又手改回去的，也不能动。
+        var mixed = KeymapProfile.FromJson(old.ToJson());
+        mixed.Description = "我自己写的说明";
+        Check("旧副本：说明动过也不动他",
+              !KeymapProfile.IsUntouchedLegacyCopy("心动小镇", mixed));
+
+        Check("旧副本：别的方案名不参与迁移",
+              !KeymapProfile.IsUntouchedLegacyCopy("FF14 钢琴键位", old));
+        Check("旧副本：没有方案时不算旧副本",
+              !KeymapProfile.IsUntouchedLegacyCopy(null, old) && !KeymapProfile.IsUntouchedLegacyCopy("心动小镇", null));
+    }
+
+    /// <summary>
+    /// 旧副本迁移的**落盘**验证：把方案目录指到临时目录，造一份 v1.1.17 的 keymap.json 与用户副本，
+    /// 各走一遍 <see cref="KeymapProfile.Load"/> 与 <see cref="KeymapProfile.LoadByName"/>，
+    /// 内存里与文件里都必须换成当前内置键位；用户改过的副本一个字都不许动。
+    /// </summary>
+    private static void TestLegacyCopyRewrite()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "midikey-selftest-legacy");
+        string old = KeymapProfile.BuildXindongV1117().ToJson();
+        var utf8 = new UTF8Encoding(false);
+        try
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+            Directory.CreateDirectory(Path.Combine(root, "schemes"));
+            KeymapProfile.DirPathForDev = root;
+
+            // 零、先确认往返（写盘 → 读回）不改变旧副本的样子：迁移就是靠「一模一样」认的。
+            var legacyObj = KeymapProfile.BuildXindongV1117();
+            var round = KeymapProfile.FromJson(old);
+            string diff = "";
+            if (legacyObj.Description != round.Description) diff += "描述不同；";
+            if (legacyObj.Keys.Count != round.Keys.Count) diff += $"条数 {legacyObj.Keys.Count}/{round.Keys.Count}；";
+            for (int i = 0; i < Math.Min(legacyObj.Keys.Count, round.Keys.Count); i++)
+            {
+                var a = legacyObj.Keys[i];
+                var b = round.Keys[i];
+                if (a.Key != b.Key || a.Offset != b.Offset || a.Row != b.Row || a.Shift != b.Shift)
+                    diff += $"第 {i} 条 {a} vs {b}；";
+            }
+            Check("旧副本：旧版本往返后一模一样", diff.Length == 0, diff);
+            Check("旧副本：往返后的旧副本仍然认得出",
+                  KeymapProfile.IsUntouchedLegacyCopy("心动小镇", round));
+
+            // 一、活动方案：keymap.json 还是旧副本 → Load() 换掉内存里那一份，并把文件重写。
+            File.WriteAllText(Path.Combine(root, "keymap.json"), old, utf8);
+            Check("旧副本：开发用的目录开关生效", KeymapProfile.FilePath.StartsWith(root, StringComparison.OrdinalIgnoreCase),
+                  "FilePath=" + KeymapProfile.FilePath + " root=" + root);
+            var loaded = KeymapProfile.Load();
+            var after = KeymapProfile.FromJson(File.ReadAllText(Path.Combine(root, "keymap.json")));
+            bool memNew = loaded.Keys.Any(k => k.Key == "L" && k.Offset == -11);
+            bool memOld = loaded.Keys.Any(k => k.Key == "1" && k.Offset == 13);
+            bool fileNew = after.Keys.Any(k => k.Key == "L" && k.Offset == -11);
+            bool fileOld = after.Keys.Any(k => k.Key == "1" && k.Offset == 13);
+            Check("旧副本：keymap.json 的旧副本换成内置键位（内存与文件都要换）",
+                  memNew && !memOld && fileNew && !fileOld,
+                  $"内存 {loaded.Keys.Count} 条（新 {memNew} / 旧 {memOld}）；文件 {after.Keys.Count} 条（新 {fileNew} / 旧 {fileOld}）");
+
+            // 二、用户副本：schemes\心动小镇.json 还是旧副本 → LoadByName() 换掉并重写副本。
+            string copy = Path.Combine(root, "schemes", "心动小镇.json");
+            File.WriteAllText(copy, old, utf8);
+            File.Delete(Path.Combine(root, "keymap.json"));
+            var byName = KeymapProfile.LoadByName("心动小镇");
+            var copyAfter = KeymapProfile.FromJson(File.ReadAllText(copy));
+            Check("旧副本：schemes 里的旧副本换成内置键位（内存与文件都要换）",
+                  byName != null && byName.Keys.Any(k => k.Key == "L" && k.Offset == -11)
+                  && copyAfter.Keys.Any(k => k.Key == "L" && k.Offset == -11),
+                  byName == null ? "取不到" : $"副本 {copyAfter.Keys.Count} 条");
+
+            // 三、用户自己改过的副本：不迁移，文件也不许被重写。
+            var mine = KeymapProfile.FromJson(old);
+            mine.Keys[0].Key = "A";
+            File.WriteAllText(copy, mine.ToJson(), utf8);
+            var kept = KeymapProfile.LoadByName("心动小镇");
+            var keptAfter = KeymapProfile.FromJson(File.ReadAllText(copy));
+            Check("旧副本：用户改过的副本原样保留",
+                  kept != null && kept.Keys[0].Key == "A" && keptAfter.Keys[0].Key == "A",
+                  kept == null ? "取不到" : $"内存 {kept.Keys[0].Key} / 文件 {keptAfter.Keys[0].Key}");
+        }
+        finally
+        {
+            KeymapProfile.DirPathForDev = null;
+            try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch { }
+        }
     }
 
     // ================= 和弦调度 =================

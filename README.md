@@ -279,6 +279,7 @@ FF14 钢琴键位是三行十二列再挂一个音，心动小镇是三行（低
 
 **方案文件。** 内置方案不能改名、不能删掉。想改就先点「新建方案…」复制一份。
 自定义方案在 `%LOCALAPPDATA%\MidiKeyPlayer\schemes\` 下，重启后仍在列表里。「导入方案…」「导出方案…」走单个 JSON 文件，方便互相分享。
+内置方案改了键位之后，这份副本要是原样没动过，启动时会自动换成新内置键位；自己改过的副本保留。
 
 **每个方案独立记忆。** 速度、移调、输入兼容档按键位方案名分别保存。
 
@@ -703,6 +704,7 @@ Pressing and releasing `Shift`, `Ctrl`, or `Alt` alone also binds them as functi
 
 **Scheme files.** The built-in schemes cannot be renamed or deleted. To change one, click "New Scheme…" (新建方案…) first to copy it.
 Custom schemes live under `%LOCALAPPDATA%\MidiKeyPlayer\schemes\` and remain in the list after a restart. "Import Scheme…" (导入方案…) and "Export Scheme…" (导出方案…) work with a single JSON file, convenient for sharing with each other.
+When a built-in scheme changes its keys, an untouched copy under that folder is replaced by the new built-in keys at startup. A copy you edited stays unchanged.
 
 **Per-scheme memory.** Tempo, transposition, and the input compatibility level are saved separately by key layout scheme name.
 

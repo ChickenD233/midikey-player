@@ -136,8 +136,15 @@ public sealed class KeymapProfile
 
     // ================= 位置与活动方案 =================
 
+    /// <summary>
+    /// 【开发用】把方案目录临时指到别处。自检要验证「旧副本迁移会不会真的重写文件」，
+    /// 指到临时目录才不至于动到用户真实的 %LOCALAPPDATA%\MidiKeyPlayer。
+    /// 默认 null = 真实目录。正式流程只在自检里赋值，跑完立刻还原。
+    /// </summary>
+    internal static string? DirPathForDev { get; set; }
+
     private static string DirPath =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MidiKeyPlayer");
+        DirPathForDev ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MidiKeyPlayer");
 
     /// <summary>方案文件路径：%LOCALAPPDATA%\MidiKeyPlayer\keymap.json。</summary>
     public static string FilePath => Path.Combine(DirPath, "keymap.json");
@@ -489,6 +496,76 @@ public sealed class KeymapProfile
         };
     }
 
+    /// <summary>
+    /// v1.1.17 / v1.1.18 的「心动小镇」键位：**历史留档，不要改**。
+    /// 它只用来认出「用户目录里那一版留下的旧副本」（见 <see cref="IsUntouchedLegacyCopy"/>）。
+    /// 那一版把低音 do 写成 .、把 , 当成黑键，高音黑键写成 1 2 4 5 6。
+    /// </summary>
+    internal static KeymapProfile BuildXindongV1117()
+    {
+        var keys = new List<KeyBinding>();
+        (int Row, string[] Keys)[] rows =
+        {
+            (0, new[] { ".", ",", ";", "'", "/", "O", "0", "P", "-", "[", "=", "]" }),   // 低音八度
+            (1, new[] { "Z", "S", "X", "D", "C", "V", "G", "B", "H", "N", "J", "M" }),   // 中音八度
+            (2, new[] { "Q", "1", "W", "2", "E", "R", "4", "T", "5", "Y", "6", "U", "I" }), // 高音八度 + 高音 do
+        };
+
+        foreach (var (row, rowKeys) in rows)
+            for (int c = 0; c < rowKeys.Length; c++)
+                keys.Add(new KeyBinding { Key = rowKeys[c], Offset = 12 * (row - 1) + c, Row = row });
+
+        return new KeymapProfile
+        {
+            Version = CurrentVersion,
+            Name = "心动小镇",
+            Description = "心动小镇（37 键）：一个半音一条键位，三排各一个八度。"
+                        + "低音排白键 . ; / O P [ ] 加黑键 , ' 0 - =、"
+                        + "中音排白键 Z X C V B N M 加黑键 S D G H J、"
+                        + "高音排白键 Q W E R T Y U I 加黑键 1 2 4 5 6。能弹 C3 到 C6",
+            BaseNote = 60,
+            Keys = keys,
+            ModifiersEnabled = false,
+            OctaveUp = null,
+            OctaveDown = null,
+            Sharp = null,
+        };
+    }
+
+    /// <summary>
+    /// 内置方案的历史版本：方案名 → 那一版的原样（键位 + 说明）。
+    /// 只加不改：每一版内置键位改过之后，把改之前的样子留在这里一份。
+    /// </summary>
+    private static readonly Dictionary<string, KeymapProfile> LegacyBuiltInRevisions = new(StringComparer.Ordinal)
+    {
+        ["心动小镇"] = BuildXindongV1117(),   // v1.1.17 / v1.1.18 的样子
+    };
+
+    /// <summary>
+    /// 这份方案是不是某个内置历史版本**原样**留下的（用户一个字符都没动过）。
+    /// 键位与说明都要一模一样：
+    /// 键位一样而说明是新的，说明这份副本是 v1.1.19 之后存的、键位是用户自己改回去的，不能动。
+    /// </summary>
+    public static bool IsUntouchedLegacyCopy(string? name, KeymapProfile? profile)
+    {
+        if (string.IsNullOrWhiteSpace(name) || profile == null) return false;
+        if (!LegacyBuiltInRevisions.TryGetValue(name, out var old)) return false;
+        return string.Equals(KeySignature(old), KeySignature(profile), StringComparison.Ordinal);
+    }
+
+    /// <summary>键位 + 说明的签名：每条键位拍成「键名/偏移/行号/Shift」，末尾接上说明全文。</summary>
+    private static string KeySignature(KeymapProfile profile)
+    {
+        var parts = new List<string>();
+        foreach (var k in profile.Keys)
+        {
+            if (k == null) continue;
+            parts.Add($"{CanonicalKeyName(k.Key)}/{k.Offset}/{k.Row}/{(k.Shift ? 1 : 0)}");
+        }
+        parts.Add("说明：" + (profile.Description ?? ""));
+        return string.Join(";", parts);
+    }
+
     /// <summary>这个音高上面有没有黑键：C D F G A 有，E 与 B 没有。参数是 MIDI 音高（非负）。</summary>
     private static bool HasSharpAbove(int pitch) => pitch % 12 is 0 or 2 or 5 or 7 or 9;
 
@@ -764,7 +841,17 @@ public sealed class KeymapProfile
         if (string.IsNullOrWhiteSpace(name)) return null;
 
         if (TryLoadSchemeFile(name, out var user))
+        {
+            // 旧副本迁移：这份副本一字不差地还是某个历史版本的内置键位（用户没动过），
+            // 就换成当前内置键位，并把副本重写掉 —— 不然后面每次启动都读到旧的。
+            if (user != null && FreshBuiltInForStaleCopy(user) is KeymapProfile fresh)
+            {
+                LogFile.Append($"[键位] 方案「{name}」的用户副本还是旧版内置键位，已换成当前内置键位。");
+                TryWriteSchemeFile(fresh);
+                return fresh;
+            }
             return user;
+        }
 
         var preset = PresetByName(name);
         if (preset != null) return preset.Clone();
@@ -801,6 +888,34 @@ public sealed class KeymapProfile
         }
     }
 
+    /// <summary>
+    /// 旧版内置键位留下的副本 → 当前内置键位。不是旧副本就返回 null（调用方照常用手上那份）。
+    /// 判断见 <see cref="IsUntouchedLegacyCopy"/>：只认某个历史版本的完整样子（键位与说明都一样），
+    /// 用户自己改过的键位一个都不匹配，原样保留。
+    /// </summary>
+    private static KeymapProfile? FreshBuiltInForStaleCopy(KeymapProfile copy)
+    {
+        if (!IsUntouchedLegacyCopy(copy.Name, copy)) return null;
+        return PresetByName(copy.Name)?.Clone();
+    }
+
+    /// <summary>
+    /// 把一份方案写进 schemes\&lt;方案名&gt;.json（旧副本迁移之后覆盖旧的用）。
+    /// 目录与文件名的规则都在引擎这边，界面那边只调用。写不动只写日志，不抛异常。
+    /// </summary>
+    public static void TryWriteSchemeFile(KeymapProfile profile)
+    {
+        try
+        {
+            Directory.CreateDirectory(SchemesDir);
+            File.WriteAllText(SchemeFilePath(profile.Name), profile.ToJson(), new System.Text.UTF8Encoding(false));
+        }
+        catch (Exception ex)
+        {
+            LogFile.Append($"[键位] 写方案文件失败（{profile.Name}）：{ex.Message}");
+        }
+    }
+
     // ================= 读盘 / 写盘 =================
 
     /// <summary>
@@ -819,12 +934,20 @@ public sealed class KeymapProfile
                 if (!string.IsNullOrWhiteSpace(loaded.Name))
                 {
                     var fixedUp = UpgradeLegacyName(loaded, out string note);
+                    // 活动方案同样可能是旧版内置键位留下的（老版本把它写进了 keymap.json），一起迁移。
+                    var use = fixedUp;
+                    if (FreshBuiltInForStaleCopy(fixedUp) is KeymapProfile fresh)
+                    {
+                        use = fresh;
+                        string extra = $"[键位] 活动方案「{fixedUp.Name}」还是旧版内置键位，已换成当前内置键位。";
+                        note = note.Length > 0 ? note + "\n" + extra : extra;
+                    }
                     if (note.Length > 0)
                     {
                         LogFile.Append(note);
-                        try { fixedUp.Save(); } catch { /* 存不动只影响下次启动 */ }
+                        try { use.Save(); } catch { /* 存不动只影响下次启动 */ }
                     }
-                    return fixedUp;
+                    return use;
                 }
                 LogFile.Append("[键位] keymap.json 没有方案名，用默认方案。");
             }
