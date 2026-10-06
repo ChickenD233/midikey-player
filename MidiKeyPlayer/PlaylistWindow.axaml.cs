@@ -13,14 +13,13 @@ using MidiKeyPlayer.Midi;
 namespace MidiKeyPlayer;
 
 /// <summary>
-/// 歌单窗口：建歌单、往里放曲目、替每一首预先选好音轨、改顺序。
+/// 歌单窗口：建歌单、往里放曲目、替每一首预先指定音轨、改顺序。
 ///
-/// 两个入口从这里出去：
-///   1. <see cref="EntryActivated"/> —— 双击一行，交回主窗口载入（主窗口管播放状态）。
-///   2. <see cref="Changed"/>        —— 歌单存过盘，主窗口据此刷新左栏那张卡。
+/// 三个出口给主窗口：<see cref="EntryActivated"/>（双击一行，载入这一首）、
+/// <see cref="Changed"/>（歌单存过盘）、<see cref="ActiveChanged"/>（换了一份当前歌单）。
 ///
-/// 顺序规则全部走 <see cref="PlaylistModel"/> 的纯函数，上移、下移、拖放三条路调的是同一个，
-/// 所以内置自检测的就是这里真正跑的那段代码。
+/// 顺序规则全在 <see cref="PlaylistModel"/> 的纯函数里，上移、下移、拖放调的是同一个，
+/// 所以内置自检测到的就是这里真正跑的那段代码。
 /// </summary>
 public partial class PlaylistWindow : Window
 {
@@ -32,6 +31,12 @@ public partial class PlaylistWindow : Window
 
     private string _query = "";
 
+    /// <summary>正展开行内音轨清单的曲目下标；-1 = 没有展开的。</summary>
+    private int _pickFor = -1;
+
+    /// <summary>解析过的候选行，按文件路径缓存。展开音轨清单时不必再读一遍文件。</summary>
+    private readonly Dictionary<string, List<MidiCandidate>> _candCache = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>拖动状态：按下时的行下标、起点、是否已经越过阈值。</summary>
     private int _dragFrom = -1;
     private Point _dragStart;
@@ -40,14 +45,17 @@ public partial class PlaylistWindow : Window
     /// <summary>拖动阈值（像素）。太小会和「点一下选中」打架。</summary>
     private const double DragThreshold = 12;
 
-    /// <summary>曲目列表的行数上限。超过就只显示前 N 行，避免歌单上千首时界面卡住。</summary>
+    /// <summary>曲目列表的行数上限。超过就只显示前 N 行，歌单上千首时界面不至于卡住。</summary>
     private const int MaxRows = 400;
 
     /// <summary>双击某一行：把这一首交回主窗口载入。</summary>
     public event Action<string>? EntryActivated;
 
-    /// <summary>歌单被改动并已存盘。主窗口据此刷新左栏的曲目卡。</summary>
+    /// <summary>歌单存过盘。主窗口据此刷新左栏那张卡。</summary>
     public event Action? Changed;
+
+    /// <summary>用户在左栏选了一份歌单。主窗口据此记成「当前歌单」，下次启动才回得来。</summary>
+    public event Action<string>? ActiveChanged;
 
     /// <summary>主窗口正在播放的那首曲子的路径，用来在列表里打标记。</summary>
     public string PlayingPath { get; set; } = "";
@@ -63,6 +71,15 @@ public partial class PlaylistWindow : Window
 
     /// <summary>打开后默认选中的歌单名。窗口构造完、Show 之前设。</summary>
     public string ActiveName { get; set; } = "";
+
+    /// <summary>窗口里当前选中的歌单名；一份都没选是空串。关窗时主窗口拿它收尾。</summary>
+    public string ActiveNameNow => _current?.Name ?? "";
+
+    /// <summary>【开发用】替快照展开第 <paramref name="index"/> 行的音轨清单，拍图才拍得到这一态。</summary>
+    internal void OpenTrackPickerForDev(int index) => ToggleTrackPicker(index);
+
+    /// <summary>【开发用】替快照选一发候选，走的是用户点候选那一行同一条代码路径。</summary>
+    internal void PickTrackForDev(int entryIndex, int candIndex) => PickTrack(entryIndex, candIndex);
 
     /// <summary>构造之后调一次：按 <see cref="ActiveName"/> 选中对应的歌单。</summary>
     public void SelectInitial()
@@ -203,8 +220,10 @@ public partial class PlaylistWindow : Window
         if (PlaylistList.SelectedItem is not ListBoxItem it || it.Tag is not Playlist p) return;
 
         _current = p;
+        _pickFor = -1;
         SyncEntryList();
         Say($"当前歌单「{p.Name}」，{p.Count} 首。");
+        ActiveChanged?.Invoke(p.Name);
     }
 
     /// <summary>按名字选中左侧歌单，并把它当成当前歌单。</summary>
@@ -296,7 +315,7 @@ public partial class PlaylistWindow : Window
         catch (Exception ex) { Say($"读文件夹失败：{ex.GetType().Name}: {ex.Message}"); }
     }
 
-    /// <summary>把一个文件夹里的曲目整批按顺序加入歌单（Q14 的「导入来源」用法）。</summary>
+    /// <summary>把一个文件夹里的 MIDI 按文件名顺序整批加入歌单。</summary>
     public void AddFolderPaths(string dir)
     {
         if (_current == null) { Say("先选一份歌单。"); return; }
@@ -306,8 +325,8 @@ public partial class PlaylistWindow : Window
     }
 
     /// <summary>
-    /// 批量加入。重复的路径不重复加：同一首歌在歌单里出现两次是可以的（有人就想要），
-    /// 所以只拦「同一次操作里完全相同的路径」，跨次的手动重复不拦。
+    /// 批量加入。同一首歌在歌单里出现两次是可以的，所以只拦这一次操作里重复的路径，
+    /// 不拦手动重复加。
     /// </summary>
     private void AddPaths(IReadOnlyList<string> paths)
     {
@@ -325,13 +344,10 @@ public partial class PlaylistWindow : Window
         if (!SaveCurrent("加入曲目")) return;
 
         SyncEntryList();
-        Say($"已加入 {added.Count} 首。点「音轨」可以替某一首预先选好弹哪一行。");
+        Say($"已加入 {added.Count} 首。点曲目右边的「自动 ▾」可以指定弹哪一行。");
     }
 
-    /// <summary>
-    /// 加入时按上一首演奏行的声部身份推荐一行（Q19 的配套默认值）。
-    /// 读不动这个文件就留空，连播时主窗口会再挑一次。
-    /// </summary>
+    /// <summary>加入时按上一首演奏行的声部推荐一行。读不动这个文件就留空，连播时主窗口再挑一次。</summary>
     private TrackRef? SuggestTrackFor(string path)
     {
         if (!File.Exists(path)) return null;
@@ -390,12 +406,12 @@ public partial class PlaylistWindow : Window
         _dragStart = e.GetPosition(EntryList);
         _dragging = false;
 
-        // 行里的「音轨」按钮：选中这一行，然后开选音轨
+        // 行里的「音轨」按钮：选中这一行，然后就地展开候选清单
         if (ClickedButton(e) is { Name: "BtnTrack" })
         {
             if (_dragFrom >= 0) EntryList.SelectedIndex = _dragFrom;
             e.Handled = true;
-            OpenTrackPicker(_dragFrom);
+            ToggleTrackPicker(_dragFrom);
         }
     }
 
@@ -479,122 +495,93 @@ public partial class PlaylistWindow : Window
     // ================= 预先选音轨 =================
 
     /// <summary>
-    /// 替某一首预先选好弹哪一行。列出这个文件解析出来的全部候选行，
-    /// 每行标出「轨道号 / 声道 / 声部 / 音域 / 音数」，默认选中的是当前已存的那一条。
+    /// 点某一行的「音轨」按钮：就地展开这一行的候选清单，再点一次收起。
+    /// 候选按文件路径缓存，同一首展开第二次不再读文件。
     /// </summary>
-    private async void OpenTrackPicker(int index)
+    private void ToggleTrackPicker(int index)
     {
         if (_current == null || index < 0 || index >= _current.Entries.Count) return;
 
+        if (_pickFor == index) { _pickFor = -1; SyncEntryList(); return; }
+
         var entry = _current.Entries[index];
         string name = Path.GetFileName(entry.Path);
-        if (!File.Exists(entry.Path)) { Say($"「{name}」已经不在磁盘上了，先把它移除或换一首。"); return; }
-
-        List<MidiCandidate> cands;
-        try
+        if (!File.Exists(entry.Path))
         {
-            Say($"正在读「{name}」的音轨…");
-            cands = MidiLoader.Parse(entry.Path).Candidates;
-        }
-        catch (Exception ex)
-        {
-            Say($"读不动「{name}」：{ex.Message}");
+            Say($"「{name}」已经不在磁盘上了，先把它移除或换一首。");
             return;
         }
+
+        if (!_candCache.TryGetValue(entry.Path, out var cands))
+        {
+            try
+            {
+                cands = MidiLoader.Parse(entry.Path).Candidates;
+            }
+            catch (Exception ex)
+            {
+                Say($"读不动「{name}」：{ex.Message}");
+                return;
+            }
+            _candCache[entry.Path] = cands;
+        }
+
         if (cands.Count == 0) { Say($"「{name}」里没有任何候选音轨。"); return; }
 
-        int? picked = await PickTrackAsync(name, cands, entry.Track);
-        if (picked == null) return;
+        _pickFor = index;
+        SyncEntryList(selectAfter: index);
+        Say($"「{name}」弹哪一行？点下面那一行即可。");
+    }
 
-        int i = picked.Value;
-        if (i < 0)
+    /// <summary>点了候选清单里的一行：钉住这一行。<paramref name="candIndex"/> 为 -1 = 不预设。</summary>
+    private void PickTrack(int entryIndex, int candIndex)
+    {
+        if (_current == null || entryIndex < 0 || entryIndex >= _current.Entries.Count) return;
+
+        var entry = _current.Entries[entryIndex];
+        string name = Path.GetFileName(entry.Path);
+
+        if (candIndex < 0)
         {
             entry.Track = null;
             Say($"「{name}」改成不预设音轨，连播时按声部自动挑。");
         }
-        else
+        else if (_candCache.TryGetValue(entry.Path, out var cands) && candIndex < cands.Count)
         {
-            var c = cands[i];
+            var c = cands[candIndex];
             entry.Track = new TrackRef { TrackIndex = c.TrackIndex, Channel = c.Channel, NameHint = c.Name };
             Say($"「{name}」已设为弹「{Describe(c)}」。");
         }
+        else return;
 
         if (!SaveCurrent("保存音轨选择")) return;
-        SyncEntryList(selectAfter: index);
+
+        // 重铺会把这一行连同单选钮一起换掉，也就是在单选钮自己的事件里动它，
+        // 所以放到下一个循环再铺。
+        _pickFor = -1;
+        Dispatcher.UIThread.Post(() => SyncEntryList(selectAfter: entryIndex));
     }
 
+    /// <summary>候选行上的说明：轨号 / 声道 / 声部 / 音域 / 音数。</summary>
     private static string Describe(MidiCandidate c) =>
-        $"轨道 {c.TrackIndex + 1} / 声道 {c.Channel + 1}「{c.Name}」{c.RoleTag} {c.NoteCount} 音";
+        $"轨道 {c.TrackIndex + 1} / 声道 {c.Channel + 1}「{c.Name}」{c.RoleTag} {c.RangeLabel} {c.NoteCount} 音";
 
-    /// <summary>音轨选择对话框。返回候选下标；返回 -1 表示「不预设」；返回 null 表示取消。</summary>
-    private async Task<int?> PickTrackAsync(string songName, IReadOnlyList<MidiCandidate> cands, TrackRef? current)
+    /// <summary>一行候选：单选钮 + 说明。点整行都能选。</summary>
+    private Control BuildCandidateRow(int entryIndex, int candIndex, MidiCandidate? c, bool selected)
     {
-        var list = new ListBox { MinHeight = 200, FontSize = 12.5 };
-        var labels = new List<string>();
-        int selected = -1;
-        for (int i = 0; i < cands.Count; i++)
+        var radio = new RadioButton
         {
-            labels.Add(Describe(cands[i]));
-            if (current is { IsSet: true } &&
-                cands[i].TrackIndex == current.TrackIndex && cands[i].Channel == current.Channel)
-                selected = i;
-        }
-        labels.Add("不预设（连播时按声部自动挑）");
-        var autoIndex = labels.Count - 1;
-        if (selected < 0) selected = autoIndex;
-
-        foreach (var l in labels) list.Items.Add(l);
-        list.SelectedIndex = selected;
-
-        var ok = new Button { Content = "确定", Classes = { "accent" }, Padding = new Thickness(18, 6) };
-        var cancel = new Button { Content = "取消", Classes = { "secondary" }, Padding = new Thickness(18, 6) };
-        var dlg = new Window
-        {
-            Title = "选音轨",
-            Width = 460,
-            SizeToContent = SizeToContent.Height,
-            CanResize = false,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Background = Background,
-            FontFamily = FontFamily,
-            Content = new StackPanel
+            GroupName = "TrackPick" + entryIndex,
+            IsChecked = selected,
+            Content = new TextBlock
             {
-                Margin = new Thickness(16),
-                Spacing = 12,
-                Children =
-                {
-                    new TextBlock
-                    {
-                        Text = $"「{songName}」弹哪一行？",
-                        TextWrapping = TextWrapping.Wrap,
-                        FontSize = 13.5,
-                    },
-                    list,
-                    new TextBlock
-                    {
-                        Text = "连播到这一首时会直接弹这一行，不再按声部猜。",
-                        TextWrapping = TextWrapping.Wrap,
-                        FontSize = 12.5,
-                        Opacity = 0.7,
-                    },
-                    new StackPanel
-                    {
-                        Orientation = Orientation.Horizontal,
-                        Spacing = 8,
-                        HorizontalAlignment = HorizontalAlignment.Right,
-                        Children = { cancel, ok },
-                    },
-                },
+                Text = c == null ? "不预设（连播时按声部自动挑）" : Describe(c),
+                FontSize = 12.5,
+                TextTrimming = TextTrimming.CharacterEllipsis,
             },
         };
-        list.DoubleTapped += (_, _) => dlg.Close(list.SelectedIndex);
-        ok.Click += (_, _) => dlg.Close(list.SelectedIndex);
-        cancel.Click += (_, _) => dlg.Close(-2);
-
-        int result = await dlg.ShowDialog<int>(this);
-        if (result == -2) return null;             // 取消
-        if (result == autoIndex) return -1;        // 不预设
-        return result;
+        radio.Click += (_, _) => PickTrack(entryIndex, candIndex);
+        return radio;
     }
 
     // ================= 铺曲目列表 =================
@@ -609,7 +596,7 @@ public partial class PlaylistWindow : Window
 
     /// <summary>
     /// 按当前歌单与搜索词重铺右侧列表。
-    /// 先清选中再清条目：选中项还在时清空会让 ListBox 去读旧下标，直接抛越界。
+    /// 先清选中再清条目：选中项还在时清空，ListBox 会去读旧下标并抛越界。
     /// </summary>
     private void SyncEntryList(int? selectAfter = null)
     {
@@ -684,33 +671,40 @@ public partial class PlaylistWindow : Window
         string sub = missing
             ? "文件已不在：连播时会跳过这一首"
             : entry.Track is { IsSet: true } t
-                ? $"弹：{t.Label}" + (t.NameHint.Length > 0 ? $"「{t.NameHint}」" : "")
+                ? (t.NameHint.Length > 0 ? $"弹这一行的「{t.NameHint}」" : "弹指定的一行")
                 : "弹哪一行：自动（按声部挑）";
 
-        var top = new StackPanel();
-        top.Children.Add(new TextBlock
+        // 按钮上直接写当前选的是哪一行，不用展开就能看见
+        var trackRef = entry.Track;
+        string trackText = trackRef is { IsSet: true }
+            ? $"轨道 {trackRef.TrackIndex + 1} ▾"
+            : "自动 ▾";
+
+        var track = new Button
+        {
+            Name = "BtnTrack",
+            Content = trackText,
+            Classes = { "secondary" },
+            Padding = new Thickness(10, 2),
+            VerticalAlignment = VerticalAlignment.Center,
+            IsEnabled = !missing,
+        };
+        ToolTip.SetTip(track, "指定这一首弹哪一行");
+
+        var left = new StackPanel { Spacing = 2 };
+        left.Children.Add(new TextBlock
         {
             Text = (playing ? "▶ " : "") + file,
             FontSize = 13.5,
             TextTrimming = TextTrimming.CharacterEllipsis,
         });
-        top.Children.Add(new TextBlock
+        left.Children.Add(new TextBlock
         {
             Text = sub,
             FontSize = 12.5,
             Opacity = 0.7,
             TextTrimming = TextTrimming.CharacterEllipsis,
         });
-
-        var track = new Button
-        {
-            Name = "BtnTrack",
-            Content = entry.Track is { IsSet: true } ? "音轨 ✓" : "音轨",
-            Classes = { "secondary" },
-            Padding = new Thickness(10, 2),
-            VerticalAlignment = VerticalAlignment.Center,
-            IsEnabled = !missing,
-        };
 
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("16,*,Auto"), MinHeight = 30 };
         var grip = new TextBlock
@@ -721,15 +715,52 @@ public partial class PlaylistWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
         };
         Grid.SetColumn(grip, 0);
-        Grid.SetColumn(top, 1);
+        Grid.SetColumn(left, 1);
         Grid.SetColumn(track, 2);
         grid.Children.Add(grip);
-        grid.Children.Add(top);
+        grid.Children.Add(left);
         grid.Children.Add(track);
+
+        Control content = grid;
+
+        // 这一行正展开着音轨清单：把候选直接铺在行下面，点一行就选完
+        if (_pickFor == entryIndex && _candCache.TryGetValue(entry.Path, out var cands))
+        {
+            var panel = new StackPanel { Spacing = 2 };
+            panel.Children.Add(new Border
+            {
+                Height = 1,
+                Margin = new Thickness(0, 6, 0, 6),
+                Background = ThemeSwitch.BrushOf("BrushBorder"),
+            });
+            panel.Children.Add(new TextBlock
+            {
+                Text = "弹哪一行？",
+                FontSize = 12.5,
+                Opacity = 0.7,
+                Margin = new Thickness(0, 0, 0, 2),
+            });
+
+            bool matched = false;
+            for (int k = 0; k < cands.Count; k++)
+            {
+                var c = cands[k];
+                bool isCurrent = entry.Track is { IsSet: true } t3 &&
+                                 c.TrackIndex == t3.TrackIndex && c.Channel == t3.Channel;
+                if (isCurrent) matched = true;
+                panel.Children.Add(BuildCandidateRow(entryIndex, k, c, isCurrent));
+            }
+            panel.Children.Add(BuildCandidateRow(entryIndex, -1, null, entry.Track is not { IsSet: true } || !matched));
+
+            var box = new StackPanel();
+            box.Children.Add(grid);
+            box.Children.Add(panel);
+            content = box;
+        }
 
         var item = new ListBoxItem
         {
-            Content = grid,
+            Content = content,
             Tag = entryIndex,
             // 文件不在的曲目：整行压暗。不写死灰色 —— 灰值在深色皮肤下会看不清。
             Opacity = missing ? 0.55 : 1.0,

@@ -1909,10 +1909,7 @@ public partial class MainWindow : Window
     /// 打开文件夹… / 歌单… / 分隔线 / 最近打开 ▸（子菜单里 文件名… + 清空列表）。
     /// 文件夹曲目不再进菜单，改由左栏的「文件夹曲目」卡呈现（见 <see cref="RefreshFolderUi"/>）。
     /// 调用点与旧版一致：构造、载入成功、移除一条、清空列表。
-    ///
-    /// 「歌单…」这一条是 v1.1.22 补的入口：歌单窗口原来只能从左栏那张歌单卡上的
-    /// 「管理…」按钮打开，而那张卡要「选过歌单」才显示 —— 第一次用的人于是没有任何入口，
-    /// 新建歌单的按钮也在窗口里，成了死循环。这一条常驻，永远点得到。
+    /// 「歌单…」这一条常驻：新建歌单的按钮在歌单窗口里，入口不能等「选过歌单」才出现。
     /// </summary>
     private void RefreshRecentUi()
     {
@@ -3484,6 +3481,18 @@ public partial class MainWindow : Window
             RefreshPlaylistCard();
         }
         PlaylistOpen_Click(null, new RoutedEventArgs());
+
+        // 【开发用】展开第 N 行的音轨清单再拍，拍得到行内选音轨那一态；
+        // 给了候选号就连带选一发，顺带验证「选完真的写进歌单文件」。
+        string openRow = Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_PLAYLIST_OPEN") ?? "";
+        string pickCand = Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_PLAYLIST_PICK") ?? "";
+        if (_playlistWindow != null && int.TryParse(openRow, out int row))
+            Dispatcher.UIThread.Post(() =>
+            {
+                _playlistWindow?.OpenTrackPickerForDev(row);
+                if (int.TryParse(pickCand, out int cand)) _playlistWindow?.PickTrackForDev(row, cand);
+            });
+
         return _playlistWindow;
     }
 
@@ -4142,7 +4151,7 @@ public partial class MainWindow : Window
 
     // ================= 歌单卡 =================
 
-    /// <summary>恢复上次选中的歌单（启动时调一次）。目录不存在或文件没了就当没选过。</summary>
+    /// <summary>恢复上次选中的歌单（启动时调一次）。没选过或文件没了就当没选过。</summary>
     private void RestorePlaylistFromConfig()
     {
         string name = _cfg.ActivePlaylist ?? "";
@@ -4182,7 +4191,14 @@ public partial class MainWindow : Window
             ReloadPlaylistFromDisk();
             win.RefreshPlayingMark();
         };
-        win.Closed += (_, _) => _playlistWindow = null;
+        // 左栏选了哪份歌单，立刻记成当前歌单：不记的话重开程序这张卡是空的
+        win.ActiveChanged += name => SetActivePlaylist(name);
+        win.Closed += (_, _) =>
+        {
+            _playlistWindow = null;
+            // 关窗时再同步一次：新建 / 改名 / 删除之后选中的那份才是该记住的
+            if (win.ActiveNameNow.Length > 0) SetActivePlaylist(win.ActiveNameNow);
+        };
 
         _playlistWindow = win;
         win.SelectInitial();
@@ -4192,11 +4208,27 @@ public partial class MainWindow : Window
     /// <summary>歌单窗口改了内容：重新读回来，并刷新左栏那张卡。</summary>
     private void ReloadPlaylistFromDisk()
     {
-        string name = _playlist?.Name ?? _cfg.ActivePlaylist ?? "";
+        string name = _cfg.ActivePlaylist ?? "";
         if (name.Length == 0) { RefreshPlaylistCard(); return; }
         _playlist = PlaylistStore.Load(name);
-        if (_playlist == null && (_cfg.ActivePlaylist ?? "").Length > 0) _cfg.ActivePlaylist = "";
+        if (_playlist == null) _cfg.ActivePlaylist = "";
         RefreshPlaylistCard();
+    }
+
+    /// <summary>
+    /// 把某份歌单记成当前歌单，并刷左栏那张卡。歌单窗口里选一份、新建一份都走这里。
+    /// 只写内存与设置，不写歌单文件。
+    /// </summary>
+    private void SetActivePlaylist(string name)
+    {
+        if (string.Equals(_cfg.ActivePlaylist, name, StringComparison.Ordinal)) return;
+
+        _cfg.ActivePlaylist = name;
+        _playlist = PlaylistStore.Load(name);
+        SaveSettings();
+        RefreshPlaylistCard();
+        if (_playlist != null)
+            InsertLog($"当前歌单：{name}（{_playlist.Count} 首），下次启动自动恢复。");
     }
 
     private void PlaylistClose_Click(object? sender, RoutedEventArgs e)
@@ -4254,10 +4286,9 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 重铺左栏的歌单卡。卡片**始终可见**（v1.1.22 改的）：
-    /// 原来「没选过歌单就整张卡隐藏」，于是第一次用的人看不到卡，也就看不到卡上的「管理…」按钮，
-    /// 而新建歌单在那个窗口里 —— 没有起点。现在空态也在，卡里直接写下一步做什么。
-    /// 先清选中再清条目：选中项还在时清空会让 ListBox 读旧下标并抛越界。
+    /// 重铺左栏的歌单卡。卡片始终可见，没有当前歌单时卡里直接写下一步做什么 ——
+    /// 「管理…」按钮在这张卡上，整张卡藏起来就没人找得到歌单窗口。
+    /// 先清选中再清条目：选中项还在时清空，ListBox 会去读旧下标并抛越界。
     /// </summary>
     private void RefreshPlaylistCard()
     {

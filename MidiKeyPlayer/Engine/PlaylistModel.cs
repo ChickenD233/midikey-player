@@ -4,11 +4,8 @@ using MidiKeyPlayer.Midi;
 namespace MidiKeyPlayer.Engine;
 
 /// <summary>
-/// 歌单条目里钉住的音轨。歌单可以预先替每一首记好「弹哪一行」，
-/// 这样连播到这一首时不用再猜。两个字段一起用，光有轨道号不足以定位一行。
-///
-/// 存轨道号而不是存声部身份（旋律 / 人声 / 贝斯…）：身份会随识别结果漂移 ——
-/// 同一首歌今天识别成「旋律」，改天按音域推断成「伴奏」，条目就指到别的行上去了。
+/// 歌单条目里钉住的音轨：歌单可以预先替每一首记好「弹哪一行」，连播时不用再猜。
+/// 存轨道号加声道，不存声部身份 —— 身份随识别结果漂移，条目会指到别的行上去。
 /// </summary>
 public sealed class TrackRef
 {
@@ -18,14 +15,15 @@ public sealed class TrackRef
     /// <summary>声道号（0 起）。</summary>
     public int Channel { get; set; } = -1;
 
-    /// <summary>加进歌单时的轨名，只用于界面显示与换文件后的兜底提示。</summary>
+    /// <summary>选音轨时的轨名。只用于界面显示与换文件后的兜底提示。</summary>
     public string NameHint { get; set; } = "";
 
     /// <summary>是否是一份有效的定位信息。</summary>
     [JsonIgnore]
     public bool IsSet => TrackIndex >= 0 && Channel >= 0;
 
-    /// <summary>界面文案，与主界面右侧那句「主旋律：轨道 2 / 声道 1」同一套说法。</summary>
+    /// <summary>界面文案，与主界面那句「主旋律：轨道 2 / 声道 1」同一套说法。现算，不存盘。</summary>
+    [JsonIgnore]
     public string Label => IsSet
         ? $"轨道 {TrackIndex + 1} / 声道 {Channel + 1}"
         : "未指定";
@@ -76,10 +74,8 @@ public readonly record struct TrackPick(MidiCandidate? Candidate, string Reason,
 public static class PlaylistModel
 {
     /// <summary>
-    /// 从候选行里克出一个下标，用于「歌单没预设音轨」或「预设的行已经不在文件里」两种情况。
-    ///
-    /// 优先级：同声部身份的行（轨道号最小的那个）→ 第一条非打击乐行 → 第一条。
-    /// 只认 <see cref="TrackRef"/> 里的轨道号加声道，不猜别的。
+    /// 从候选行里克出一个下标。用于「歌单没预设音轨」与「预设的行已经不在文件里」两种情况。
+    /// 优先级：歌单预设的行 → 上一首的声部身份 → 第一条非打击乐行 → 第一条。
     /// </summary>
     /// <param name="candidates">当前文件解析出来的候选行。</param>
     /// <param name="preferred">歌单里预先选好的音轨，可以为空。</param>
@@ -122,7 +118,7 @@ public static class PlaylistModel
     }
 
     /// <summary>
-    /// 把一份候选行里的下标为 <paramref name="from"/> 的条目挪到 <paramref name="to"/>。
+    /// 把下标 <paramref name="from"/> 的条目挪到 <paramref name="to"/>。
     /// 上移、下移、拖放三条路都调这一个函数，自检测的也是它。
     /// 下标越界或原地不动返回 false，调用方据此跳过重画。
     /// </summary>

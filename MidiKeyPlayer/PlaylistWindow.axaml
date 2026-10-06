@@ -7,11 +7,10 @@
         Background="{DynamicResource BrushCanvas}"
         FontFamily="{DynamicResource FontUi}">
   <!-- 歌单窗口：左边选歌单，右边排歌。
-       它没有放进设置窗口，因为设置窗口在演奏中打不开（OpenSettings 对播放状态提前返回），
-       而「一边放歌一边改下一首的顺序」正是这个窗口的主要用法。
+       它没有放进设置窗口：设置窗口在演奏中打不开，而「一边放歌一边改下一首的顺序」正是这里的用法。
 
        曲目行由代码搭（见 PlaylistWindow.axaml.cs 的 BuildEntryRow），不用 ItemTemplate：
-       本仓库的 FolderList / TrackList / 键位表都是这个写法，行里要放按钮时只有这条走得通。 -->
+       行里要放按钮时只有这个写法走得通，文件夹曲目卡与键位表都是这么写的。 -->
   <Grid RowDefinitions="*,Auto" Margin="14">
     <Grid Grid.Row="0" ColumnDefinitions="220,*">
 
@@ -25,7 +24,7 @@
             <Button x:Name="BtnPlaylistNew" Content="新建" Classes="secondary" Padding="12,4"
                     Click="PlaylistNew_Click" ToolTip.Tip="新建一份空歌单"/>
             <Button x:Name="BtnPlaylistRename" Content="改名" Classes="secondary" Padding="12,4"
-                    Click="PlaylistRename_Click" ToolTip.Tip="给当前歌单改名。文件名跟着换，旧文件会删掉"/>
+                    Click="PlaylistRename_Click" ToolTip.Tip="给当前歌单改名。文件名跟着换"/>
             <Button x:Name="BtnPlaylistDelete" Content="删除" Classes="secondary" Padding="12,4"
                     Click="PlaylistDelete_Click" ToolTip.Tip="删除整份歌单。会先确认一次"/>
           </WrapPanel>
@@ -50,9 +49,9 @@
             <Button x:Name="BtnAddFolder" Content="整个文件夹…" Classes="secondary" Padding="12,4"
                     Click="AddFolder_Click" ToolTip.Tip="把一个文件夹里的全部 MIDI 按文件名顺序加入当前歌单"/>
             <Button x:Name="BtnRemove" Content="移除" Classes="secondary" Padding="12,4"
-                    Click="Remove_Click" ToolTip.Tip="把选中的曲目移出歌单。不删磁盘上的文件"/>
+                    Click="Remove_Click" ToolTip.Tip="把选中的曲目移出歌单。磁盘上的文件不动"/>
             <Button x:Name="BtnUp" Content="上移" Classes="secondary" Padding="12,4"
-                    Click="Up_Click" ToolTip.Tip="把选中的曲目往上挪一格。演奏顺序就是列表顺序"/>
+                    Click="Up_Click" ToolTip.Tip="把选中的曲目往上挪一格。列表顺序就是演奏顺序"/>
             <Button x:Name="BtnDown" Content="下移" Classes="secondary" Padding="12,4"
                     Click="Down_Click" ToolTip.Tip="把选中的曲目往下挪一格。也可以直接拖动某一行"/>
           </WrapPanel>
@@ -66,7 +65,7 @@
 
           <TextBlock Grid.Row="3" x:Name="TxtHint" Classes="caption" Margin="0,8,0,0"
                      TextWrapping="Wrap"
-                     Text="演奏顺序就是列表顺序。点「音轨」替这一首预先选好弹哪一行，连播时就不必再猜。"/>
+                     Text="列表顺序就是演奏顺序。点曲目右边的「自动 ▾」就能指定这一首弹哪一行，连播时不必再猜。"/>
         </Grid>
       </Border>
     </Grid>

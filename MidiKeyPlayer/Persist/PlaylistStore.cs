@@ -7,16 +7,17 @@ namespace MidiKeyPlayer.Engine;
 /// <summary>
 /// 歌单的读写。每份歌单一个 JSON 文件，放在
 /// <c>%LOCALAPPDATA%\MidiKeyPlayer\playlists\&lt;歌单名&gt;.json</c>。
-///
-/// 为什么一份歌单一个文件（而不是全塞进 settings.json）：
-///   1. 歌单数量没有上限，全塞一个文件会让每次保存都重写全部内容。
-///   2. 一份歌单写坏了只坏它自己，不会带坏设置和别的歌单。
-/// 这套做法照抄键位方案的 <c>schemes\</c> 目录：文件名清洗、原子写入都一样。
+/// 与键位方案的 <c>schemes\</c> 目录同一套做法：文件名清洗、原子写入。
+/// 一份歌单一个文件，写坏了只坏它自己，也不必每次保存都重写全部歌单。
 /// </summary>
 public static class PlaylistStore
 {
+    /// <summary>【开发用】把歌单目录临时指到别处，默认 null = 真实目录。只在自检里赋值。</summary>
+    internal static string? DirPathForDev { get; set; }
+
     /// <summary>歌单文件所在目录。</summary>
     public static string DirPath =>
+        DirPathForDev ??
         Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "MidiKeyPlayer",
@@ -28,8 +29,8 @@ public static class PlaylistStore
     private static readonly char[] InvalidChars = Path.GetInvalidFileNameChars();
 
     /// <summary>
-    /// 歌单名 → 文件名（不含扩展名）。非法字符换成下划线，空名给兜底名。
-    /// 界面显示用歌单名本身，文件名只落地用。
+    /// 歌单名 → 文件名（不含扩展名）。非法字符换成下划线，洗不出名字就给兜底名。
+    /// 界面显示歌单名本身，文件名只落地用。
     /// </summary>
     public static string SanitizeFileName(string? name)
     {
@@ -49,8 +50,8 @@ public static class PlaylistStore
         Path.Combine(DirPath, SanitizeFileName(name) + ".json");
 
     /// <summary>
-    /// 读全部歌单，按名字排序。目录不存在、某个文件读不动，都只记一行日志并跳过，
-    /// 不抛异常 —— 一份坏歌单不该让程序起不来。
+    /// 读全部歌单，按名字排序。目录不在、某个文件读不动，都只记一行日志再跳过 ——
+    /// 一份坏歌单不该让程序起不来。
     /// </summary>
     public static List<Playlist> LoadAll()
     {
@@ -137,10 +138,7 @@ public static class PlaylistStore
         }
     }
 
-    /// <summary>
-    /// 改名：按新名字另存一份，再把旧文件删掉。
-    /// 只改文件不删旧的会留下一个孤儿文件，下次启动就多出一份重名歌单。
-    /// </summary>
+    /// <summary>改名：按新名字另存一份，再删旧文件。留着旧文件，下次启动会多出一份重名歌单。</summary>
     public static bool Rename(string? oldName, Playlist playlist)
     {
         string oldFile = FilePathFor(oldName);
@@ -159,14 +157,16 @@ public static class PlaylistStore
 }
 
 /// <summary>
-/// 歌单的 JSON 上下文。和设置一样走源生成：发布开了裁剪，反射式序列化随时可能被裁掉，
-/// 而读写失败是静默的，表现成「歌单存不住」这种查不出来的毛病。
-/// 命名策略是 camelCase + 大小写不敏感，与键位方案文件保持一致。
+/// 歌单的 JSON 上下文。与设置一样走源生成：发布开了裁剪，反射式序列化随时可能被裁掉。
+/// camelCase + 大小写不敏感，和键位方案文件一致。
+/// 值里带 Skip：文件里多出字段就跳过。老版本写出来的歌单带过一个 label 字段，
+/// 读到它不能整份作废。
 /// </summary>
 [JsonSourceGenerationOptions(
     WriteIndented = true,
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
-    PropertyNameCaseInsensitive = true)]
+    PropertyNameCaseInsensitive = true,
+    UnmappedMemberHandling = JsonUnmappedMemberHandling.Skip)]
 [JsonSerializable(typeof(Playlist))]
 internal sealed partial class PlaylistJson : JsonSerializerContext
 {

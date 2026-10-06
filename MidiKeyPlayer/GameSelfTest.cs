@@ -88,6 +88,7 @@ internal static partial class GameSelfTest
             TestTrackRoles();
             TestRemoteSync();
             TestPlaylistAdvance();
+            TestPlaylistStore();
         }
         catch (Exception ex)
         {
@@ -1181,6 +1182,81 @@ internal static partial class GameSelfTest
         var pickTwin = PlaylistModel.Pick(twins, null, TrackRole.Melody);
         Check("挑音轨：同声部取轨道号最小的",
             pickTwin.Found && pickTwin.Candidate!.TrackIndex == 1, pickTwin.Reason);
+    }
+
+    // ================= 歌单存盘（v1.1.23） =================
+
+    /// <summary>
+    /// 歌单的落盘与读回。目录用 <see cref="PlaylistStore.DirPathForDev"/> 指到临时目录，不碰用户真正的歌单。
+    ///
+    /// 这条回归对应的 bug 是「歌单存不住」：TrackRef.Label 只有取值器，写盘照写，
+    /// 读回来时反序列化撞上「没有写入器」抛异常，被 LoadAll 的 catch 吞掉 ——
+    /// 表现成「存了也白存，重开就没了」。所以这里专门读一遍刚写的文件。
+    /// </summary>
+    private static void TestPlaylistStore()
+    {
+        string tmp = Path.Combine(Path.GetTempPath(), "midikey-selftest-playlists-" + Guid.NewGuid().ToString("N"));
+        string dir = Path.Combine(tmp, "playlists");
+        try
+        {
+            Directory.CreateDirectory(dir);
+            PlaylistStore.DirPathForDev = dir;
+
+            if (!string.Equals(PlaylistStore.DirPath, dir, StringComparison.OrdinalIgnoreCase))
+            {
+                Check("歌单：自检目录指向临时目录", false, $"实得 {PlaylistStore.DirPath}");
+                return;
+            }
+            Check("歌单：自检目录指向临时目录", true, dir);
+
+            string path = PlaylistStore.FilePathFor("回归歌单");
+            var list = Playlist.Create("回归歌单");
+            list.Entries.Add(new PlaylistEntry
+            {
+                Path = @"C:\示例\第一首.mid",
+                Track = new TrackRef { TrackIndex = 1, Channel = 0, NameHint = "女声部" },
+            });
+            list.Entries.Add(new PlaylistEntry { Path = @"C:\示例\第二首.mid" });
+
+            Check("歌单：保存成功", PlaylistStore.Save(list), path);
+            Check("歌单：存完文件在", File.Exists(path), path);
+
+            var back = PlaylistStore.Load("回归歌单");
+            Check("歌单：读得回来", back != null);
+            Check("歌单：曲目数对得上", back?.Count == 2, $"实得 {back?.Count}");
+            Check("歌单：第一首的路径没丢",
+                back?.Entries[0].Path == @"C:\示例\第一首.mid", back?.Entries[0].Path ?? "");
+            Check("歌单：预设音轨没丢",
+                back?.Entries[0].Track is { TrackIndex: 1, Channel: 0, NameHint: "女声部" },
+                back?.Entries[0].Track?.Label ?? "null");
+            Check("歌单：第二首没有预设音轨", back?.Entries[1].Track == null);
+
+            string json = File.ReadAllText(path);
+            Check("歌单：显示用的 label 不写进文件", !json.Contains("\"label\""), json.Length + " 字符");
+
+            // v1.1.21 写出来的文件带 label 字段。读得回来才不会让已经存下的歌单作废。
+            File.WriteAllText(path, json.Replace("\"nameHint\": \"女声部\",", "\"nameHint\": \"女声部\", \"label\": \"轨道 2 / 声道 1\","), new UTF8Encoding(false));
+            var legacy = PlaylistStore.Load("回归歌单");
+            Check("歌单：旧文件里多出来的 label 字段不挡读盘",
+                legacy?.Count == 2 && legacy.Entries[0].Track is { TrackIndex: 1 },
+                legacy == null ? "读回来是 null" : $"实得 {legacy.Count} 首");
+
+            var all = PlaylistStore.LoadAll();
+            Check("歌单：列目录能列出来", all.Count == 1, $"实得 {all.Count} 份");
+            Check("歌单：按名字找得到", all.Count > 0 && all[0].Name == "回归歌单",
+                all.Count > 0 ? all[0].Name : "一份都没有");
+
+            Check("歌单：删掉就没了", PlaylistStore.Delete("回归歌单") && !File.Exists(path));
+        }
+        catch (Exception ex)
+        {
+            Check("歌单：用例没抛异常", false, ex.GetType().Name + ": " + ex.Message);
+        }
+        finally
+        {
+            PlaylistStore.DirPathForDev = null;
+            try { if (Directory.Exists(tmp)) Directory.Delete(tmp, true); } catch { }
+        }
     }
 
     /// <summary>造一个候选行，供挑音轨用例使用（不走 MIDI 解析，直接给结论）。</summary>

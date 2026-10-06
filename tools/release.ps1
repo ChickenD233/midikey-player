@@ -1,4 +1,4 @@
-﻿#Requires -Version 5.1
+#Requires -Version 5.1
 <#
 .SYNOPSIS
     发一个新版本：版本号自动加一，写更新日志，构建、自检、提交、打 tag、上传。
@@ -208,6 +208,35 @@ function Invoke-Build {
 function Get-ReleaseExe { Join-Path $RepoRoot 'MidiKeyPlayer\release\win-x64\MidiKeyPlayer.exe' }
 function Get-ReleaseZip([string]$version) { Join-Path $RepoRoot "MidiKeyPlayer\release\MidiKeyPlayer-win-x64-$version.zip" }
 
+# 校验用的 exe：默认就是刚构建出来的那个。仓库路径带非 ASCII 字符时（例如 E:\...\工作区\...），
+# apphost 会以 "Failed to resolve full path of the current executable" 退出，自检与快照都跑不起来。
+# 这种情况把同一个 exe 原样复制到 %TEMP% 下的纯 ASCII 路径再跑：
+# 复制出来的是同一个文件（字节一致），校验结论照样成立。
+# 探针本身就跑一次自检（几秒）；路径正常时这一次探测顺带把自检跑掉了。
+function Resolve-TestExe([string]$exe) {
+    $probe = Join-Path $env:TEMP ('midikey-hostprobe-' + [guid]::NewGuid().ToString('N') + '.txt')
+    $old = $env:MIDIKEY_GAME_SELFTEST
+    $env:MIDIKEY_GAME_SELFTEST = $probe
+    try {
+        $p = Start-Process -FilePath $exe -PassThru
+        [void]$p.WaitForExit(60000)
+        $code = $p.ExitCode
+    }
+    finally {
+        if ($null -eq $old) { Remove-Item Env:\MIDIKEY_GAME_SELFTEST -ErrorAction SilentlyContinue }
+        else { $env:MIDIKEY_GAME_SELFTEST = $old }
+        Remove-Item -LiteralPath $probe -ErrorAction SilentlyContinue
+    }
+    if ($code -eq 0) { return $exe }
+
+    $mirror = Join-Path $env:TEMP ('midikey-testexe-' + (Get-FileHash $exe -Algorithm SHA256).Hash.Substring(0, 12))
+    New-Item -ItemType Directory -Force -Path $mirror | Out-Null
+    Copy-Item -LiteralPath $exe -Destination (Join-Path $mirror 'MidiKeyPlayer.exe') -Force
+    Write-Host "   注意：仓库路径带非 ASCII 字符，apphost 起不来（退出码 $code）。"
+    Write-Host "   自检与快照改用同一份 exe 的 ASCII 副本：$(Join-Path $mirror 'MidiKeyPlayer.exe')"
+    return (Join-Path $mirror 'MidiKeyPlayer.exe')
+}
+
 function Invoke-SelfTest([string]$exe) {
     & $SelfTest -ExePath ([System.IO.Path]::GetFullPath($exe)) -TimeoutSeconds 180
     if ($LASTEXITCODE -ne 0) { throw "内置自检没有通过，退出码 $LASTEXITCODE。" }
@@ -294,12 +323,24 @@ function Invoke-Snapshot([string]$exe, [string]$tag) {
     Remove-Item Env:\MIDIKEY_UI_SNAPSHOT_PLAYLIST, Env:\MIDIKEY_UI_SNAPSHOT_PLAYLIST_DIR -ErrorAction SilentlyContinue
     if ($sp.ExitCode -ne 0) { throw "歌单窗口快照退出码 $($sp.ExitCode)。" }
 
-    foreach ($f in @($main, $keymap, $advanced, $sponsor, $sync, $syncPaused, $dark, $playlist)) {
+    # 歌单窗口展开音轨清单（v1.1.23）：行内选音轨那一态，展开第 3 行再拍。
+    $playlistOpen = Join-Path $env:TEMP "midikey-release-$tag-playlist-open.png"
+    Remove-Item $playlistOpen -ErrorAction SilentlyContinue
+    $env:MIDIKEY_UI_SNAPSHOT_PLAYLIST = $playlistOpen
+    $env:MIDIKEY_UI_SNAPSHOT_PLAYLIST_DIR = (Join-Path $RepoRoot '示例MIDI')
+    $env:MIDIKEY_UI_SNAPSHOT_PLAYLIST_OPEN = '2'
+    $so = Start-Process -FilePath $exe -PassThru
+    [void]$so.WaitForExit(180000)
+    Remove-Item Env:\MIDIKEY_UI_SNAPSHOT_PLAYLIST, Env:\MIDIKEY_UI_SNAPSHOT_PLAYLIST_DIR, `
+        Env:\MIDIKEY_UI_SNAPSHOT_PLAYLIST_OPEN -ErrorAction SilentlyContinue
+    if ($so.ExitCode -ne 0) { throw "歌单窗口展开音轨快照退出码 $($so.ExitCode)。" }
+
+    foreach ($f in @($main, $keymap, $advanced, $sponsor, $sync, $syncPaused, $dark, $playlist, $playlistOpen)) {
         if (-not (Test-Path -LiteralPath $f)) { throw "快照没出图：$f" }
         if ((Get-Item -LiteralPath $f).Length -lt 10000) { throw "快照太小，可能是空白：$f" }
     }
-    Write-Host ("   主窗 " + (Get-Item $main).Length + " 字节；键位窗 " + (Get-Item $keymap).Length + " 字节；高级窗 " + (Get-Item $advanced).Length + " 字节；赞助页 " + (Get-Item $sponsor).Length + " 字节；实验功能页 " + (Get-Item $sync).Length + " 字节；实验功能页暂停态 " + (Get-Item $syncPaused).Length + " 字节；深色主窗 " + (Get-Item $dark).Length + " 字节；歌单窗 " + (Get-Item $playlist).Length + " 字节")
-    return @{ Main = $main; Keymap = $keymap; Advanced = $advanced; Sponsor = $sponsor; Sync = $sync; SyncPaused = $syncPaused; Dark = $dark; Playlist = $playlist }
+    Write-Host ("   主窗 " + (Get-Item $main).Length + " 字节；键位窗 " + (Get-Item $keymap).Length + " 字节；高级窗 " + (Get-Item $advanced).Length + " 字节；赞助页 " + (Get-Item $sponsor).Length + " 字节；实验功能页 " + (Get-Item $sync).Length + " 字节；实验功能页暂停态 " + (Get-Item $syncPaused).Length + " 字节；深色主窗 " + (Get-Item $dark).Length + " 字节；歌单窗 " + (Get-Item $playlist).Length + " 字节；歌单窗展开音轨 " + (Get-Item $playlistOpen).Length + " 字节")
+    return @{ Main = $main; Keymap = $keymap; Advanced = $advanced; Sponsor = $sponsor; Sync = $sync; SyncPaused = $syncPaused; Dark = $dark; Playlist = $playlist; PlaylistOpen = $playlistOpen }
 }
 
 # 文件夹曲目卡换歌回归：连续点三首，每步都要换过去，列表行数不能塌。
@@ -519,13 +560,13 @@ try {
     Write-Host "   exe $((Get-Item $exe).Length) 字节；zip $((Get-Item $zip).Length) 字节"
 
     Write-Step '内置自检'
-    Invoke-SelfTest $exe
+    Invoke-SelfTest (Resolve-TestExe $exe)
 
     Write-Step '界面快照'
-    $shots = Invoke-Snapshot $exe 'trim'
+    $shots = Invoke-Snapshot (Resolve-TestExe $exe) 'trim'
 
     Write-Step '文件夹曲目卡换歌回归'
-    Invoke-FolderProbe $exe
+    Invoke-FolderProbe (Resolve-TestExe $exe)
 
     if ($TrimParity) {
         Write-Step '裁剪比对：另建一份不裁剪的 exe，逐字节比快照'
@@ -587,6 +628,7 @@ finally {
     Remove-Item Env:\MIDIKEY_UI_SNAPSHOT, Env:\MIDIKEY_UI_SNAPSHOT_KEYMAP, Env:\MIDIKEY_UI_SNAPSHOT_MIX, `
         Env:\MIDIKEY_UI_SNAPSHOT_MIDI, Env:\MIDIKEY_UI_SNAPSHOT_REPORT, Env:\MIDIKEY_UI_SNAPSHOT_THEME, `
         Env:\MIDIKEY_UI_SNAPSHOT_ADVANCED, Env:\MIDIKEY_UI_SNAPSHOT_SPONSOR, Env:\MIDIKEY_UI_SNAPSHOT_SYNC, `
-        Env:\MIDIKEY_UI_SNAPSHOT_SYNC_STATE, `
+        Env:\MIDIKEY_UI_SNAPSHOT_SYNC_STATE, Env:\MIDIKEY_UI_SNAPSHOT_PLAYLIST, `
+        Env:\MIDIKEY_UI_SNAPSHOT_PLAYLIST_DIR, Env:\MIDIKEY_UI_SNAPSHOT_PLAYLIST_OPEN, `
         Env:\MIDIKEY_UI_SNAPSHOT_FOLDER, Env:\MIDIKEY_UI_SNAPSHOT_FOLDER_REPORT -ErrorAction SilentlyContinue
 }
