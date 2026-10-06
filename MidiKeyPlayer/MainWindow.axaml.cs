@@ -2053,6 +2053,9 @@ public partial class MainWindow : Window
             // 自动推荐轨已移除（猜得不准反而误导）：载入后不预选，请用户自己点一行
             InsertLog("点左侧一行作为主旋律轨（选中的行带 ● 标记）。");
             RefreshPreview();
+            // 这首歌在歌单里勾过音轨就按勾选来：文件夹曲目卡、最近打开、双击歌单，
+            // 三条路载入同一首看到的勾选与画面必须一样
+            ApplyPlaylistTracksFor(path);
             RememberRecentFile(path);   // 载入成功才记：读不动的文件不进「最近打开」
             // 曲目卡跟随当前文件所在目录：从别处打开一首歌后，卡片自动列那个目录，接着换曲不用再选文件夹。
             // 目录没变就不重扫，避免每次换歌都重排列表。
@@ -3515,6 +3518,43 @@ public partial class MainWindow : Window
     /// <summary>【开发用】当前的设置窗口。没开就是 null。</summary>
     internal SettingsWindow? SettingsWindowForDev => _settingsWindow;
 
+    /// <summary>
+    /// 【开发用】按「歌单名|序号」载入歌单里的一首（走用户点歌单那一行同一条链路），
+    /// 返回一行诊断：勾了几行、实际演奏几行、卷帘上几个音。用来验证歌单勾选真的落到卷帘上。
+    /// </summary>
+    internal string LoadPlaylistEntryForDev(string spec)
+    {
+        // 「folder:<路径>」= 按文件夹曲目那条路载入（不是从歌单点开），
+        // 用来验证「同一首歌从别的入口打开，勾选照样上身」。
+        if (spec.StartsWith("folder:", StringComparison.OrdinalIgnoreCase))
+        {
+            string p = spec.Substring("folder:".Length);
+            LoadMidiFile(p);
+            int m2 = _tracks.Count(t => t.IsMix);
+            return $"文件夹入口载入 {System.IO.Path.GetFileName(p)}：界面勾中 {m2} 行，"
+                 + $"实际演奏 {ActiveRows().Count} 行，卷帘 {Roll.NoteCount} 个音";
+        }
+
+        var parts = spec.Split('|');
+        string name = parts[0];
+        int index = parts.Length > 1 && int.TryParse(parts[1], out int i) ? i : 0;
+
+        _playlist = PlaylistStore.Load(name);
+        if (_playlist == null) return $"歌单「{name}」读不到";
+        if (index < 0 || index >= _playlist.Count) return $"歌单「{name}」没有第 {index + 1} 首";
+        _cfg.ActivePlaylist = name;
+        RefreshPlaylistCard();
+
+        var entry = _playlist.Entries[index];
+        string file = System.IO.Path.GetFileName(entry.Path);
+        LoadPlaylistEntry(entry.Path, playNow: false);
+
+        int mix = _tracks.Count(t => t.IsMix);
+        var active = ActiveRows();
+        return $"歌单「{name}」第 {index + 1} 首 {file}：文件里勾了 {entry.Tracks.Count} 行，"
+             + $"界面勾中 {mix} 行，实际演奏 {active.Count} 行，卷帘 {Roll.NoteCount} 个音";
+    }
+
     /// <summary>设置窗口的回调：saved 非空表示刚保存的方案，message 是要记进日志的中文说明。</summary>
     private void OnKeymapPath(KeymapProfile? saved, string message)
     {
@@ -4153,6 +4193,28 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// 这首歌在当前歌单里勾过音轨吗？勾过就按勾选来（勾选的行显示在卷帘上）。
+    /// 载入结束后无论从哪条路进来都调一次 —— 文件夹曲目卡、最近打开、双击歌单，
+    /// 载入同一首得到的勾选与画面必须一样。没在歌单里、或没勾过，就什么都不做。
+    /// </summary>
+    /// <returns>true = 按歌单勾选设好了；false = 没动。</returns>
+    private bool ApplyPlaylistTracksFor(string path)
+    {
+        if (path.Length == 0) return false;
+        var list = _playlist ??= (_cfg.ActivePlaylist ?? "").Length > 0
+            ? PlaylistStore.Load(_cfg.ActivePlaylist)
+            : null;
+        if (list == null) return false;
+
+        var entry = list.Entries.FirstOrDefault(x =>
+            string.Equals(x.Path, path, StringComparison.OrdinalIgnoreCase));
+        if (entry == null || entry.Tracks.Count == 0) return false;
+
+        SelectTrackForEntry(entry);
+        return true;
+    }
+
+    /// <summary>
     /// 勾选 / 取消勾选「合」列，并同步主旋律行与谱面。
     /// <paramref name="picks"/> 为 null = 全选。
     /// </summary>
@@ -4318,8 +4380,7 @@ public partial class MainWindow : Window
         }
 
         _sourceIsPlaylist = true;
-        bool loaded = LoadMidiFile(entry.Path);
-        if (loaded) SelectTrackForEntry(entry);
+        bool loaded = LoadMidiFile(entry.Path);   // 勾选由 LoadMidiFile 里的 ApplyPlaylistTracksFor 统一应用
 
         RefreshPlaylistCard();
         if (playNow && loaded) RequestPlay(skipCountdown: true);
@@ -4406,7 +4467,7 @@ public partial class MainWindow : Window
             if (TxtPlaylistEmpty != null)
             {
                 // 歌单是空的：卡里别写着「还没有歌单」—— 歌单在，只是没歌，下一步不一样
-                TxtPlaylistEmpty.Text = "这份歌单还是空的。点「管理…」用「加入 MIDI…」往里放歌。";
+                TxtPlaylistEmpty.Text = "点「管理…」加入曲目。";
                 TxtPlaylistEmpty.IsVisible = total == 0;
             }
 

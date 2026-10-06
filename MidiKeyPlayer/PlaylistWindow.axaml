@@ -60,9 +60,14 @@
                行（ListBoxItem）会先把按下标记成「已处理」，XAML 挂的收不到。见构造函数。 -->
           <ListBox Grid.Row="2" x:Name="EntryList" SelectionMode="Single"/>
 
+          <!-- 拖动时的落点线：不说清「会插到哪一行前面」，拖动就没有反馈 -->
+          <Border Grid.Row="2" x:Name="DropLine" Height="2" IsHitTestVisible="False" IsVisible="False"
+                  HorizontalAlignment="Stretch" VerticalAlignment="Top" ZIndex="10"
+                  Background="{DynamicResource BrushAccent}"/>
+
           <TextBlock Grid.Row="3" x:Name="TxtHint" Classes="caption" Margin="0,8,0,0"
                      TextWrapping="Wrap"
-                     Text="列表顺序就是演奏顺序，可以直接拖动某一行改。点曲目右边的「全部 ▾」勾这一首弹哪几行，可以勾多个；没勾过就是全部音轨都弹。"/>
+                     Text="「全部 ▾」勾要弹的音轨，不勾就是全弹。拖动行首可改顺序。"/>
         </Grid>
       </Border>
     </Grid>

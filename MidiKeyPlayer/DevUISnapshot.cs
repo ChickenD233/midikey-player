@@ -160,6 +160,14 @@ public partial class MainWindow
                 window.MixAllPlayableTracksForDev();
             }
 
+            // MIDIKEY_UI_SNAPSHOT_PLAYLIST_ENTRY=<歌单名>|<序号>：按歌单里第 N 首走一遍
+            // 「从歌单点开」那条链路，然后拍主窗。用来验证「歌单勾的音轨真的显示在卷帘上」。
+            var entrySpec = Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_PLAYLIST_ENTRY");
+            if (!string.IsNullOrWhiteSpace(entrySpec))
+            {
+                Log("歌单条目场景：" + window.LoadPlaylistEntryForDev(entrySpec!));
+            }
+
             // 浮层快照（MIDIKEY_UI_SNAPSHOT_OVERLAY=notice|forced）：必须在这里挂上。
             // 900ms 那个计时器是在同一帧里改可见性再拍图，拍到的还是上一帧的画面，
             // 所以浮层要提前开，等下一次渲染完再拍。

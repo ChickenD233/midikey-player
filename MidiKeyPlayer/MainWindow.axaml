@@ -181,11 +181,11 @@
             <Button x:Name="BtnPlaylistOpen" Grid.Column="2" Content="管理…" Margin="8,0,0,0"
                     FontSize="{DynamicResource FontCaption}" Padding="10,3" Classes="secondary"
                     Click="PlaylistOpen_Click"
-                    ToolTip.Tip="打开歌单窗口：新建、加入曲目、调整顺序、替每一首预先选好音轨。演奏中也能开"/>
+                    ToolTip.Tip="打开歌单窗口：新建、加入曲目、拖动改顺序、勾选要弹的音轨"/>
             <Button x:Name="BtnPlaylistClose" Grid.Column="3" Content="关闭" Margin="8,0,0,0"
                     FontSize="{DynamicResource FontCaption}" Padding="10,3" Classes="secondary"
                     Click="PlaylistClose_Click"
-                    ToolTip.Tip="收起这张卡，并清掉设置里记住的歌单（下次启动不再显示它的曲目）。歌单文件不会被删"/>
+                    ToolTip.Tip="收起这张卡，并清掉设置里记住的歌单。歌单文件不删"/>
           </Grid>
 
           <!-- 固定高度 150：与文件夹曲目卡同高，两张卡高度不随曲目数量跳动。 -->
@@ -198,7 +198,7 @@
             <TextBlock x:Name="TxtPlaylistEmpty" IsVisible="False"
                        HorizontalAlignment="Center" VerticalAlignment="Center" Margin="12,10"
                        Classes="caption" TextWrapping="Wrap" TextAlignment="Center"
-                       Text="还没有歌单。点上面的「管理…」，在「新建」里建一份，再用「加入 MIDI…」放歌。"/>
+                       Text="点「管理…」新建一份歌单。"/>
           </Grid>
         </StackPanel>
       </Border>

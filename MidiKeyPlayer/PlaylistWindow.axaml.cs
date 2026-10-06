@@ -37,10 +37,11 @@ public partial class PlaylistWindow : Window
     /// <summary>解析过的候选行，按文件路径缓存。展开音轨清单时不必再读一遍文件。</summary>
     private readonly Dictionary<string, List<MidiCandidate>> _candCache = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>拖动状态：按下时的行下标、起点、是否已经越过阈值。</summary>
+    /// <summary>拖动状态：按下时的行下标、起点、是否已经越过阈值、当前落点。</summary>
     private int _dragFrom = -1;
     private Point _dragStart;
     private bool _dragging;
+    private (int Row, bool After)? _dropAt;
 
     /// <summary>拖动阈值（像素）。太小会和「点一下选中」打架。</summary>
     private const double DragThreshold = 12;
@@ -81,9 +82,20 @@ public partial class PlaylistWindow : Window
     /// <summary>窗口里当前选中的歌单名；一份都没选是空串。关窗时主窗口拿它收尾。</summary>
     public string ActiveNameNow => _current?.Name ?? "";
 
-    /// <summary>【开发用】拖动状态 + 某个坐标算出来的行，供回归探针判断拖放在哪一步断掉。</summary>
-    internal string DragStateForDev(Point p) =>
-        $"from={_dragFrom} dragging={_dragging} indexAt({p.X:F0},{p.Y:F0})={IndexAt(p)} count={EntryList.ItemCount}";
+    /// <summary>【开发用】重新列一遍歌单并按名字选中（探针要切到自己刚建的歌单上）。</summary>
+    internal void SelectByNameForDev(string name)
+    {
+        LoadAll();
+        SelectByName(name);
+    }
+
+    /// <summary>【开发用】拖动状态 + 某个坐标算出来的落点，供回归探针判断拖放在哪一步断掉。</summary>
+    internal string DragStateForDev(Point p)
+    {
+        var t = DropTargetAt(p);
+        return $"from={_dragFrom} dragging={_dragging} row={RowAt(p)} " +
+               $"落点={(t is { } v ? $"{v.Row}{(v.After ? "下" : "上")}" : "无")} count={EntryList.ItemCount}";
+    }
 
     /// <summary>【开发用】替快照展开第 <paramref name="index"/> 行的音轨清单，拍图才拍得到这一态。</summary>
     internal void OpenTrackPickerForDev(int index) => ToggleTrackPicker(index);
@@ -355,7 +367,7 @@ public partial class PlaylistWindow : Window
         if (!SaveCurrent("加入曲目")) return;
 
         SyncEntryList();
-        Say($"已加入 {added.Count} 首。默认全部音轨都弹，点行里的按钮可以只挑几行。");
+        Say($"已加入 {added.Count} 首。默认全弹，点「全部 ▾」可只挑几行。");
     }
 
     private void Remove_Click(object? sender, RoutedEventArgs e)
@@ -369,7 +381,7 @@ public partial class PlaylistWindow : Window
         if (!SaveCurrent("移除曲目")) return;
 
         SyncEntryList();
-        Say($"已把「{name}」移出歌单。磁盘上的文件没动。");
+        Say($"已把「{name}」移出歌单。文件没删。");
     }
 
     private void Up_Click(object? sender, RoutedEventArgs e) => Nudge(-1);
@@ -397,11 +409,66 @@ public partial class PlaylistWindow : Window
 
     // ================= 拖动改顺序 =================
 
+    /// <summary>指针落在第几行。越过最后一行下沿时算最后一行，指针在列表上下外面才算没有行。</summary>
+    private int RowAt(Point p)
+    {
+        int count = EntryList.ItemCount;
+        if (count == 0) return -1;
+
+        var first = EntryList.ContainerFromIndex(0);
+        var last = EntryList.ContainerFromIndex(count - 1);
+        if (first == null || last == null) return -1;
+
+        var firstTop = first.TranslatePoint(new Point(0, 0), EntryList);
+        var lastTop = last.TranslatePoint(new Point(0, 0), EntryList);
+        if (firstTop == null || lastTop == null) return -1;
+
+        if (p.Y < firstTop.Value.Y) return 0;
+        if (p.Y >= lastTop.Value.Y + last.Bounds.Height) return count - 1;
+
+        for (int i = 0; i < count; i++)
+        {
+            if (EntryList.ContainerFromIndex(i) is not Control c) continue;
+            var top = c.TranslatePoint(new Point(0, 0), EntryList);
+            if (top == null) continue;
+            if (p.Y >= top.Value.Y && p.Y < top.Value.Y + c.Bounds.Height) return i;
+        }
+        return count - 1;
+    }
+
+    /// <summary>落点在第几行、插在这行的上面还是下面。</summary>
+    private (int Row, bool After)? DropTargetAt(Point p)
+    {
+        int row = RowAt(p);
+        if (row < 0) return null;
+        if (EntryList.ContainerFromIndex(row) is not Control c) return null;
+        var top = c.TranslatePoint(new Point(0, 0), EntryList);
+        if (top == null) return null;
+        // 落在下半格 = 插到这一行后面；落在上半格 = 插到这一行前面
+        return (row, p.Y > top.Value.Y + c.Bounds.Height / 2);
+    }
+
+    /// <summary>把落点线画到该插的位置上。</summary>
+    private void ShowDropLine((int Row, bool After) target)
+    {
+        if (EntryList.ContainerFromIndex(target.Row) is not Control c) { HideDropLine(); return; }
+        var top = c.TranslatePoint(new Point(0, 0), EntryList);
+        if (top == null) { HideDropLine(); return; }
+
+        double y = target.After ? top.Value.Y + c.Bounds.Height : top.Value.Y;
+        double pad = EntryList.Bounds.Y;
+        DropLine.Margin = new Thickness(0, Math.Max(0, pad + y - 1), 0, 0);
+        DropLine.IsVisible = true;
+    }
+
+    private void HideDropLine() => DropLine.IsVisible = false;
+
     private void EntryList_PointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        _dragFrom = IndexAt(e.GetPosition(EntryList));
+        _dragFrom = RowAt(e.GetPosition(EntryList));
         _dragStart = e.GetPosition(EntryList);
         _dragging = false;
+        _dropAt = null;
     }
 
     private void EntryList_PointerMoved(object? sender, PointerEventArgs e)
@@ -409,7 +476,7 @@ public partial class PlaylistWindow : Window
         if (_dragFrom < 0) return;
         if (!e.GetCurrentPoint(EntryList).Properties.IsLeftButtonPressed)
         {
-            ResetDrag();
+            EndDrag();
             return;
         }
 
@@ -420,54 +487,49 @@ public partial class PlaylistWindow : Window
                 Math.Abs(now.X - _dragStart.X) < DragThreshold) return;
             _dragging = true;
         }
-        // 拖动中：只更新悬停高亮，落点由松开时算
-        int hover = IndexAt(now);
-        if (hover >= 0 && hover != EntryList.SelectedIndex) EntryList.SelectedIndex = hover;
+
+        // 拖动中：只画落点线，真正挪动等松开那一刻
+        _dropAt = DropTargetAt(now);
+        if (_dropAt is { } t) ShowDropLine(t);
+        else HideDropLine();
     }
 
     private void EntryList_PointerReleased(object? sender, PointerReleasedEventArgs e)
     {
         if (_dragging && _current != null && _dragFrom >= 0)
         {
-            int target = IndexAt(e.GetPosition(EntryList));
-            if (target >= 0 && target != _dragFrom &&
-                PlaylistModel.MoveOnto(_current.Entries, _dragFrom, target))
+            var target = DropTargetAt(e.GetPosition(EntryList));
+            if (target is { } t)
             {
-                if (SaveCurrent("调整顺序"))
+                // 目标下标：先算出「插到哪一行前面」，再折算成抽走自己之后的下标。
+                // 往下拖一格时这一步不能少：不折算的话元素先被抽走、后面的整体前移一格，
+                // 插回去正好又落回原位，表现就是「往上能拖、往下拖不动」。
+                int insertAt = t.After ? t.Row + 1 : t.Row;
+                int to = insertAt < _dragFrom ? insertAt : insertAt - 1;
+                if (PlaylistModel.Move(_current.Entries, _dragFrom, to) && SaveCurrent("调整顺序"))
                 {
-                    int landed = _dragFrom < target ? target - 1 : target;
-                    SyncEntryList(selectAfter: landed);
-                    Say($"第 {_dragFrom + 1} 首挪到了第 {landed + 1} 位。");
+                    SyncEntryList(selectAfter: to);
+                    Say($"第 {_dragFrom + 1} 首挪到了第 {to + 1} 位。");
                 }
             }
         }
-        ResetDrag();
+        EndDrag();
     }
 
     /// <summary>指针捕获丢了：不算落点。还按着左键时不清状态（拖动中会丢一次捕获）。</summary>
     private void EntryList_PointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
     {
         if (_dragging) return;
-        ResetDrag();
+        EndDrag();
     }
 
-    private void ResetDrag()
+    /// <summary>拖动收尾：清状态、收落点线。松开、丢捕获、取消都走这里。</summary>
+    private void EndDrag()
     {
         _dragFrom = -1;
         _dragging = false;
-    }
-
-    /// <summary>指针落在第几行；不在任何一行上返回 -1。</summary>
-    private int IndexAt(Point p)
-    {
-        for (int i = 0; i < EntryList.ItemCount; i++)
-        {
-            if (EntryList.ContainerFromIndex(i) is not Control c) continue;
-            var top = c.TranslatePoint(new Point(0, 0), EntryList);
-            if (top == null) continue;
-            if (p.Y >= top.Value.Y && p.Y < top.Value.Y + c.Bounds.Height) return i;
-        }
-        return -1;
+        _dropAt = null;
+        HideDropLine();
     }
 
     /// <summary>从被点的控件往上找它所在的那一行，返回歌单下标；不在任何一行上返回 -1。</summary>
@@ -520,7 +582,7 @@ public partial class PlaylistWindow : Window
 
         _pickFor = index;
         SyncEntryList(selectAfter: index);
-        Say($"「{name}」弹哪几行？勾上要弹的行，可以勾多个。");
+        Say($"「{name}」弹哪几行？勾上要弹的。");
     }
 
     /// <summary>点了候选清单里的一个勾选框：勾上或去掉这一行。</summary>
