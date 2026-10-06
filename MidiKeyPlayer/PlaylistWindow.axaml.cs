@@ -13,7 +13,7 @@ using MidiKeyPlayer.Midi;
 namespace MidiKeyPlayer;
 
 /// <summary>
-/// 歌单窗口：建歌单、往里放曲目、替每一首预先指定音轨、改顺序。
+/// 歌单窗口：建歌单、往里放曲目、替每一首勾好弹哪几行、拖放改顺序。
 ///
 /// 三个出口给主窗口：<see cref="EntryActivated"/>（双击一行，载入这一首）、
 /// <see cref="Changed"/>（歌单存过盘）、<see cref="ActiveChanged"/>（换了一份当前歌单）。
@@ -60,12 +60,18 @@ public partial class PlaylistWindow : Window
     /// <summary>主窗口正在播放的那首曲子的路径，用来在列表里打标记。</summary>
     public string PlayingPath { get; set; } = "";
 
-    /// <summary>加入曲目时用来推荐音轨的声部身份（主窗口当前演奏行的身份）。</summary>
-    public TrackRole? SuggestRole { get; set; }
-
     public PlaylistWindow()
     {
         InitializeComponent();
+        // 拖放改顺序：必须走 handledEventsToo。
+        // 行（ListBoxItem）在按下时就把事件标记成「已处理」，XAML 里挂的处理器收不到，
+        // 于是按下这一半永远不执行、拖放整个失效 —— 用户报的「顺序不能拖」就是这个。
+        EntryList.AddHandler(InputElement.PointerPressedEvent, EntryList_PointerPressed,
+            RoutingStrategies.Bubble, handledEventsToo: true);
+        EntryList.AddHandler(InputElement.PointerMovedEvent, EntryList_PointerMoved,
+            RoutingStrategies.Bubble, handledEventsToo: true);
+        EntryList.AddHandler(InputElement.PointerReleasedEvent, EntryList_PointerReleased,
+            RoutingStrategies.Bubble, handledEventsToo: true);
         LoadAll();
     }
 
@@ -75,11 +81,15 @@ public partial class PlaylistWindow : Window
     /// <summary>窗口里当前选中的歌单名；一份都没选是空串。关窗时主窗口拿它收尾。</summary>
     public string ActiveNameNow => _current?.Name ?? "";
 
+    /// <summary>【开发用】拖动状态 + 某个坐标算出来的行，供回归探针判断拖放在哪一步断掉。</summary>
+    internal string DragStateForDev(Point p) =>
+        $"from={_dragFrom} dragging={_dragging} indexAt({p.X:F0},{p.Y:F0})={IndexAt(p)} count={EntryList.ItemCount}";
+
     /// <summary>【开发用】替快照展开第 <paramref name="index"/> 行的音轨清单，拍图才拍得到这一态。</summary>
     internal void OpenTrackPickerForDev(int index) => ToggleTrackPicker(index);
 
-    /// <summary>【开发用】替快照选一发候选，走的是用户点候选那一行同一条代码路径。</summary>
-    internal void PickTrackForDev(int entryIndex, int candIndex) => PickTrack(entryIndex, candIndex);
+    /// <summary>【开发用】替快照勾一发候选，走的是用户点勾选框同一条代码路径。</summary>
+    internal void PickTrackForDev(int entryIndex, int candIndex) => ToggleTrack(entryIndex, candIndex);
 
     /// <summary>构造之后调一次：按 <see cref="ActiveName"/> 选中对应的歌单。</summary>
     public void SelectInitial()
@@ -336,7 +346,8 @@ public partial class PlaylistWindow : Window
         foreach (var path in paths)
         {
             if (added.Any(x => string.Equals(x.Path, path, StringComparison.OrdinalIgnoreCase))) continue;
-            added.Add(new PlaylistEntry { Path = path, Track = SuggestTrackFor(path) });
+            // 不预设：没勾过 = 这一首全部音轨都弹。要挑，点行里的按钮自己勾。
+            added.Add(new PlaylistEntry { Path = path });
         }
         if (added.Count == 0) { Say("这些文件已经在这次要加入的清单里了。"); return; }
 
@@ -344,21 +355,7 @@ public partial class PlaylistWindow : Window
         if (!SaveCurrent("加入曲目")) return;
 
         SyncEntryList();
-        Say($"已加入 {added.Count} 首。点曲目右边的「自动 ▾」可以指定弹哪一行。");
-    }
-
-    /// <summary>加入时按上一首演奏行的声部推荐一行。读不动这个文件就留空，连播时主窗口再挑一次。</summary>
-    private TrackRef? SuggestTrackFor(string path)
-    {
-        if (!File.Exists(path)) return null;
-        try
-        {
-            var parsed = MidiLoader.Parse(path);
-            var pick = PlaylistModel.Pick(parsed.Candidates, null, SuggestRole);
-            if (pick.Candidate is not { } c) return null;
-            return new TrackRef { TrackIndex = c.TrackIndex, Channel = c.Channel, NameHint = c.Name };
-        }
-        catch { return null; }
+        Say($"已加入 {added.Count} 首。默认全部音轨都弹，点行里的按钮可以只挑几行。");
     }
 
     private void Remove_Click(object? sender, RoutedEventArgs e)
@@ -447,11 +444,12 @@ public partial class PlaylistWindow : Window
         ResetDrag();
     }
 
-    /// <summary>
-    /// 指针捕获丢了（拖出窗口、被别的控件抢走）。这一条只清状态，不当成落点 ——
-    /// 与 PointerReleased 分开写是因为两者的事件参数类型不同，合并会被 XAML 编译器拒绝。
-    /// </summary>
-    private void EntryList_PointerCaptureLost(object? sender, PointerCaptureLostEventArgs e) => ResetDrag();
+    /// <summary>指针捕获丢了：不算落点。还按着左键时不清状态（拖动中会丢一次捕获）。</summary>
+    private void EntryList_PointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        if (_dragging) return;
+        ResetDrag();
+    }
 
     private void ResetDrag()
     {
@@ -522,35 +520,37 @@ public partial class PlaylistWindow : Window
 
         _pickFor = index;
         SyncEntryList(selectAfter: index);
-        Say($"「{name}」弹哪一行？点下面那一行即可。");
+        Say($"「{name}」弹哪几行？勾上要弹的行，可以勾多个。");
     }
 
-    /// <summary>点了候选清单里的一行：钉住这一行。<paramref name="candIndex"/> 为 -1 = 不预设。</summary>
-    private void PickTrack(int entryIndex, int candIndex)
+    /// <summary>点了候选清单里的一个勾选框：勾上或去掉这一行。</summary>
+    private void ToggleTrack(int entryIndex, int candIndex)
     {
         if (_current == null || entryIndex < 0 || entryIndex >= _current.Entries.Count) return;
+        if (!_candCache.TryGetValue(_current.Entries[entryIndex].Path, out var cands)) return;
+        if (candIndex < 0 || candIndex >= cands.Count) return;
 
         var entry = _current.Entries[entryIndex];
         string name = Path.GetFileName(entry.Path);
+        var c = cands[candIndex];
+        var existing = entry.Tracks.FirstOrDefault(t => t.TrackIndex == c.TrackIndex && t.Channel == c.Channel);
 
-        if (candIndex < 0)
+        if (existing != null)
         {
-            entry.Track = null;
-            Say($"「{name}」改成不预设音轨，连播时按声部自动挑。");
+            // 最后一行不许取消：一个都不勾等于「全部」，勾选框会全空，看着像没设过
+            if (entry.Tracks.Count <= 1) { Say("至少留一行。想全都要，把每一行都勾上。"); return; }
+            entry.Tracks.Remove(existing);
+            Say($"「{name}」不再弹「{Describe(c)}」，还剩 {entry.Tracks.Count} 行。");
         }
-        else if (_candCache.TryGetValue(entry.Path, out var cands) && candIndex < cands.Count)
+        else
         {
-            var c = cands[candIndex];
-            entry.Track = new TrackRef { TrackIndex = c.TrackIndex, Channel = c.Channel, NameHint = c.Name };
-            Say($"「{name}」已设为弹「{Describe(c)}」。");
+            entry.Tracks.Add(new TrackRef { TrackIndex = c.TrackIndex, Channel = c.Channel, NameHint = c.Name });
+            Say($"「{name}」已加上「{Describe(c)}」，共 {entry.Tracks.Count} 行。");
         }
-        else return;
 
         if (!SaveCurrent("保存音轨选择")) return;
 
-        // 重铺会把这一行连同单选钮一起换掉，也就是在单选钮自己的事件里动它，
-        // 所以放到下一个循环再铺。
-        _pickFor = -1;
+        // 清单不收起：还有别的行要勾。重铺会把勾选框一起换掉，所以放到下一个循环再铺。
         Dispatcher.UIThread.Post(() => SyncEntryList(selectAfter: entryIndex));
     }
 
@@ -558,22 +558,21 @@ public partial class PlaylistWindow : Window
     private static string Describe(MidiCandidate c) =>
         $"轨道 {c.TrackIndex + 1} / 声道 {c.Channel + 1}「{c.Name}」{c.RoleTag} {c.RangeLabel} {c.NoteCount} 音";
 
-    /// <summary>一行候选：单选钮 + 说明。点整行都能选。</summary>
-    private Control BuildCandidateRow(int entryIndex, int candIndex, MidiCandidate? c, bool selected)
+    /// <summary>一行候选：勾选框 + 说明。点整行都能勾。</summary>
+    private Control BuildCandidateRow(int entryIndex, int candIndex, MidiCandidate c, bool isChecked)
     {
-        var radio = new RadioButton
+        var box = new CheckBox
         {
-            GroupName = "TrackPick" + entryIndex,
-            IsChecked = selected,
+            IsChecked = isChecked,
             Content = new TextBlock
             {
-                Text = c == null ? "不预设（连播时按声部自动挑）" : Describe(c),
+                Text = Describe(c),
                 FontSize = 12.5,
                 TextTrimming = TextTrimming.CharacterEllipsis,
             },
         };
-        radio.Click += (_, _) => PickTrack(entryIndex, candIndex);
-        return radio;
+        box.Click += (_, _) => ToggleTrack(entryIndex, candIndex);
+        return box;
     }
 
     // ================= 铺曲目列表 =================
@@ -662,15 +661,16 @@ public partial class PlaylistWindow : Window
 
         string sub = missing
             ? "文件已不在：连播时会跳过这一首"
-            : entry.Track is { IsSet: true } t
-                ? (t.NameHint.Length > 0 ? $"弹这一行的「{t.NameHint}」" : "弹指定的一行")
-                : "弹哪一行：自动（按声部挑）";
+            : entry.Tracks.Count == 0
+                ? "弹：全部音轨（还没勾过）"
+                : entry.Tracks.Count == 1
+                    ? (entry.Tracks[0].NameHint.Length > 0
+                        ? $"弹这一行的「{entry.Tracks[0].NameHint}」"
+                        : $"弹：{entry.Tracks[0].Label}")
+                    : $"弹 {entry.Tracks.Count} 行（合奏）";
 
-        // 按钮上直接写当前选的是哪一行，不用展开就能看见
-        var trackRef = entry.Track;
-        string trackText = trackRef is { IsSet: true }
-            ? $"轨道 {trackRef.TrackIndex + 1} ▾"
-            : "自动 ▾";
+        // 按钮上直接写当前勾了几行，不用展开就能看见
+        string trackText = entry.Tracks.Count == 0 ? "全部 ▾" : $"共 {entry.Tracks.Count} 行 ▾";
 
         var track = new Button
         {
@@ -681,7 +681,7 @@ public partial class PlaylistWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
             IsEnabled = !missing,
         };
-        ToolTip.SetTip(track, "指定这一首弹哪一行");
+        ToolTip.SetTip(track, "勾这一首弹哪几行，可以勾多个");
         // 点按钮只管展开清单：行的下标直接问按钮自己，不按坐标猜
         // （按坐标猜会落到行与行之间的缝里，那时整个点击就成了没反应）
         track.Click += (_, _) =>
@@ -724,7 +724,7 @@ public partial class PlaylistWindow : Window
 
         Control content = grid;
 
-        // 这一行正展开着音轨清单：把候选直接铺在行下面，点一行就选完
+        // 这一行正展开着音轨清单：把候选直接铺在行下面，勾哪几行就是哪几行
         if (_pickFor == entryIndex && _candCache.TryGetValue(entry.Path, out var cands))
         {
             var panel = new StackPanel { Spacing = 2 };
@@ -736,22 +736,20 @@ public partial class PlaylistWindow : Window
             });
             panel.Children.Add(new TextBlock
             {
-                Text = "弹哪一行？",
+                Text = entry.Tracks.Count == 0
+                    ? $"弹哪几行？现在没勾过，这一首全部 {cands.Count} 行都弹"
+                    : $"弹哪几行？已勾 {entry.Tracks.Count} / {cands.Count} 行",
                 FontSize = 12.5,
                 Opacity = 0.7,
                 Margin = new Thickness(0, 0, 0, 2),
             });
 
-            bool matched = false;
             for (int k = 0; k < cands.Count; k++)
             {
                 var c = cands[k];
-                bool isCurrent = entry.Track is { IsSet: true } t3 &&
-                                 c.TrackIndex == t3.TrackIndex && c.Channel == t3.Channel;
-                if (isCurrent) matched = true;
-                panel.Children.Add(BuildCandidateRow(entryIndex, k, c, isCurrent));
+                bool isChecked = entry.Tracks.Any(t => t.TrackIndex == c.TrackIndex && t.Channel == c.Channel);
+                panel.Children.Add(BuildCandidateRow(entryIndex, k, c, isChecked));
             }
-            panel.Children.Add(BuildCandidateRow(entryIndex, -1, null, entry.Track is not { IsSet: true } || !matched));
 
             var box = new StackPanel();
             box.Children.Add(grid);

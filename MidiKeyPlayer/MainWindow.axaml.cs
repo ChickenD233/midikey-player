@@ -4111,28 +4111,68 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 歌单条目预先选好了音轨（Q19）。存的是「轨道号 + 声道」，钉死的，不随识别结果漂移。
-    /// 那一行在新文件里不存在时退到 <see cref="AutoSelectTrack"/> 的规则，并写一行日志。
+    /// 歌单条目预先勾好了音轨。存的是「轨道号 + 声道」，钉死的，不随识别结果漂移。
+    /// 一条都没勾（老歌单、或刚加进来还没勾过）= 这一首全部音轨都弹。
+    /// 勾上的行按清单勾选「合」，卷帘与演奏都只看这几行。
     /// </summary>
     private void SelectTrackForEntry(PlaylistEntry entry)
     {
         if (_parsed == null || _tracks.Count == 0) return;
 
-        var pick = PlaylistModel.Pick(_parsed.Candidates, entry.Track, _lastPlayedRole);
-        if (pick.Candidate is not { } cand) return;
+        // 清单空 = 全选
+        if (entry.Tracks.Count == 0)
+        {
+            SelectRowsForPlaylist(_tracks.ToList(), null);
+            InsertLog("这份歌单没给这一首勾过音轨，按全部音轨弹（想挑就点曲目右边的按钮）。");
+            return;
+        }
 
-        int idx = _parsed.Candidates.IndexOf(cand);
-        if (idx < 0 || idx >= _tracks.Count) return;
+        // 按轨道号加声道找行；找不到的行列在 missing 里，写一行日志
+        var wanted = new List<TrackRowVM>();
+        var missing = new List<TrackRef>();
+        foreach (var t in entry.Tracks)
+        {
+            var row = _tracks.FirstOrDefault(r =>
+                r.Candidate.TrackIndex == t.TrackIndex && r.Candidate.Channel == t.Channel);
+            if (row != null) wanted.Add(row);
+            else missing.Add(t);
+        }
 
-        _selected = _tracks[idx];
+        if (wanted.Count == 0)
+        {
+            // 勾的行一行都不在这份文件里：退回自动挑一行，让连播还能开弹
+            AutoSelectTrack();
+            InsertLog("歌单勾的那几行都不在这份文件里，改成自动挑一行。");
+            return;
+        }
+
+        SelectRowsForPlaylist(wanted, entry.Tracks);
+        InsertLog(missing.Count == 0
+            ? $"按歌单勾的 {wanted.Count} 行来弹。"
+            : $"按歌单勾的 {wanted.Count} 行来弹；另有 {missing.Count} 行不在这份文件里。");
+    }
+
+    /// <summary>
+    /// 勾选 / 取消勾选「合」列，并同步主旋律行与谱面。
+    /// <paramref name="picks"/> 为 null = 全选。
+    /// </summary>
+    private void SelectRowsForPlaylist(List<TrackRowVM> rows, List<TrackRef>? picks)
+    {
+        foreach (var r in _tracks) r.IsMix = false;
+        foreach (var r in rows) r.IsMix = true;
+
         _mixOrder.Clear();
-        for (int i = 0; i < _tracks.Count; i++) _tracks[i].IsMain = ReferenceEquals(_tracks[i], _selected);
-        if (TrackList != null) TrackList.SelectedIndex = idx;
-        RefreshPreview();
+        foreach (var r in rows) _mixOrder.Add(r);
 
-        InsertLog(pick.Exact
-            ? $"按歌单预设选了音轨：{pick.Reason}。"
-            : $"歌单预设的那一行不在这份文件里，改成 {pick.Reason}。");
+        // 至少留一行：一行都不勾，ActiveRows 会返回空，RequestPlay 静默不弹
+        _selected = rows.Count > 0 ? rows[0] : (_tracks.Count > 0 ? _tracks[0] : null);
+        for (int i = 0; i < _tracks.Count; i++)
+            _tracks[i].IsMain = ReferenceEquals(_tracks[i], _selected);
+        if (TrackList != null && _selected != null) TrackList.SelectedIndex = _tracks.IndexOf(_selected);
+
+        SyncMixOrder();
+        // SyncMixOrder 在忙的时候只更新颜色不刷谱面，这里补一次
+        RefreshPreview();
     }
 
     /// <summary>
@@ -4174,7 +4214,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var win = new PlaylistWindow { ActiveName = _playlist?.Name ?? "", SuggestRole = _lastPlayedRole };
+        var win = new PlaylistWindow { ActiveName = _playlist?.Name ?? "" };
         win.EntryActivated += path =>
         {
             // 双击歌单里的一行：载入它，并在演奏中接着弹（和切歌一个规矩）
@@ -4379,7 +4419,6 @@ public partial class MainWindow : Window
         if (_playlistWindow != null)
         {
             _playlistWindow.PlayingPath = _parsed?.FilePath ?? "";
-            _playlistWindow.SuggestRole = _lastPlayedRole;
         }
     }
 

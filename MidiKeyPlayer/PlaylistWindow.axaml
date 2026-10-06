@@ -56,16 +56,13 @@
                     Click="Down_Click" ToolTip.Tip="把选中的曲目往下挪一格。也可以直接拖动某一行"/>
           </WrapPanel>
 
-          <!-- 曲目列表。行由代码搭，拖动由下面三个指针事件接管。 -->
-          <ListBox Grid.Row="2" x:Name="EntryList" SelectionMode="Single"
-                   PointerPressed="EntryList_PointerPressed"
-                   PointerMoved="EntryList_PointerMoved"
-                   PointerReleased="EntryList_PointerReleased"
-                   PointerCaptureLost="EntryList_PointerCaptureLost"/>
+          <!-- 曲目列表。行由代码搭。按下 / 移动 / 抬起三个处理器在代码里挂：
+               行（ListBoxItem）会先把按下标记成「已处理」，XAML 挂的收不到。见构造函数。 -->
+          <ListBox Grid.Row="2" x:Name="EntryList" SelectionMode="Single"/>
 
           <TextBlock Grid.Row="3" x:Name="TxtHint" Classes="caption" Margin="0,8,0,0"
                      TextWrapping="Wrap"
-                     Text="列表顺序就是演奏顺序。点曲目右边的「自动 ▾」就能指定这一首弹哪一行，连播时不必再猜。"/>
+                     Text="列表顺序就是演奏顺序，可以直接拖动某一行改。点曲目右边的「全部 ▾」勾这一首弹哪几行，可以勾多个；没勾过就是全部音轨都弹。"/>
         </Grid>
       </Border>
     </Grid>

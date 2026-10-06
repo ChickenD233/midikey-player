@@ -35,8 +35,34 @@ public sealed class PlaylistEntry
     /// <summary>MIDI 文件的完整路径。</summary>
     public string Path { get; set; } = "";
 
-    /// <summary>预先选好的音轨。没设过就是空。</summary>
-    public TrackRef? Track { get; set; }
+    /// <summary>
+    /// 预先勾好要弹哪些行（0 个或多个）。弹到这一首时按这个清单勾主界面的「合」，
+    /// 卷帘也只显示这几行。空清单 = 全部候选行都弹。
+    /// </summary>
+    public List<TrackRef> Tracks { get; set; } = new();
+
+    /// <summary>
+    /// 落盘用的单行字段，只存第一行。读老歌单（v1.1.24 及以前只有这一个字段）也靠它接住。
+    /// 界面不要读这个属性，读 <see cref="Tracks"/>：这里只是精简过的那一份。
+    /// </summary>
+    [JsonPropertyName("track")]
+    public TrackRef? Track
+    {
+        get => Tracks.Count > 0 ? Tracks[0] : null;
+        set
+        {
+            if (value is { IsSet: true } && !Tracks.Any(t => TrackRefs.Same(t, value)))
+                Tracks.Insert(0, value);
+        }
+    }
+}
+
+/// <summary>歌单条目的音轨比较与小工具。</summary>
+public static class TrackRefs
+{
+    /// <summary>是不是同一行（轨道号 + 声道）。</summary>
+    public static bool Same(TrackRef a, TrackRef b) =>
+        a.TrackIndex == b.TrackIndex && a.Channel == b.Channel;
 }
 
 /// <summary>

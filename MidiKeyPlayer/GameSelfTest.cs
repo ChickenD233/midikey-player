@@ -1188,10 +1188,7 @@ internal static partial class GameSelfTest
 
     /// <summary>
     /// 歌单的落盘与读回。目录用 <see cref="PlaylistStore.DirPathForDev"/> 指到临时目录，不碰用户真正的歌单。
-    ///
-    /// 这条回归对应的 bug 是「歌单存不住」：TrackRef.Label 只有取值器，写盘照写，
-    /// 读回来时反序列化撞上「没有写入器」抛异常，被 LoadAll 的 catch 吞掉 ——
-    /// 表现成「存了也白存，重开就没了」。所以这里专门读一遍刚写的文件。
+    /// 覆盖三件事：多行勾选往返、老文件的单行字段接得住、旧版本多写的 label 字段不挡读盘。
     /// </summary>
     private static void TestPlaylistStore()
     {
@@ -1211,11 +1208,9 @@ internal static partial class GameSelfTest
 
             string path = PlaylistStore.FilePathFor("回归歌单");
             var list = Playlist.Create("回归歌单");
-            list.Entries.Add(new PlaylistEntry
-            {
-                Path = @"C:\示例\第一首.mid",
-                Track = new TrackRef { TrackIndex = 1, Channel = 0, NameHint = "女声部" },
-            });
+            list.Entries.Add(new PlaylistEntry { Path = @"C:\示例\第一首.mid" });
+            list.Entries[0].Tracks.Add(new TrackRef { TrackIndex = 1, Channel = 0, NameHint = "女声部" });
+            list.Entries[0].Tracks.Add(new TrackRef { TrackIndex = 2, Channel = 9, NameHint = "鼓" });
             list.Entries.Add(new PlaylistEntry { Path = @"C:\示例\第二首.mid" });
 
             Check("歌单：保存成功", PlaylistStore.Save(list), path);
@@ -1226,20 +1221,41 @@ internal static partial class GameSelfTest
             Check("歌单：曲目数对得上", back?.Count == 2, $"实得 {back?.Count}");
             Check("歌单：第一首的路径没丢",
                 back?.Entries[0].Path == @"C:\示例\第一首.mid", back?.Entries[0].Path ?? "");
-            Check("歌单：预设音轨没丢",
-                back?.Entries[0].Track is { TrackIndex: 1, Channel: 0, NameHint: "女声部" },
-                back?.Entries[0].Track?.Label ?? "null");
-            Check("歌单：第二首没有预设音轨", back?.Entries[1].Track == null);
+            Check("歌单：勾的两行都读得回来",
+                back?.Entries[0].Tracks.Count == 2 &&
+                back.Entries[0].Tracks[0] is { TrackIndex: 1, Channel: 0, NameHint: "女声部" } &&
+                back.Entries[0].Tracks[1] is { TrackIndex: 2, Channel: 9, NameHint: "鼓" },
+                back == null ? "null" : string.Join(" + ", back.Entries[0].Tracks.Select(t => t.Label)));
+            Check("歌单：第二首没勾过（等于全弹）", back?.Entries[1].Tracks.Count == 0,
+                $"实得 {back?.Entries[1].Tracks.Count} 行");
 
             string json = File.ReadAllText(path);
             Check("歌单：显示用的 label 不写进文件", !json.Contains("\"label\""), json.Length + " 字符");
+            Check("歌单：单行字段只写第一行",
+                json.Contains("\"track\"") && json.Contains("\"trackIndex\": 1"), "");
 
-            // v1.1.21 写出来的文件带 label 字段。读得回来才不会让已经存下的歌单作废。
+            // v1.1.24 及以前只写一个 track 字段。读回来必须落进 Tracks，不能丢。
             File.WriteAllText(path, json.Replace("\"nameHint\": \"女声部\",", "\"nameHint\": \"女声部\", \"label\": \"轨道 2 / 声道 1\","), new UTF8Encoding(false));
             var legacy = PlaylistStore.Load("回归歌单");
             Check("歌单：旧文件里多出来的 label 字段不挡读盘",
-                legacy?.Count == 2 && legacy.Entries[0].Track is { TrackIndex: 1 },
-                legacy == null ? "读回来是 null" : $"实得 {legacy.Count} 首");
+                legacy?.Count == 2 && legacy.Entries[0].Tracks.Count == 2,
+                legacy == null ? "读回来是 null" : $"实得 {legacy.Count} 首 / {legacy.Entries[0].Tracks.Count} 行");
+
+            // 只带单行字段的老文件
+            File.WriteAllText(path, """
+                {
+                  "name": "回归歌单",
+                  "entries": [
+                    { "path": "C:\\示例\\老文件.mid",
+                      "track": { "trackIndex": 3, "channel": 1, "nameHint": "老单行" } }
+                  ]
+                }
+                """, new UTF8Encoding(false));
+            var older = PlaylistStore.Load("回归歌单");
+            Check("歌单：只有单行字段的老文件读成一行勾选",
+                older?.Entries[0].Tracks.Count == 1 &&
+                older.Entries[0].Tracks[0] is { TrackIndex: 3, Channel: 1, NameHint: "老单行" },
+                older == null ? "null" : $"{older.Entries[0].Tracks.Count} 行 / {older.Entries[0].Tracks.FirstOrDefault()?.Label}");
 
             var all = PlaylistStore.LoadAll();
             Check("歌单：列目录能列出来", all.Count == 1, $"实得 {all.Count} 份");
