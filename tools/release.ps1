@@ -283,12 +283,23 @@ function Invoke-Snapshot([string]$exe, [string]$tag) {
     if ($s.ExitCode -ne 0) { throw "深色皮肤快照退出码 $($s.ExitCode)。" }
     Remove-Item Env:\MIDIKEY_UI_SNAPSHOT, Env:\MIDIKEY_UI_SNAPSHOT_THEME -ErrorAction SilentlyContinue
 
-    foreach ($f in @($main, $keymap, $advanced, $sponsor, $sync, $syncPaused, $dark)) {
+    # 歌单窗口（v1.1.21 新增）：真建一份「快照歌单」放进示例曲目，再开歌单窗口拍一张。
+    # 顺带验证两个新入口：PlaylistStore 存得进、歌单窗口开得起来。
+    $playlist = Join-Path $env:TEMP "midikey-release-$tag-playlist.png"
+    Remove-Item $playlist -ErrorAction SilentlyContinue
+    $env:MIDIKEY_UI_SNAPSHOT_PLAYLIST = $playlist
+    $env:MIDIKEY_UI_SNAPSHOT_PLAYLIST_DIR = (Join-Path $RepoRoot '示例MIDI')
+    $sp = Start-Process -FilePath $exe -PassThru
+    [void]$sp.WaitForExit(180000)
+    Remove-Item Env:\MIDIKEY_UI_SNAPSHOT_PLAYLIST, Env:\MIDIKEY_UI_SNAPSHOT_PLAYLIST_DIR -ErrorAction SilentlyContinue
+    if ($sp.ExitCode -ne 0) { throw "歌单窗口快照退出码 $($sp.ExitCode)。" }
+
+    foreach ($f in @($main, $keymap, $advanced, $sponsor, $sync, $syncPaused, $dark, $playlist)) {
         if (-not (Test-Path -LiteralPath $f)) { throw "快照没出图：$f" }
         if ((Get-Item -LiteralPath $f).Length -lt 10000) { throw "快照太小，可能是空白：$f" }
     }
-    Write-Host ("   主窗 " + (Get-Item $main).Length + " 字节；键位窗 " + (Get-Item $keymap).Length + " 字节；高级窗 " + (Get-Item $advanced).Length + " 字节；赞助页 " + (Get-Item $sponsor).Length + " 字节；实验功能页 " + (Get-Item $sync).Length + " 字节；实验功能页暂停态 " + (Get-Item $syncPaused).Length + " 字节；深色主窗 " + (Get-Item $dark).Length + " 字节")
-    return @{ Main = $main; Keymap = $keymap; Advanced = $advanced; Sponsor = $sponsor; Sync = $sync; SyncPaused = $syncPaused; Dark = $dark }
+    Write-Host ("   主窗 " + (Get-Item $main).Length + " 字节；键位窗 " + (Get-Item $keymap).Length + " 字节；高级窗 " + (Get-Item $advanced).Length + " 字节；赞助页 " + (Get-Item $sponsor).Length + " 字节；实验功能页 " + (Get-Item $sync).Length + " 字节；实验功能页暂停态 " + (Get-Item $syncPaused).Length + " 字节；深色主窗 " + (Get-Item $dark).Length + " 字节；歌单窗 " + (Get-Item $playlist).Length + " 字节")
+    return @{ Main = $main; Keymap = $keymap; Advanced = $advanced; Sponsor = $sponsor; Sync = $sync; SyncPaused = $syncPaused; Dark = $dark; Playlist = $playlist }
 }
 
 # 文件夹曲目卡换歌回归：连续点三首，每步都要换过去，列表行数不能塌。

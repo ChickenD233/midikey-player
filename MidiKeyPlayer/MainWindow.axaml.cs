@@ -60,6 +60,36 @@ public partial class MainWindow : Window
     private TrayIcon? _tray;
     private bool _quitNow;
 
+    // —— 歌单与连播（v1.1.21）——
+    /// <summary>左栏正在显示的那份歌单；null = 没选过，歌单卡隐藏。</summary>
+    private Playlist? _playlist;
+    /// <summary>歌单窗口，同一时间只开一个（和设置窗口一个规矩）。</summary>
+    private PlaylistWindow? _playlistWindow;
+    /// <summary>曲目卡的铺界面守卫：程序化改选中项会触发 SelectionChanged，那一次不是用户点击。</summary>
+    private bool _playlistSyncing;
+    /// <summary>歌单曲目列表最多显示多少行，超过的合并成一条说明。</summary>
+    private const int PlaylistMenuMax = 50;
+    /// <summary>
+    /// 连播前进的来源。true = 当前这首是从歌单卡点开的，F9 与播完前进都走歌单；
+    /// false = 走文件夹曲目。见 Q18：谁在放就走谁。
+    /// </summary>
+    private bool _sourceIsPlaylist;
+    /// <summary>连播连续失败了几首。放不出来的曲子跳过它，连败到上限就停（见 PlayAdvance）。</summary>
+    private int _consecutiveFailures;
+    /// <summary>本轮连播已经放了几首、列表共几首，只为状态行那句「连播 3/12」。</summary>
+    private int _playlistPos = -1;
+    /// <summary>随机播放用的发生器。每次开始连播重新播种，免得每次都同一条随机串。</summary>
+    private Random _shuffleRng = new();
+    /// <summary>
+    /// 连播下一首的歌名（不含扩展名的完整文件名）。只在自动前进那几秒里有值，
+    /// 用来在悬浮窗的倒计时里写「下一首：xxx」。用户手动播放时是空串。
+    /// </summary>
+    private string _nextSongLabel = "";
+
+    /// <summary>正在自动前进。用来把「用户按停止」和「一首自然放完」分开，
+    /// 也避免在 LoadMidiFile 内部被当成用户换歌弹确认框。</summary>
+    private bool _advancing;
+
     private static readonly int[] CountdownOptions = { 0, 3, 5, 10 };
     private const int FixedLeadMs = 25;
     private const double SeekStepSeconds = 5;   // 快进/后退热键的步长
@@ -150,6 +180,8 @@ public partial class MainWindow : Window
         // 曲目卡常驻（issue #57）：上次列过的目录还在就自动扫描并显示，不用每次重开都重新选目录
         RestoreFolderFromConfig();
         RefreshFolderUi();   // 上面没恢复出目录时：左栏的文件夹曲目卡保持隐藏
+        RestorePlaylistFromConfig();   // 同上：没选过歌单时歌单卡保持隐藏
+        ApplyPlayModeUi();             // 上次选的演奏模式写回按钮
 
         // 键位方案（Engine\KeymapProfile）：全局活动方案，实时演奏与文件播放共用。
         // 键位控件在独立的 KeymapWindow 里，主界面只显示方案名并提供一个入口按钮。
@@ -389,15 +421,23 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 切歌：换到文件夹曲目里的上一首 / 下一首（到底回绕）。
+    /// 切歌：换到当前列表里的上一首 / 下一首（到底回绕）。
+    ///
+    /// 「当前列表」看这首是从哪张卡点开的（Q18）：歌单卡点的走歌单，文件夹曲目卡点的走文件夹。
+    /// 两张卡都在时不用问用户走哪一张 —— 他刚刚点哪张，就是哪张。
+    ///
     /// 演奏中（含暂停中）切歌不走倒计时——用户已经守在目标程序里——直接接着弹新的一首；
-    /// 空闲时只载入，不自动开始。有未导出的卷帘改动时拒绝切歌（热键场景弹不出确认框，不能静默丢）。
+    /// 空闲时只载入，不自动开始。有未导出的卷帘改动时拒绝切歌（热键场景弹不出确认框，不能静默丢）；
+    /// 自动连播走的是另一条路（AdvanceTo），它按 Q4 的选择丢掉改动继续，并写一行日志。
     /// </summary>
     private void SwitchSong(int delta)
     {
-        if (_folderFiles.Count == 0)
+        bool usePlaylist = _sourceIsPlaylist && _playlist is { Count: > 0 };
+        int count = usePlaylist ? _playlist!.Count : _folderFiles.Count;
+
+        if (count == 0)
         {
-            InsertLog("切歌需要先「打开 MIDI 文件 / 文件夹 ▾ → 打开文件夹…」，文件夹曲目是空的。");
+            InsertLog("切歌需要先「打开 MIDI 文件 / 文件夹 ▾ → 打开文件夹…」，或选一份歌单。曲目表是空的。");
             return;
         }
         if (HasUnexportedEdits)
@@ -406,23 +446,44 @@ public partial class MainWindow : Window
             return;
         }
 
-        string cur = _parsed?.FilePath ?? "";
-        int idx = _folderFiles.FindIndex(f => string.Equals(f, cur, StringComparison.OrdinalIgnoreCase));
-        int next = idx < 0 ? (delta > 0 ? 0 : _folderFiles.Count - 1)
-                           : (idx + delta + _folderFiles.Count) % _folderFiles.Count;
-        string path = _folderFiles[next];
+        int idx = usePlaylist ? CurrentPlaylistIndex() : CurrentFolderIndex();
+        int next = idx < 0 ? (delta > 0 ? 0 : count - 1)
+                           : (idx + delta + count) % count;
+
+        string path = usePlaylist ? _playlist!.Entries[next].Path : _folderFiles[next];
         string name = System.IO.Path.GetFileName(path);
 
         if (!System.IO.File.Exists(path))
         {
             InsertLog($"文件已不在：{name}");
-            ScanMidiFolder(_folderPath);   // 重扫一次，列表跟着变成当前目录的内容
+            if (usePlaylist) RefreshPlaylistCard();
+            else ScanMidiFolder(_folderPath);   // 重扫一次，列表跟着变成当前目录的内容
             return;
         }
 
         bool wasPlaying = _engine is { IsRunning: true };   // 暂停中也算：接着弹新的一首
-        InsertLog($"切歌：{(delta > 0 ? "下一首" : "上一首")} → {name}（{next + 1}/{_folderFiles.Count}）");
-        LoadMidiFile(path);
+        InsertLog($"切歌：{(delta > 0 ? "下一首" : "上一首")} → {name}（{next + 1}/{count}）");
+
+        _advancing = true;
+        try
+        {
+            if (usePlaylist)
+            {
+                _playlistPos = next;
+                // 这里再取一次歌单：上面算 usePlaylist 与这里之间没有别的赋值，
+                // 但编译器认不出这层关系，用一个局部变量把空检查写明确。
+                var list = _playlist;
+                if (list != null && next < list.Count && LoadMidiFile(path))
+                    SelectTrackForEntry(list.Entries[next]);
+            }
+            else
+            {
+                if (LoadMidiFile(path)) AutoSelectTrack();
+            }
+        }
+        finally { _advancing = false; }
+
+        RefreshPlaylistCard();
         if (wasPlaying) RequestPlay(skipCountdown: true);
     }
 
@@ -1805,6 +1866,8 @@ public partial class MainWindow : Window
                 return;
             }
             if (!await ConfirmDiscardEditsAsync("打开文件夹里的文件")) return;
+            // 从文件夹曲目卡点开的：F9 与播完前进都走文件夹列表，不走歌单（Q18）
+            _sourceIsPlaylist = false;
             LoadMidiFile(path);
         }
         catch (Exception ex)
@@ -2061,6 +2124,10 @@ public partial class MainWindow : Window
     private async void TrackList_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_revertingTrack) return;   // RV-09：取消后回退选中行，忽略自触发的事件
+        // 自动连播换歌时也会程序化地换选中行（见 AutoSelectTrack / SelectTrackForEntry）。
+        // 那一次不能走这里：换轨会弹「丢弃改动」确认框，而连播时用户不在键鼠前，
+        // 那个框会一直挂着挡住连播。选行与刷谱面那两处已经自己做了。
+        if (_advancing) return;
         if (TrackList.SelectedItem is not TrackRowVM row) return;
         try
         {
@@ -3162,11 +3229,11 @@ public partial class MainWindow : Window
     }
 
     /// <summary>倒计时期间的悬浮窗（开关关掉、或本次播放被 ✕ 静音时不显示）。</summary>
-    private void ShowOverlayCountdown(int secondsLeft)
+    private void ShowOverlayCountdown(int secondsLeft, string nextLabel = "")
     {
         if (!ShouldShowOverlay(paused: false)) return;
         var w = EnsureOverlay();
-        w.ShowCountdown(secondsLeft);
+        w.ShowCountdown(secondsLeft, nextLabel);
         w.RestorePosition(_cfg?.OverlayX ?? -1, _cfg?.OverlayY ?? -1);
     }
 
@@ -3176,7 +3243,34 @@ public partial class MainWindow : Window
         if (!ShouldShowOverlay(eng.IsPaused)) return;
         var w = EnsureOverlay();
         w.ShowProgress(eng.ElapsedSeconds, eng.TotalSeconds, eng.LoopCount, eng.IsPaused);
+        w.SetQueueHint(QueueHintText());
         w.RestorePosition(_cfg?.OverlayX ?? -1, _cfg?.OverlayY ?? -1);
+    }
+
+    /// <summary>
+    /// 悬浮窗里那一行连播状态：当前第几首、下一首是什么、列表还剩几首。
+    /// 没有列表（单曲播放）时返回空串，整行收起来。
+    /// </summary>
+    private string QueueHintText()
+    {
+        bool usePlaylist = _sourceIsPlaylist && _playlist is { Count: > 0 };
+        int count = usePlaylist ? _playlist!.Count : _folderFiles.Count;
+        if (count == 0) return "";
+
+        int pos = usePlaylist ? CurrentPlaylistIndex() : CurrentFolderIndex();
+        string head = pos >= 0 ? $"{pos + 1}/{count}" : $"—/{count}";
+
+        // 单曲循环不会前进，写「下一首」会骗人，改成写明在重播
+        if (CurrentPlayMode == PlayMode.RepeatOne) return $"{head} · 单曲循环";
+
+        var decision = PlayAdvance.AfterFinish(
+            CurrentPlayMode, count, pos < 0 ? 0 : pos, null, null);
+        if (!decision.ShouldPlay) return $"{head} · {PlayModeNames.All[(int)CurrentPlayMode]}";
+
+        string next = usePlaylist
+            ? System.IO.Path.GetFileName(_playlist!.Entries[decision.Index].Path)
+            : System.IO.Path.GetFileName(_folderFiles[decision.Index]);
+        return $"{head} · 下一首 {next}";
     }
 
     private void HideOverlay()
@@ -3369,6 +3463,37 @@ public partial class MainWindow : Window
 
     /// <summary>【开发用】走与按钮同一条链路打开设置窗口（快照用）。</summary>
     internal void OpenSettingsForDev() => OpenSettings();
+
+    /// <summary>
+    /// 【开发用】拍歌单窗口快照：真开一次歌单窗口（走用户点「管理…」的同一条链路），
+    /// 并让它选中一份歌单。<paramref name="playlistName"/> 为空就选第一份。
+    /// </summary>
+    internal PlaylistWindow? OpenPlaylistForDev(string playlistName)
+    {
+        if (playlistName.Length > 0)
+        {
+            _playlist = PlaylistStore.Load(playlistName);
+            RefreshPlaylistCard();
+        }
+        PlaylistOpen_Click(null, new RoutedEventArgs());
+        return _playlistWindow;
+    }
+
+    /// <summary>【开发用】歌单窗口快照的场景准备：建一份歌单并放进 <paramref name="dir"/> 里的曲目。</summary>
+    internal void BuildPlaylistForDev(string name, string dir)
+    {
+        if (name.Length == 0 || !System.IO.Directory.Exists(dir)) return;
+
+        var list = Playlist.Create(name);
+        var files = System.IO.Directory.EnumerateFiles(dir)
+            .Where(f => System.IO.Path.GetExtension(f).ToLowerInvariant()
+                        is ".mid" or ".midi" or ".kar" or ".rmi")
+            .OrderBy(System.IO.Path.GetFileName, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+        foreach (var f in files) list.Entries.Add(new PlaylistEntry { Path = f });
+        if (!PlaylistStore.Save(list))
+            InsertLog($"【开发】歌单存盘失败：{name}");
+    }
 
     /// <summary>【开发用】当前的设置窗口。没开就是 null。</summary>
     internal SettingsWindow? SettingsWindowForDev => _settingsWindow;
@@ -3753,6 +3878,462 @@ public partial class MainWindow : Window
         UpdateTransportUi();
     }
 
+    private void OnEngineFinished()
+    {
+        var eng = _engine;
+        _engine = null;
+        if (eng != null)
+        {
+            _uiTimer?.Stop();
+            _uiTimer = null;
+            InsertLog("播放结束。");
+            InsertLog(eng.Probe.Summary());
+        }
+        // 收尾必须在前进之前做完：ResetUi 里才把 _busy 清零并收掉旧悬浮窗。
+        // 顺序反过来，RequestPlay 会被 _busy 静默吃掉，而且旧的悬浮窗还盖在新一轮倒计时上。
+        ResetUi();
+
+        // 自然播完才前进。用户按停止走的是 StopPlaybackNow，引擎不发 Finished，
+        // 那条路根本到不了这里 —— 所以「按停止要停下连播」不用额外判断。
+        if (eng != null) AdvanceAfterFinish();
+    }
+
+    // ================= 演奏模式与连播 =================
+
+    /// <summary>当前演奏模式。存在设置里（AppConfig.PlayModeIndex），按钮上显示的也是它。</summary>
+    private PlayMode CurrentPlayMode => PlayModeNames.Clamp(_cfg.PlayModeIndex);
+
+    private void PlayMode_Click(object? sender, RoutedEventArgs e)
+    {
+        _cfg.PlayModeIndex = (int)PlayModeNames.Next(CurrentPlayMode);
+        SaveSettings();
+        ApplyPlayModeUi();
+        InsertLog($"演奏模式：{PlayModeNames.All[(int)CurrentPlayMode]}。" + CurrentPlayMode switch
+        {
+            PlayMode.Sequential => "一首放完接着放下一首，到列表末尾就停。",
+            PlayMode.ListLoop => "一首放完接着放下一首，到列表末尾回到第一首，一直放。",
+            PlayMode.Shuffle => "一首放完随机挑列表里的另一首。",
+            _ => "一直重播当前这一首。",
+        });
+    }
+
+    /// <summary>把当前模式写到按钮上。忙时禁用，但不能改文案 —— 改文案会让用户以为模式变了。</summary>
+    private void ApplyPlayModeUi()
+    {
+        if (BtnPlayMode != null) BtnPlayMode.Content = PlayModeNames.ButtonText(CurrentPlayMode);
+    }
+
+    /// <summary>
+    /// 一首放完之后往哪走。四种模式的判断全在 <see cref="PlayAdvance"/> 里（纯逻辑，自检测它）。
+    /// 这里只负责：问它、照它做、把结果写进日志。
+    /// </summary>
+    private void AdvanceAfterFinish()
+    {
+        // 单曲循环由引擎顶着，正常到不了这里；真到了也不能前进，那会破坏「重播这一首」。
+        if (CurrentPlayMode == PlayMode.RepeatOne) return;
+
+        // 没打开任何列表就没什么可前进的，停在原地。
+        bool usePlaylist = _sourceIsPlaylist && _playlist is { Count: > 0 };
+        bool useFolder = !usePlaylist && _folderFiles.Count > 0;
+        if (!usePlaylist && !useFolder) return;
+
+        int count = usePlaylist ? _playlist!.Count : _folderFiles.Count;
+        int current = usePlaylist ? CurrentPlaylistIndex() : CurrentFolderIndex();
+
+        var decision = PlayAdvance.AfterFinish(CurrentPlayMode, count, current, null, _shuffleRng);
+        if (!decision.ShouldPlay)
+        {
+            if (decision.Kind == PlayAdvance.Move.Stop && decision.Reason.Length > 0)
+                InsertLog($"连播结束：{decision.Reason}。");
+            _consecutiveFailures = 0;
+            return;
+        }
+
+        AdvanceTo(usePlaylist, decision.Index);
+    }
+
+    /// <summary>
+    /// 走到列表里的第 <paramref name="index"/> 首并接着弹。
+    /// 文件不在、载入失败、开弹失败都算一次失败，记账之后跳到下一首（连败到上限就停）。
+    /// </summary>
+    private void AdvanceTo(bool usePlaylist, int index)
+    {
+        int count = usePlaylist ? _playlist?.Count ?? 0 : _folderFiles.Count;
+        if (index < 0 || index >= count) return;
+
+        string path;
+        PlaylistEntry? entry = null;
+        if (usePlaylist)
+        {
+            _playlistPos = index;
+            entry = _playlist!.Entries[index];
+            path = entry.Path;
+        }
+        else
+        {
+            path = _folderFiles[index];
+        }
+
+        string what = System.IO.Path.GetFileName(path);
+        if (!System.IO.File.Exists(path))
+        {
+            if (!usePlaylist)
+            {
+                InsertLog($"文件已不在：{what}");
+                ScanMidiFolder(_folderPath);
+            }
+            AdvanceSkippingFailures(usePlaylist, count, index, "文件已不在");
+            return;
+        }
+
+        bool loaded;
+        _advancing = true;
+        try
+        {
+            loaded = LoadMidiFile(path);
+            if (loaded)
+            {
+                if (entry != null) SelectTrackForEntry(entry);
+                else AutoSelectTrack();
+            }
+        }
+        finally { _advancing = false; }
+
+        if (!loaded)
+        {
+            AdvanceSkippingFailures(usePlaylist, count, index, "载入失败");
+            return;
+        }
+
+        // 倒计时走设置里那一档（Q7）：用户选了 3 秒，每首之间就都留 3 秒；
+        // 悬浮窗在倒计时里写出下一首的歌名，来不及反应就按 F6 取消。
+        InsertLog($"连播 {index + 1}/{count}：{what}");
+        _nextSongLabel = System.IO.Path.GetFileNameWithoutExtension(what);
+        UiPost(RefreshPlaylistCard);
+
+        int here = index;
+        RequestPlay(onFail: why => AdvanceSkippingFailures(usePlaylist, count, here, why));
+    }
+
+    /// <summary>
+    /// 一首放不出来时，从当前这一首往后找一个能放的。找不到返回 false。
+    ///
+    /// 注意这里**不递归**：切歌与开始播放都走 Dispatcher.Post 排到下一轮消息循环。
+    /// 直接递归会踩两个坑 —— NoteAdvanceFailure 是同步调回来的，而 RequestPlay 里那个
+    /// 倒计时定时器还没被下一次调用清掉，于是两个定时器同时跑，倒计时一到两首歌都会开弹。
+    /// </summary>
+    private bool AdvanceSkippingFailures(bool usePlaylist, int count, int current, string why)
+    {
+        _consecutiveFailures++;
+        if (!PlayAdvance.ShouldKeepSkipping(_consecutiveFailures))
+        {
+            int failed = _consecutiveFailures;
+            _consecutiveFailures = 0;
+            InsertLog($"连播已停：连续 {failed} 首无法演奏（最后一次：{why}）。");
+            return false;
+        }
+
+        InsertLog($"这一首放不出来（{why}），跳过它继续下一首。已连跳 {_consecutiveFailures} 首。");
+        int next = PlayAdvance.NextAfterFailure(CurrentPlayMode, count, current, _shuffleRng);
+        if (next < 0)
+        {
+            int failed = _consecutiveFailures;
+            _consecutiveFailures = 0;
+            InsertLog($"连播已停：列表里没有别的可放了（最后一次：{why}）。");
+            return false;
+        }
+
+        Dispatcher.UIThread.Post(() => AdvanceTo(usePlaylist, next));
+        return true;
+    }
+
+    /// <summary>当前这一首在文件夹列表里的下标；不在列表里返回 -1。</summary>
+    private int CurrentFolderIndex()
+    {
+        string cur = _parsed?.FilePath ?? "";
+        if (cur.Length == 0) return -1;
+        return _folderFiles.FindIndex(f => string.Equals(f, cur, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>当前这一首在歌单里的下标。先认记下来的位置，再按路径找。</summary>
+    private int CurrentPlaylistIndex()
+    {
+        if (_playlist == null) return -1;
+        if (_playlistPos >= 0 && _playlistPos < _playlist.Count &&
+            string.Equals(_playlist.Entries[_playlistPos].Path, _parsed?.FilePath ?? "",
+                          StringComparison.OrdinalIgnoreCase))
+            return _playlistPos;
+
+        string cur = _parsed?.FilePath ?? "";
+        if (cur.Length == 0) return -1;
+        return _playlist.Entries.FindIndex(e =>
+            string.Equals(e.Path, cur, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// 换歌之后自动选一行来弹。原来自动推荐轨被移除了（「猜得不准反而误导」），
+    /// 但连播必须有一行才能开弹，否则 RequestPlay 会静默返回。规则见 <see cref="PlaylistModel.Pick"/>：
+    /// 上一首演奏行的声部身份优先，其次第一条非打击乐行，最后第一条。
+    /// </summary>
+    private void AutoSelectTrack()
+    {
+        if (_parsed == null || _tracks.Count == 0) return;
+
+        var pick = PlaylistModel.Pick(_parsed.Candidates, null, _lastPlayedRole);
+        if (pick.Candidate is not { } cand) return;
+
+        int idx = _parsed.Candidates.IndexOf(cand);
+        if (idx < 0 || idx >= _tracks.Count) return;
+
+        _selected = _tracks[idx];
+        _mixOrder.Clear();
+        for (int i = 0; i < _tracks.Count; i++) _tracks[i].IsMain = ReferenceEquals(_tracks[i], _selected);
+        if (TrackList != null) TrackList.SelectedIndex = idx;
+        RefreshPreview();
+        InsertLog($"自动选了主旋律轨：{pick.Reason}。想换就点左侧那一行。");
+    }
+
+    /// <summary>
+    /// 歌单条目预先选好了音轨（Q19）。存的是「轨道号 + 声道」，钉死的，不随识别结果漂移。
+    /// 那一行在新文件里不存在时退到 <see cref="AutoSelectTrack"/> 的规则，并写一行日志。
+    /// </summary>
+    private void SelectTrackForEntry(PlaylistEntry entry)
+    {
+        if (_parsed == null || _tracks.Count == 0) return;
+
+        var pick = PlaylistModel.Pick(_parsed.Candidates, entry.Track, _lastPlayedRole);
+        if (pick.Candidate is not { } cand) return;
+
+        int idx = _parsed.Candidates.IndexOf(cand);
+        if (idx < 0 || idx >= _tracks.Count) return;
+
+        _selected = _tracks[idx];
+        _mixOrder.Clear();
+        for (int i = 0; i < _tracks.Count; i++) _tracks[i].IsMain = ReferenceEquals(_tracks[i], _selected);
+        if (TrackList != null) TrackList.SelectedIndex = idx;
+        RefreshPreview();
+
+        InsertLog(pick.Exact
+            ? $"按歌单预设选了音轨：{pick.Reason}。"
+            : $"歌单预设的那一行不在这份文件里，改成 {pick.Reason}。");
+    }
+
+    /// <summary>
+    /// 上一首真正演奏过的那一行的声部身份。连播换歌时按它找「同一轨」。
+    /// 手动点过别的行，这里跟着变；没演奏过就是 null。
+    /// </summary>
+    private TrackRole? _lastPlayedRole
+    {
+        get
+        {
+            var rows = _mixOrder.Where(r => r.IsMix).ToList();
+            if (rows.Count > 0) return rows[0].Candidate.Role;
+            return _selected?.Candidate.Role;
+        }
+    }
+
+    // ================= 歌单卡 =================
+
+    /// <summary>恢复上次选中的歌单（启动时调一次）。目录不存在或文件没了就当没选过。</summary>
+    private void RestorePlaylistFromConfig()
+    {
+        string name = _cfg.ActivePlaylist ?? "";
+        if (name.Length == 0) { _playlist = null; RefreshPlaylistCard(); return; }
+
+        _playlist = PlaylistStore.Load(name);
+        if (_playlist == null)
+        {
+            InsertLog($"上次那份歌单「{name}」找不到了，歌单卡先收起。");
+            _cfg.ActivePlaylist = "";
+        }
+        RefreshPlaylistCard();
+    }
+
+    private void PlaylistOpen_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_playlistWindow != null)
+        {
+            _playlistWindow.Activate();
+            return;
+        }
+
+        var win = new PlaylistWindow { ActiveName = _playlist?.Name ?? "", SuggestRole = _lastPlayedRole };
+        win.EntryActivated += path =>
+        {
+            // 双击歌单里的一行：载入它，并在演奏中接着弹（和切歌一个规矩）
+            if (HasUnexportedEdits)
+            {
+                InsertLog("有未导出的卷帘改动：先点「导出 MIDI…」保存，再换歌。");
+                return;
+            }
+            LoadPlaylistEntry(path, playNow: _engine is { IsRunning: true });
+            win.RefreshPlayingMark();
+        };
+        win.Changed += () =>
+        {
+            ReloadPlaylistFromDisk();
+            win.RefreshPlayingMark();
+        };
+        win.Closed += (_, _) => _playlistWindow = null;
+
+        _playlistWindow = win;
+        win.SelectInitial();
+        win.Show(this);
+    }
+
+    /// <summary>歌单窗口改了内容：重新读回来，并刷新左栏那张卡。</summary>
+    private void ReloadPlaylistFromDisk()
+    {
+        string name = _playlist?.Name ?? _cfg.ActivePlaylist ?? "";
+        if (name.Length == 0) { RefreshPlaylistCard(); return; }
+        _playlist = PlaylistStore.Load(name);
+        if (_playlist == null && (_cfg.ActivePlaylist ?? "").Length > 0) _cfg.ActivePlaylist = "";
+        RefreshPlaylistCard();
+    }
+
+    private void PlaylistClose_Click(object? sender, RoutedEventArgs e)
+    {
+        _playlist = null;
+        _playlistPos = -1;
+        _cfg.ActivePlaylist = "";
+        SaveSettings();
+        RefreshPlaylistCard();
+        InsertLog("已收起歌单卡。歌单文件没删，下次在歌单窗口里还能选。");
+    }
+
+    /// <summary>点歌单卡里的一首：载入它。演奏中（含暂停中）接着弹，空闲时只载入。</summary>
+    private void PlaylistList_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_playlistSyncing) return;   // 铺界面时的程序化选中，不是用户点的
+        if (PlaylistList?.SelectedItem is not ListBoxItem it) return;
+        if (it.Tag is not int idx || _playlist == null) return;
+        if (idx < 0 || idx >= _playlist.Count) return;
+
+        // 不能在这个选择事件里立刻载入：载入会重铺这个列表，重铺时 ListBox 会去读旧下标并抛异常
+        // （文件夹曲目卡踩过同一个坑，见 FolderList_SelectionChanged 的注释）。
+        string path = _playlist.Entries[idx].Path;
+        bool wasPlaying = _engine is { IsRunning: true };
+        Dispatcher.UIThread.Post(() => LoadPlaylistEntry(path, playNow: wasPlaying));
+    }
+
+    /// <summary>载入歌单里的一首，并把连播来源标成歌单。</summary>
+    private void LoadPlaylistEntry(string path, bool playNow)
+    {
+        if (_playlist == null)
+        {
+            LoadMidiFile(path);
+            return;
+        }
+
+        _playlistPos = _playlist.Entries.FindIndex(x =>
+            string.Equals(x.Path, path, StringComparison.OrdinalIgnoreCase));
+        if (_playlistPos < 0) return;
+
+        var entry = _playlist.Entries[_playlistPos];
+        if (!System.IO.File.Exists(entry.Path))
+        {
+            InsertLog($"「{System.IO.Path.GetFileName(entry.Path)}」已经不在磁盘上了，换一首或把它移出歌单。");
+            RefreshPlaylistCard();
+            return;
+        }
+
+        _sourceIsPlaylist = true;
+        bool loaded = LoadMidiFile(entry.Path);
+        if (loaded) SelectTrackForEntry(entry);
+
+        RefreshPlaylistCard();
+        if (playNow && loaded) RequestPlay(skipCountdown: true);
+    }
+
+    /// <summary>
+    /// 重铺左栏的歌单卡。显隐只看有没有选过歌单 —— 载入歌曲不会清掉它，所以卡片不会莫名消失。
+    /// 先清选中再清条目：选中项还在时清空会让 ListBox 读旧下标并抛越界。
+    /// </summary>
+    private void RefreshPlaylistCard()
+    {
+        if (PlaylistCard == null || PlaylistList == null) return;   // 构造早期的防御：控件还没建好
+
+        bool has = _playlist != null;
+        PlaylistCard.IsVisible = has;
+        if (!has)
+        {
+            _playlistSyncing = true;
+            try
+            {
+                PlaylistList.SelectedItem = null;
+                PlaylistList.Items.Clear();
+                if (TxtPlaylistEmpty != null) TxtPlaylistEmpty.IsVisible = false;
+            }
+            finally { _playlistSyncing = false; }
+            return;
+        }
+
+        TxtPlaylistName.Text = _playlist!.Name;
+
+        _playlistSyncing = true;
+        try
+        {
+            PlaylistList.SelectedItem = null;
+            PlaylistList.Items.Clear();
+
+            int total = _playlist.Count;
+            int shown = Math.Min(total, PlaylistMenuMax);
+            string cur = _parsed?.FilePath ?? "";
+
+            for (int i = 0; i < shown; i++)
+            {
+                var entry = _playlist.Entries[i];
+                string file = System.IO.Path.GetFileName(entry.Path);
+                bool missing = !System.IO.File.Exists(entry.Path);
+                bool playing = cur.Length > 0 &&
+                               string.Equals(entry.Path, cur, StringComparison.OrdinalIgnoreCase);
+
+                string prefix = playing ? "▶ " : missing ? "⚠ " : "";
+                var item = new ListBoxItem
+                {
+                    Content = new TextBlock
+                    {
+                        Text = $"{prefix}{i + 1}. {file}",
+                        FontSize = 12.5,
+                        TextTrimming = TextTrimming.CharacterEllipsis,
+                    },
+                    Tag = i,
+                    Opacity = missing ? 0.55 : 1.0,
+                };
+                Avalonia.Controls.ToolTip.SetTip(item,
+                    entry.Path + (missing ? "\n文件已不在：连播时会跳过这一首" : ""));
+                PlaylistList.Items.Add(item);
+            }
+
+            if (total > shown)
+            {
+                PlaylistList.Items.Add(new ListBoxItem
+                {
+                    Content = new TextBlock
+                    {
+                        Text = $"（还有 {total - shown} 首，点「管理…」看全部）",
+                        FontSize = 12.5,
+                        Opacity = 0.7,
+                    },
+                    IsEnabled = false,
+                });
+            }
+
+            if (TxtPlaylistEmpty != null) TxtPlaylistEmpty.IsVisible = total == 0;
+
+            // 把正在演奏的那一首标成选中
+            int pos = CurrentPlaylistIndex();
+            if (pos >= 0 && pos < shown) PlaylistList.SelectedIndex = pos;
+        }
+        finally { _playlistSyncing = false; }
+
+        if (_playlistWindow != null)
+        {
+            _playlistWindow.PlayingPath = _parsed?.FilePath ?? "";
+            _playlistWindow.SuggestRole = _lastPlayedRole;
+        }
+    }
+
     // ================= 播放 =================
 
     private void BtnPlay_Click(object? sender, RoutedEventArgs e)
@@ -3766,15 +4347,27 @@ public partial class MainWindow : Window
         RequestPlay();
     }
 
-    private void RequestPlay(bool skipCountdown = false)
+    /// <param name="skipCountdown">跳过倒计时直接开弹（切歌与远程同演用）。</param>
+    /// <param name="onFail">
+    /// 开弹失败时叫回来，参数是原因。自动连播靠它决定「跳过这一首」还是「停下」（Q8）。
+    /// 普通播放传 null：失败只写日志，不额外做事。
+    /// </param>
+    private void RequestPlay(bool skipCountdown = false, Action<string>? onFail = null)
     {
-        if (_busy || ActiveRows().Count == 0) return;
+        // 三个提前 return 都要叫回 onFail：自动连播时静默失败会让整个列表一路空转到末尾，
+        // 用户看到的只是「停在某一首不动」，查不出原因。
+        if (_busy || ActiveRows().Count == 0)
+        {
+            onFail?.Invoke(ActiveRows().Count == 0 ? "没有选中任何一行" : "上一次播放还没收尾");
+            return;
+        }
 
         // 强制更新期间不给开弹：热键、按钮、托盘、切歌热键四条入口最后都走这里
         if (_forcedUpdateOn)
         {
             InsertLog("必须先更新到最新版本，更新完就能照常用。");
             ForcedUpdateOverlay.IsVisible = true;
+            onFail?.Invoke("必须先更新版本");
             return;
         }
 
@@ -3783,6 +4376,7 @@ public partial class MainWindow : Window
         if (!Input.InputSender.EnsureBackend(out string backendErr, out string? backendWarn))
         {
             InsertLog(backendErr.Replace("\n", ""));
+            onFail?.Invoke("输入后端不可用");
             return;
         }
         if (backendWarn != null) InsertLog(backendWarn);   // 这次补初始化发现 G HUB 没在运行
@@ -3794,9 +4388,12 @@ public partial class MainWindow : Window
         if (map.InRangeCount == 0)
         {
             InsertLog("没有可演奏的音，无法播放。请调整“移调”或换一行。");
+            onFail?.Invoke("键位方案里一个音都对应不上");
             return;
         }
         _playNotes = NoteMapper.Playable(map.Notes);
+        _consecutiveFailures = 0;   // 走到这里说明这一首真的开弹了，失败计数清零
+        _nextSongLabel = "";        // 非连播的播放路径：别把上一次的「下一首」留在倒计时上
 
         SetBusy(true);
         _overlayMuted = false;   // 新一次播放：✕ 的「本次不显示」作废，浮窗该出还出
@@ -3806,7 +4403,10 @@ public partial class MainWindow : Window
         {
             _countdownLeft = cd;
             UpdateCountdownText();
-            ShowOverlayCountdown(cd);   // 悬浮窗同步倒计时（开关关掉时内部直接返回）
+            // 悬浮窗同步倒计时（开关关掉时内部直接返回）。连播时带上「下一首：歌名」——
+            // 自动连播时用户不在键鼠前，这几秒是唯一能看清接下来放什么的机会（Q7）。
+            string nextLabel = _nextSongLabel.Length > 0 ? $"下一首：{_nextSongLabel}" : "";
+            ShowOverlayCountdown(cd, nextLabel);
             InsertLog($"{cd} 秒后开始——请切到目标窗口并装备乐器…");
             _countdownTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
             _countdownTimer.Tick += (_, _) =>
@@ -3872,7 +4472,10 @@ public partial class MainWindow : Window
         engine.Finished += () => UiPost(OnEngineFinished);
 
         double speed = SliderSpeed.Value / 100.0;
-        bool loop = ChkLoop.IsChecked == true;
+        // 「单曲循环」这一种交给引擎的 _loop：引擎自己重播，不发 Finished 事件，连播就不动。
+        // 其余三种模式下引擎只放一遍，放完由 OnEngineFinished 决定往哪走。
+        bool loop = CurrentPlayMode == PlayMode.RepeatOne;
+        _nextSongLabel = "";   // 这一首已经开弹了，倒计时那句「下一首」用完就清
 
         if (!Input.InputSender.IsSupported)
             InsertLog("（当前平台不支持输入模拟，仅流程演示）");
@@ -3962,20 +4565,6 @@ public partial class MainWindow : Window
         ShowOverlayProgress(engine);   // 倒计时是 0 秒时这里没有等待期，立刻摆出进度
     }
 
-    private void OnEngineFinished()
-    {
-        var eng = _engine;
-        _engine = null;
-        if (eng != null)
-        {
-            _uiTimer?.Stop();
-            _uiTimer = null;
-            InsertLog("播放结束。");
-            InsertLog(eng.Probe.Summary());
-        }
-        ResetUi();
-    }
-
     private void BtnStop_Click(object? sender, RoutedEventArgs e) => StopPlaybackNow();
 
     private void StopPlaybackNow()
@@ -4038,7 +4627,7 @@ public partial class MainWindow : Window
         // 暂停中允许打开新 MIDI（载入时会自动先停止当前播放）
         BtnOpen.IsEnabled = !busy || (_engine is { IsRunning: true, IsPaused: true });
         TrackList.IsEnabled = !busy;
-        ChkLoop.IsEnabled = !busy;
+        BtnPlayMode.IsEnabled = !busy;   // 演奏中不换模式：一轮演奏的走向在开始时已定
         ChkTrimLead.IsEnabled = !busy;
         ChkFoldOctave.IsEnabled = !busy;
         ChkAutoMinimize.IsEnabled = !busy;

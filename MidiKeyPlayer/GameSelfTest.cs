@@ -87,6 +87,7 @@ internal static partial class GameSelfTest
             TestChordMerge();
             TestTrackRoles();
             TestRemoteSync();
+            TestPlaylistAdvance();
         }
         catch (Exception ex)
         {
@@ -1032,6 +1033,166 @@ internal static partial class GameSelfTest
         Check("通用轨名识别为「没写」", genericMiss == 0, genericMiss == 0 ? $"{generic.Length} 条" : missName);
         Check("说得清的轨名不算通用", specificHit == 0, specificHit == 0 ? $"{specific.Length} 条" : hitName);
     }
+
+    // ================= 歌单与连播（v1.1.21） =================
+
+    /// <summary>
+    /// 连播的全部判断：四种模式往哪走、放不出来怎么跳、歌单条目怎么排顺序、按什么挑音轨。
+    ///
+    /// 这些都是纯函数（PlayAdvance / PlaylistModel），所以能在不建窗口、不发按键的这条自检里跑。
+    /// 界面里那三条入口（上移按钮、下移按钮、拖放）调的就是这里测的同一个函数，
+    /// 所以拖放这种没法在无窗口环境里模拟的手势，逻辑也照样被钉住了。
+    /// </summary>
+    private static void TestPlaylistAdvance()
+    {
+        // —— 模式名与切换 ——
+        Check("演奏模式有四种", PlayModeNames.All.Length == 4 && PlayModeNames.Short.Length == 4,
+            string.Join(" / ", PlayModeNames.All));
+        Check("模式点击循环 3→0", PlayModeNames.Next(PlayMode.RepeatOne) == PlayMode.Sequential);
+        Check("模式点击循环 0→1", PlayModeNames.Next(PlayMode.Sequential) == PlayMode.ListLoop);
+        Check("越界的模式号夹回顺序播放",
+            PlayModeNames.Clamp(-1) == PlayMode.Sequential && PlayModeNames.Clamp(99) == PlayMode.Sequential);
+
+        // —— 顺序播放：一首接一首，到底就停 ——
+        var seq1 = PlayAdvance.AfterFinish(PlayMode.Sequential, 3, 0);
+        Check("顺序播放：第 1 首之后放第 2 首",
+            seq1.Kind == PlayAdvance.Move.Play && seq1.Index == 1, seq1.Reason);
+        var seq2 = PlayAdvance.AfterFinish(PlayMode.Sequential, 3, 1);
+        Check("顺序播放：第 2 首之后放第 3 首",
+            seq2.Kind == PlayAdvance.Move.Play && seq2.Index == 2, seq2.Reason);
+        var seqEnd = PlayAdvance.AfterFinish(PlayMode.Sequential, 3, 2);
+        Check("顺序播放：最后一首放完就停", seqEnd.Kind == PlayAdvance.Move.Stop, seqEnd.Reason);
+
+        // —— 列表循环：到底回绕 ——
+        var loopEnd = PlayAdvance.AfterFinish(PlayMode.ListLoop, 3, 2);
+        Check("列表循环：最后一首之后回到第 1 首",
+            loopEnd.Kind == PlayAdvance.Move.Play && loopEnd.Index == 0, loopEnd.Reason);
+        var loopMid = PlayAdvance.AfterFinish(PlayMode.ListLoop, 3, 0);
+        Check("列表循环：中间照常往后走",
+            loopMid.Kind == PlayAdvance.Move.Play && loopMid.Index == 1, loopMid.Reason);
+
+        // —— 随机播放：不挑自己 ——
+        var rng = new Random(20260928);
+        bool shuffleOk = true;
+        string shuffleBad = "";
+        for (int i = 0; i < 200; i++)
+        {
+            var d = PlayAdvance.AfterFinish(PlayMode.Shuffle, 5, 2, null, rng);
+            if (d.Kind == PlayAdvance.Move.Play && d.Index != 2 && d.Index >= 0 && d.Index < 5) continue;
+            shuffleOk = false;
+            shuffleBad = $"实得 {d.Kind}/{d.Index}";
+            break;
+        }
+        Check("随机播放：200 次都不挑到当前这一首", shuffleOk, shuffleOk ? "200 次" : shuffleBad);
+        Check("随机播放：列表只有一首时不前进",
+            PlayAdvance.PickShuffle(1, 0) == -1);
+
+        // —— 单曲循环：引擎自己重播，连播不动 ——
+        var rep = PlayAdvance.AfterFinish(PlayMode.RepeatOne, 3, 1);
+        Check("单曲循环：连播不做前进", rep.Kind == PlayAdvance.Move.Stop, rep.Reason);
+
+        // —— 边界 ——
+        Check("空列表不前进",
+            PlayAdvance.AfterFinish(PlayMode.ListLoop, 0, 0).Kind == PlayAdvance.Move.Stop);
+        Check("只有一首的列表不前进",
+            PlayAdvance.AfterFinish(PlayMode.ListLoop, 1, 0).Kind == PlayAdvance.Move.Stop);
+        Check("越界的当前下标被当成故障",
+            PlayAdvance.AfterFinish(PlayMode.Sequential, 3, 5).Kind == PlayAdvance.Move.Fault);
+
+        // —— 放不出来：跳过，连败 3 次就停 ——
+        Check("连败上限是 3 次", PlayAdvance.MaxConsecutiveFailures == 3);
+        Check("连败 1 次还继续跳", PlayAdvance.ShouldKeepSkipping(1));
+        Check("连败 2 次还继续跳", PlayAdvance.ShouldKeepSkipping(2));
+        Check("连败 3 次停连播", !PlayAdvance.ShouldKeepSkipping(3));
+        Check("放不出来时顺序播放往后挪一首",
+            PlayAdvance.NextAfterFailure(PlayMode.Sequential, 4, 1) == 2);
+        Check("放不出来时最后一首回绕到第 1 首",
+            PlayAdvance.NextAfterFailure(PlayMode.Sequential, 4, 3) == 0);
+
+        // —— 歌单顺序：上移、下移、拖放三条路走同一个函数 ——
+        var order = new List<string> { "A", "B", "C" };
+        Check("上移：B 挪到 A 前面",
+            PlaylistModel.MoveUp(order, 1) && string.Join("", order) == "BAC", string.Join("", order));
+
+        order = new List<string> { "A", "B", "C" };
+        Check("下移：A 挪到 B 后面",
+            PlaylistModel.MoveDown(order, 0) && string.Join("", order) == "BAC", string.Join("", order));
+
+        order = new List<string> { "A", "B", "C" };
+        Check("上移：已经在最上面就不动",
+            !PlaylistModel.MoveUp(order, 0) && string.Join("", order) == "ABC", string.Join("", order));
+
+        order = new List<string> { "A", "B", "C" };
+        Check("下移：已经在最下面就不动",
+            !PlaylistModel.MoveDown(order, 2) && string.Join("", order) == "ABC", string.Join("", order));
+
+        order = new List<string> { "A", "B", "C" };
+        Check("下标越界不崩也不动",
+            !PlaylistModel.Move(order, -1, 1) && !PlaylistModel.Move(order, 9, 1) &&
+            string.Join("", order) == "ABC", string.Join("", order));
+
+        // 拖放：把第 1 行拖到第 3 行上。元素先被抽走，后面的整体前移一格，
+        // 所以 A 落在原来 B 的位置上 = BAC（不是「挪到最末尾」）。
+        order = new List<string> { "A", "B", "C" };
+        Check("拖放：A 拖到 C 的位置上变成 BAC",
+            PlaylistModel.MoveOnto(order, 0, 2) && string.Join("", order) == "BAC", string.Join("", order));
+
+        order = new List<string> { "A", "B", "C" };
+        Check("拖放：C 拖到 A 上变成 CAB",
+            PlaylistModel.MoveOnto(order, 2, 0) && string.Join("", order) == "CAB", string.Join("", order));
+
+        // —— 挑音轨：歌单预设优先，其次上一首的声部身份 ——
+        var cands = new List<MidiCandidate>
+        {
+            MakeCandidate(0, 9, TrackRole.Drums, "鼓"),
+            MakeCandidate(1, 0, TrackRole.Bass, "贝斯"),
+            MakeCandidate(2, 0, TrackRole.Melody, "主旋律"),
+            MakeCandidate(3, 0, TrackRole.Melody, "副旋律"),
+        };
+
+        var pickExact = PlaylistModel.Pick(cands, new TrackRef { TrackIndex = 2, Channel = 0 });
+        Check("挑音轨：按歌单预设精确命中",
+            pickExact.Found && pickExact.Exact && pickExact.Candidate!.TrackIndex == 2,
+            pickExact.Reason);
+
+        var pickRole = PlaylistModel.Pick(cands, null, TrackRole.Bass);
+        Check("挑音轨：没预设就接上一首的声部",
+            pickRole.Found && pickRole.Candidate!.TrackIndex == 1, pickRole.Reason);
+
+        var pickMissing = PlaylistModel.Pick(cands, new TrackRef { TrackIndex = 99, Channel = 0 }, TrackRole.Bass);
+        Check("挑音轨：预设的行不在了就退到声部匹配",
+            pickMissing.Found && !pickMissing.Exact && pickMissing.Candidate!.TrackIndex == 1,
+            pickMissing.Reason);
+
+        var onlyDrums = new List<MidiCandidate> { MakeCandidate(0, 9, TrackRole.Drums, "鼓") };
+        var pickDrum = PlaylistModel.Pick(onlyDrums, null, TrackRole.Bass);
+        Check("挑音轨：只剩打击乐轨也有兜底",
+            pickDrum.Found && pickDrum.Candidate!.TrackIndex == 0, pickDrum.Reason);
+
+        Check("挑音轨：一首没有候选行时挑不出来",
+            !PlaylistModel.Pick(new List<MidiCandidate>()).Found);
+
+        // —— 同名多个同声部的行：取轨道号最小的那个 ——
+        var twins = new List<MidiCandidate>
+        {
+            MakeCandidate(5, 0, TrackRole.Melody, "后一条"),
+            MakeCandidate(1, 0, TrackRole.Melody, "前一条"),
+        };
+        var pickTwin = PlaylistModel.Pick(twins, null, TrackRole.Melody);
+        Check("挑音轨：同声部取轨道号最小的",
+            pickTwin.Found && pickTwin.Candidate!.TrackIndex == 1, pickTwin.Reason);
+    }
+
+    /// <summary>造一个候选行，供挑音轨用例使用（不走 MIDI 解析，直接给结论）。</summary>
+    private static MidiCandidate MakeCandidate(int track, int channel, TrackRole role, string name) =>
+        new()
+        {
+            TrackIndex = track,
+            Channel = channel,
+            Role = role,
+            Name = name,
+            Notes = MakeNotes(60, 4, 0.5),
+        };
 
     /// <summary>造一段等长的测试音符：全部同一个音高，间隔固定（只在声部推断用例里用）。</summary>
     private static List<RawNote> MakeNotes(int pitch, int count, double seconds)

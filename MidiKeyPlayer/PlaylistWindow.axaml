@@ -1,0 +1,81 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="MidiKeyPlayer.PlaylistWindow"
+        Title="歌单"
+        Width="880" Height="640" MinWidth="680" MinHeight="460"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource BrushCanvas}"
+        FontFamily="{DynamicResource FontUi}">
+  <!-- 歌单窗口：左边选歌单，右边排歌。
+       它没有放进设置窗口，因为设置窗口在演奏中打不开（OpenSettings 对播放状态提前返回），
+       而「一边放歌一边改下一首的顺序」正是这个窗口的主要用法。
+
+       曲目行由代码搭（见 PlaylistWindow.axaml.cs 的 BuildEntryRow），不用 ItemTemplate：
+       本仓库的 FolderList / TrackList / 键位表都是这个写法，行里要放按钮时只有这条走得通。 -->
+  <Grid RowDefinitions="*,Auto" Margin="14">
+    <Grid Grid.Row="0" ColumnDefinitions="220,*">
+
+      <!-- ==================== 左：歌单列表 ==================== -->
+      <Border Grid.Column="0" Classes="card" Padding="10">
+        <Grid RowDefinitions="Auto,*,Auto">
+          <TextBlock Grid.Row="0" Classes="sectionLabel" Text="我的歌单"/>
+          <ListBox Grid.Row="1" x:Name="PlaylistList" Margin="0,8,0,0"
+                   SelectionMode="Single" SelectionChanged="PlaylistList_SelectionChanged"/>
+          <WrapPanel Grid.Row="2" ItemSpacing="8" LineSpacing="6" Margin="0,8,0,0">
+            <Button x:Name="BtnPlaylistNew" Content="新建" Classes="secondary" Padding="12,4"
+                    Click="PlaylistNew_Click" ToolTip.Tip="新建一份空歌单"/>
+            <Button x:Name="BtnPlaylistRename" Content="改名" Classes="secondary" Padding="12,4"
+                    Click="PlaylistRename_Click" ToolTip.Tip="给当前歌单改名。文件名跟着换，旧文件会删掉"/>
+            <Button x:Name="BtnPlaylistDelete" Content="删除" Classes="secondary" Padding="12,4"
+                    Click="PlaylistDelete_Click" ToolTip.Tip="删除整份歌单。会先确认一次"/>
+          </WrapPanel>
+        </Grid>
+      </Border>
+
+      <!-- ==================== 右：曲目 ==================== -->
+      <Border Grid.Column="1" Classes="card" Padding="10" Margin="10,0,0,0">
+        <Grid RowDefinitions="Auto,Auto,*,Auto">
+
+          <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+            <TextBlock Grid.Column="0" x:Name="TxtListTitle" Classes="sectionLabel" Text="曲目"
+                       TextTrimming="CharacterEllipsis"/>
+            <TextBlock Grid.Column="1" x:Name="TxtListCount" Classes="caption" Text="0 首"/>
+          </Grid>
+
+          <WrapPanel Grid.Row="1" ItemSpacing="8" LineSpacing="6" Margin="0,8,0,8">
+            <TextBox x:Name="TxtSearch" Width="170" Watermark="按文件名过滤"
+                     FontSize="{DynamicResource FontSmall}" TextChanged="Search_Changed"/>
+            <Button x:Name="BtnAddFiles" Content="加入 MIDI…" Classes="secondary" Padding="12,4"
+                    Click="AddFiles_Click" ToolTip.Tip="选一个或多个 MIDI 文件加入当前歌单"/>
+            <Button x:Name="BtnAddFolder" Content="整个文件夹…" Classes="secondary" Padding="12,4"
+                    Click="AddFolder_Click" ToolTip.Tip="把一个文件夹里的全部 MIDI 按文件名顺序加入当前歌单"/>
+            <Button x:Name="BtnRemove" Content="移除" Classes="secondary" Padding="12,4"
+                    Click="Remove_Click" ToolTip.Tip="把选中的曲目移出歌单。不删磁盘上的文件"/>
+            <Button x:Name="BtnUp" Content="上移" Classes="secondary" Padding="12,4"
+                    Click="Up_Click" ToolTip.Tip="把选中的曲目往上挪一格。演奏顺序就是列表顺序"/>
+            <Button x:Name="BtnDown" Content="下移" Classes="secondary" Padding="12,4"
+                    Click="Down_Click" ToolTip.Tip="把选中的曲目往下挪一格。也可以直接拖动某一行"/>
+          </WrapPanel>
+
+          <!-- 曲目列表。行由代码搭，拖动由下面三个指针事件接管。 -->
+          <ListBox Grid.Row="2" x:Name="EntryList" SelectionMode="Single"
+                   PointerPressed="EntryList_PointerPressed"
+                   PointerMoved="EntryList_PointerMoved"
+                   PointerReleased="EntryList_PointerReleased"
+                   PointerCaptureLost="EntryList_PointerCaptureLost"/>
+
+          <TextBlock Grid.Row="3" x:Name="TxtHint" Classes="caption" Margin="0,8,0,0"
+                     TextWrapping="Wrap"
+                     Text="演奏顺序就是列表顺序。点「音轨」替这一首预先选好弹哪一行，连播时就不必再猜。"/>
+        </Grid>
+      </Border>
+    </Grid>
+
+    <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,12,0,0">
+      <TextBlock Grid.Column="0" x:Name="TxtStatus" Classes="caption" VerticalAlignment="Center"
+                 TextWrapping="Wrap" TextTrimming="CharacterEllipsis"/>
+      <Button Grid.Column="1" Content="关闭" Classes="secondary" Padding="18,6"
+              Click="Close_Click"/>
+    </Grid>
+  </Grid>
+</Window>

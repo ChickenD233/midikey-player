@@ -77,6 +77,13 @@ public sealed class AppConfig
     // 原来的 ChordMode（保留和弦）字段已删除：该功能移除后行为固定为「演奏 MIDI 里的全部音」。
     // 老设置文件里的 "ChordMode" 是未知成员，源生成默认 UnmappedMemberHandling.Skip，读盘时直接忽略。
 
+    // —— 演奏模式与歌单（v1.1.21）——
+    // 四种模式：0 顺序播放 / 1 列表循环 / 2 随机播放 / 3 单曲循环。
+    // 存盘的理由：它的地位和速度、移调、倒计时一样，都是「上次怎么弹的」。
+    public int PlayModeIndex { get; set; } = 0;
+    // 上次选中的歌单名（空 = 没选过）。左栏那张曲目卡与 F9 切歌都按它找列表。
+    public string ActivePlaylist { get; set; } = "";
+
     /// <summary>按方案名分别记住的速度 / 移调 / 输入兼容档。键是方案名。</summary>
     public Dictionary<string, ProfileSettings> PerProfile { get; set; } = new();
 
@@ -217,6 +224,9 @@ public sealed class AppConfig
     {
         Speed = Speed;
         Transpose = Transpose;
+        // 脏设置文件里的模式号不能一路传到按钮上：界面只有四态，越界当作顺序播放。
+        PlayModeIndex = PlayModeIndex is >= 0 and <= 3 ? PlayModeIndex : 0;
+        ActivePlaylist ??= "";
         TrimRecentFiles();   // 最近打开：老设置文件里可能超过 10 条，也可能带空串
         if (PerProfile == null) return;
         foreach (var s in PerProfile.Values)

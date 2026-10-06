@@ -82,11 +82,11 @@
       </Grid>
     </Border>
 
-    <!-- ================= 左栏：文件 → 文件夹曲目 → 轨道 ================= -->
-    <!-- 三行：打开卡 / 文件夹曲目卡（选过文件夹才可见）/ 轨道列表卡。
-         文件夹曲目卡放在打开卡与轨道列表之间：用户点「打开文件夹…」之后，
-         曲目就在这片常驻区域里，不用再去菜单里找。 -->
-    <Grid Width="440" RowDefinitions="Auto,Auto,*" DockPanel.Dock="Left" Margin="0,0,12,0">
+    <!-- ================= 左栏：文件 → 文件夹曲目 → 歌单 → 轨道 ================= -->
+    <!-- 四行：打开卡 / 文件夹曲目卡（选过文件夹才可见）/ 歌单卡（选过歌单才可见）/ 轨道列表卡。
+         文件夹曲目卡与歌单卡并存（Q12）：前者管「这个目录里有什么」，后者管「我要按这个顺序弹」，
+         不用互相导入。F9 与连播走哪一张，看当前这首是从哪张卡点开的（Q18），见 SwitchSong。 -->
+    <Grid Width="440" RowDefinitions="Auto,Auto,Auto,*" DockPanel.Dock="Left" Margin="0,0,12,0">
 
       <Border Grid.Row="0" Classes="card">
         <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
@@ -161,7 +161,43 @@
         </StackPanel>
       </Border>
 
-      <Border Grid.Row="2" Classes="card" Margin="{DynamicResource CardGap}" Padding="0">
+      <!-- ================= 歌单卡（选过歌单才可见） =================
+           与文件夹曲目卡并存。这一张的列表是用户自己排的顺序，也是连播与 F9 的候选来源。
+           列表固定 150px 高，和文件夹曲目卡一样：曲目多少张，卡片高矮都不变。
+           条目里带 ▶ 标记的是正在演奏的那一首。 -->
+      <Border x:Name="PlaylistCard" Grid.Row="2" Classes="card" Margin="{DynamicResource CardGap}"
+              Padding="12,10" IsVisible="False">
+        <StackPanel Spacing="6">
+          <Grid ColumnDefinitions="*,Auto,Auto">
+            <TextBlock Grid.Column="0" x:Name="TxtPlaylistName" Text="" FontSize="{DynamicResource FontSmall}"
+                       FontWeight="SemiBold" VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis" ToolTip.Tip="当前歌单。顺序就是演奏顺序"/>
+            <Button x:Name="BtnPlaylistOpen" Grid.Column="1" Content="管理…" Margin="8,0,0,0"
+                    FontSize="{DynamicResource FontCaption}" Padding="10,3" Classes="secondary"
+                    Click="PlaylistOpen_Click"
+                    ToolTip.Tip="打开歌单窗口：新建、加入曲目、调整顺序、替每一首预先选好音轨。演奏中也能开"/>
+            <Button x:Name="BtnPlaylistClose" Grid.Column="2" Content="关闭" Margin="8,0,0,0"
+                    FontSize="{DynamicResource FontCaption}" Padding="10,3" Classes="secondary"
+                    Click="PlaylistClose_Click"
+                    ToolTip.Tip="收起这块区域，并清掉设置里记住的歌单（下次启动不再出现）。歌单文件不会被删"/>
+          </Grid>
+
+          <!-- 固定高度 150：与文件夹曲目卡同高，两张卡高度不随曲目数量跳动。 -->
+          <Grid Height="150">
+            <ListBox x:Name="PlaylistList" SelectionMode="Single" Background="Transparent"
+                     SelectionChanged="PlaylistList_SelectionChanged"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     BorderThickness="0" Padding="0"/>
+            <TextBlock x:Name="TxtPlaylistEmpty" IsVisible="False"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" Margin="12,10"
+                       Classes="caption" TextWrapping="Wrap" TextAlignment="Center"
+                       Text="这份歌单还是空的。点「管理…」用「加入 MIDI…」往里放歌。"/>
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <Border Grid.Row="3" Classes="card" Margin="{DynamicResource CardGap}" Padding="0">
         <Grid RowDefinitions="Auto,*">
           <!-- 列头 -->
           <Border Classes="tableHead">
@@ -400,7 +436,12 @@
               <Button x:Name="BtnPreview" Content="试听" Click="Preview_Click"
                       Classes="secondary" FontSize="{DynamicResource FontTitle}" Padding="20,8"
                       ToolTip.Tip="只放声音：不发按键、不走倒计时、不最小化窗口。再点一下停止"/>
-              <CheckBox x:Name="ChkLoop" Content="循环" VerticalAlignment="Center" FontSize="{DynamicResource FontBody}"/>
+              <!-- 演奏模式：点一下换下一个。四态：顺序播放 / 列表循环 / 随机播放 / 单曲循环。
+                   它取代了原来的「循环」勾选框：那个只有「重播这一首」一种含义，
+                   而「一首放完往哪走」需要四种。文案见 PlayModeNames.ButtonText。 -->
+              <Button x:Name="BtnPlayMode" Content="▶ 顺序播放（点击切换）" Click="PlayMode_Click"
+                      Classes="secondary" FontSize="{DynamicResource FontBody}" Padding="12,8"
+                      ToolTip.Tip="点一下换下一个模式。顺序播放：一首首放完就停；列表循环：放完最后一首回到第一首；随机播放：每次随机挑一首；单曲循环：重播这一首。列表指文件夹曲目或歌单，看当前这首是从哪张卡点开的"/>
               <TextBlock x:Name="TxtHotHint" Classes="sectionLabel" VerticalAlignment="Center"
                          Text="F6：开始 / 暂停 / 继续"/>
             </WrapPanel>

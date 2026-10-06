@@ -56,14 +56,29 @@ public partial class OverlayWindow : Window
         base.OnClosed(e);
     }
 
-    /// <summary>显示倒计时剩几秒。</summary>
-    public void ShowCountdown(int secondsLeft)
+    /// <summary>
+    /// 显示倒计时剩几秒。<paramref name="nextLabel"/> 是连播时的下一首提示（空串表示不显示）：
+    /// 自动连播时用户不在键鼠前，这几秒是唯一能看清「接下来放什么」的机会。
+    /// </summary>
+    public void ShowCountdown(int secondsLeft, string nextLabel = "")
     {
         UnhookRender();   // 倒计时没有卷帘，不用平滑外推
         PanelCountdown.IsVisible = true;
         PanelProgress.IsVisible = false;
         TxtCountdown.Text = secondsLeft.ToString();
+        TxtCountdownNext.Text = nextLabel;
+        TxtCountdownNext.IsVisible = nextLabel.Length > 0;
         EnsureShown();
+    }
+
+    /// <summary>
+    /// 连播状态那一行：列表里的第几首、下一首是什么。传空串就把整行收起来（不在连播时不占地方）。
+    /// 倒计时态用不上 —— 那一态由 <see cref="ShowCountdown"/> 的 nextLabel 负责。
+    /// </summary>
+    public void SetQueueHint(string text)
+    {
+        TxtQueue.Text = text;
+        TxtQueue.IsVisible = text.Length > 0;
     }
 
     /// <summary>

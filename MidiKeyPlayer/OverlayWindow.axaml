@@ -27,6 +27,10 @@
                    Foreground="#FFFFD166" HorizontalAlignment="Center"/>
         <TextBlock Text="秒后开始 · F6 可取消" FontSize="11" Foreground="#BFFFFFFF"
                    HorizontalAlignment="Center"/>
+        <!-- 连播时写下一首的歌名。只放一行，太长就省略：悬浮窗宽 250，写满会盖住目标程序 -->
+        <TextBlock x:Name="TxtCountdownNext" Text="" FontSize="11" Foreground="#BFFFFFFF"
+                   HorizontalAlignment="Center" MaxWidth="250"
+                   TextTrimming="CharacterEllipsis" IsVisible="False"/>
       </StackPanel>
 
       <!-- 演奏态：滚动迷你卷帘 + 进度条 + 时间 -->
@@ -52,6 +56,9 @@
           <TextBlock x:Name="TxtState" Grid.Column="1" Text="" FontSize="11"
                      Foreground="#FFFFD166"/>
         </Grid>
+        <!-- 连播状态：列表里的第几首、下一首叫什么。没有列表时整行不显示 -->
+        <TextBlock x:Name="TxtQueue" Text="" FontSize="11" Foreground="#BFFFFFFF"
+                   TextTrimming="CharacterEllipsis" IsVisible="False"/>
       </StackPanel>
 
     </StackPanel>

@@ -35,6 +35,8 @@ internal static class DevSnapshotMode
         "MIDIKEY_UI_SNAPSHOT_SPONSOR",
         "MIDIKEY_UI_SNAPSHOT_SYNC",
         "MIDIKEY_UI_SNAPSHOT_THEME",
+        "MIDIKEY_UI_SNAPSHOT_PLAYLIST",
+        "MIDIKEY_UI_SNAPSHOT_PLAYLIST_DIR",
     };
 
     internal static readonly bool On = Detect();
@@ -106,11 +108,13 @@ public partial class MainWindow
         var sponsorPath = Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_SPONSOR");
         var syncPath = Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_SYNC");
         var themeMode = Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_THEME");
+        var playlistPath = Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_PLAYLIST");
+        var playlistDir = Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_PLAYLIST_DIR");
         if (string.IsNullOrWhiteSpace(path) && string.IsNullOrWhiteSpace(keymapPath)
             && string.IsNullOrWhiteSpace(midiPath) && string.IsNullOrWhiteSpace(reportPath)
             && string.IsNullOrWhiteSpace(folderProbe) && string.IsNullOrWhiteSpace(advancedPath)
             && string.IsNullOrWhiteSpace(sponsorPath) && string.IsNullOrWhiteSpace(syncPath)
-            && string.IsNullOrWhiteSpace(themeMode)) return;
+            && string.IsNullOrWhiteSpace(themeMode) && string.IsNullOrWhiteSpace(playlistPath)) return;
 
         window.Opened += (_, _) =>
         {
@@ -177,6 +181,12 @@ public partial class MainWindow
             if (!string.IsNullOrWhiteSpace(syncPath))
             {
                 CaptureSync(window, syncPath!);
+                return;
+            }
+            // 歌单窗口快照：真建一份歌单（用 示例MIDI 里的曲目），再开歌单窗口拍一张
+            if (!string.IsNullOrWhiteSpace(playlistPath))
+            {
+                CapturePlaylist(window, playlistPath!, playlistDir);
                 return;
             }
             // 等布局就绪，900ms 是实测够用的值
@@ -373,6 +383,66 @@ public partial class MainWindow
         {
             timer.Stop();
             ShotVisual(win!, path);   // 拍窗口本体：拍 Content 会把搬过来的控件画重影
+            owner.DevCleanUpForExit();
+            Environment.Exit(0);
+        };
+        timer.Start();
+
+        var guard = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1600) };
+        guard.Tick += (_, _) =>
+        {
+            guard.Stop();
+            ShotVisual(win!, path);
+            owner.DevCleanUpForExit();
+            Environment.Exit(0);
+        };
+        guard.Start();
+    }
+
+    /// <summary>
+    /// 【开发用】歌单窗口快照。
+    /// MIDIKEY_UI_SNAPSHOT_PLAYLIST=&lt;png 路径&gt;
+    /// MIDIKEY_UI_SNAPSHOT_PLAYLIST_DIR=&lt;装 MIDI 的目录&gt;（不给就用 示例MIDI）
+    ///
+    /// 会真的建一份歌单并存进 %LOCALAPPDATA%\MidiKeyPlayer\playlists\，
+    /// 所以开发机上会多出一份叫「快照歌单」的歌单，这是刻意的：拍到的必须是真界面。
+    /// </summary>
+    private static void CapturePlaylist(MainWindow owner, string path, string? dir)
+    {
+        const string DevListName = "快照歌单";
+
+        string folder = string.IsNullOrWhiteSpace(dir)
+            ? System.IO.Path.Combine(AppContext.BaseDirectory, "示例MIDI")
+            : dir!;
+        if (!System.IO.Directory.Exists(folder))
+        {
+            // 往回找两级：publish 出来的 exe 旁边没有示例目录，仓库根目录下有
+            string up = System.IO.Path.GetFullPath(
+                System.IO.Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "示例MIDI"));
+            if (System.IO.Directory.Exists(up)) folder = up;
+        }
+        if (!System.IO.Directory.Exists(folder))
+        {
+            Console.Error.WriteLine($"歌单快照：找不到示例 MIDI 目录：{folder}");
+            owner.DevCleanUpForExit();
+            Environment.Exit(2);
+        }
+
+        owner.BuildPlaylistForDev(DevListName, folder);
+        var win = owner.OpenPlaylistForDev(DevListName);
+        if (win == null)
+        {
+            Console.Error.WriteLine("歌单窗口没打开");
+            owner.DevCleanUpForExit();
+            Environment.Exit(1);
+        }
+
+        // 与设置窗口快照同一个做法：计时器里拍照再退出；另配一个兜底计时器
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(800) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            ShotVisual(win!, path);
             owner.DevCleanUpForExit();
             Environment.Exit(0);
         };
