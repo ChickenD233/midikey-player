@@ -135,6 +135,20 @@ public partial class MainWindow
                 Log($"已切皮肤：档位 {themeIndex}");
             }
 
+            // MIDIKEY_UI_SNAPSHOT_SIZE=980x880：拍图前把主窗设为指定尺寸。
+            // 用来验证「窗口拉到最小尺寸时排版不串行」——左栏两张卡都在时尤其要看。
+            var sizeOverride = Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_SIZE");
+            if (!string.IsNullOrWhiteSpace(sizeOverride))
+            {
+                var parts = sizeOverride!.Split('x');
+                if (parts.Length == 2 && double.TryParse(parts[0], out double ow)
+                                      && double.TryParse(parts[1], out double oh))
+                {
+                    window.Width = ow;
+                    window.Height = oh;
+                    Log($"已设主窗尺寸：{ow}x{oh}");
+                }
+            }
             // 载入 MIDI 与勾选合奏都在拍图之前做完：截图看到的就是用户操作后的真实状态
             if (!string.IsNullOrWhiteSpace(midiPath))
             {

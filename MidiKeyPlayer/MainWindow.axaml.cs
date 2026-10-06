@@ -1905,10 +1905,14 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 重建「打开」下拉菜单。只有两级，结构固定：
-    /// 打开文件… / 打开文件夹… / 分隔线 / 最近打开 ▸（子菜单里 文件名… + 清空列表）。
+    /// 重建「打开」下拉菜单。结构固定：
+    /// 打开文件夹… / 歌单… / 分隔线 / 最近打开 ▸（子菜单里 文件名… + 清空列表）。
     /// 文件夹曲目不再进菜单，改由左栏的「文件夹曲目」卡呈现（见 <see cref="RefreshFolderUi"/>）。
     /// 调用点与旧版一致：构造、载入成功、移除一条、清空列表。
+    ///
+    /// 「歌单…」这一条是 v1.1.22 补的入口：歌单窗口原来只能从左栏那张歌单卡上的
+    /// 「管理…」按钮打开，而那张卡要「选过歌单」才显示 —— 第一次用的人于是没有任何入口，
+    /// 新建歌单的按钮也在窗口里，成了死循环。这一条常驻，永远点得到。
     /// </summary>
     private void RefreshRecentUi()
     {
@@ -1920,6 +1924,10 @@ public partial class MainWindow : Window
         var openFolder = new MenuItem { Header = "打开文件夹…" };
         openFolder.Click += BtnOpenFolder_Click;
         menu.Items.Add(openFolder);
+
+        var playlist = new MenuItem { Header = "歌单…" };
+        playlist.Click += (_, _) => { HideOpenMenu(); PlaylistOpen_Click(null, new RoutedEventArgs()); };
+        menu.Items.Add(playlist);
 
         menu.Items.Add(new Separator());
 
@@ -4246,29 +4254,34 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 重铺左栏的歌单卡。显隐只看有没有选过歌单 —— 载入歌曲不会清掉它，所以卡片不会莫名消失。
+    /// 重铺左栏的歌单卡。卡片**始终可见**（v1.1.22 改的）：
+    /// 原来「没选过歌单就整张卡隐藏」，于是第一次用的人看不到卡，也就看不到卡上的「管理…」按钮，
+    /// 而新建歌单在那个窗口里 —— 没有起点。现在空态也在，卡里直接写下一步做什么。
     /// 先清选中再清条目：选中项还在时清空会让 ListBox 读旧下标并抛越界。
     /// </summary>
     private void RefreshPlaylistCard()
     {
         if (PlaylistCard == null || PlaylistList == null) return;   // 构造早期的防御：控件还没建好
 
+        PlaylistCard.IsVisible = true;
         bool has = _playlist != null;
-        PlaylistCard.IsVisible = has;
         if (!has)
         {
+            TxtPlaylistName.Text = "歌单";
+            TxtPlaylistCount.Text = "";
             _playlistSyncing = true;
             try
             {
                 PlaylistList.SelectedItem = null;
                 PlaylistList.Items.Clear();
-                if (TxtPlaylistEmpty != null) TxtPlaylistEmpty.IsVisible = false;
+                if (TxtPlaylistEmpty != null) TxtPlaylistEmpty.IsVisible = true;
             }
             finally { _playlistSyncing = false; }
             return;
         }
 
         TxtPlaylistName.Text = _playlist!.Name;
+        TxtPlaylistCount.Text = _playlist.Count > 0 ? $"{_playlist.Count} 首" : "";
 
         _playlistSyncing = true;
         try
@@ -4319,7 +4332,12 @@ public partial class MainWindow : Window
                 });
             }
 
-            if (TxtPlaylistEmpty != null) TxtPlaylistEmpty.IsVisible = total == 0;
+            if (TxtPlaylistEmpty != null)
+            {
+                // 歌单是空的：卡里别写着「还没有歌单」—— 歌单在，只是没歌，下一步不一样
+                TxtPlaylistEmpty.Text = "这份歌单还是空的。点「管理…」用「加入 MIDI…」往里放歌。";
+                TxtPlaylistEmpty.IsVisible = total == 0;
+            }
 
             // 把正在演奏的那一首标成选中
             int pos = CurrentPlaylistIndex();

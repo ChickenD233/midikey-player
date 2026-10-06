@@ -161,25 +161,31 @@
         </StackPanel>
       </Border>
 
-      <!-- ================= 歌单卡（选过歌单才可见） =================
+      <!-- ================= 歌单卡（始终可见） =================
            与文件夹曲目卡并存。这一张的列表是用户自己排的顺序，也是连播与 F9 的候选来源。
+           卡片始终显示（v1.1.22 改）：原来「没选过歌单就整张卡隐藏」，
+           于是第一次用的人看不到卡上的「管理…」，而新建歌单在那个窗口里 —— 没有起点。
+           「打开 MIDI 文件 ▾」菜单里另有一条常驻的「歌单…」，两条路都进得去。
            列表固定 150px 高，和文件夹曲目卡一样：曲目多少张，卡片高矮都不变。
            条目里带 ▶ 标记的是正在演奏的那一首。 -->
       <Border x:Name="PlaylistCard" Grid.Row="2" Classes="card" Margin="{DynamicResource CardGap}"
-              Padding="12,10" IsVisible="False">
+              Padding="12,10">
         <StackPanel Spacing="6">
-          <Grid ColumnDefinitions="*,Auto,Auto">
-            <TextBlock Grid.Column="0" x:Name="TxtPlaylistName" Text="" FontSize="{DynamicResource FontSmall}"
+          <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+            <TextBlock Grid.Column="0" x:Name="TxtPlaylistName" Text="歌单" FontSize="{DynamicResource FontSmall}"
                        FontWeight="SemiBold" VerticalAlignment="Center"
                        TextTrimming="CharacterEllipsis" ToolTip.Tip="当前歌单。顺序就是演奏顺序"/>
-            <Button x:Name="BtnPlaylistOpen" Grid.Column="1" Content="管理…" Margin="8,0,0,0"
+            <TextBlock Grid.Column="1" x:Name="TxtPlaylistCount" Text="" Margin="8,0,0,0"
+                       FontSize="{DynamicResource FontCaption}" VerticalAlignment="Center"
+                       Foreground="{DynamicResource BrushTextMuted}"/>
+            <Button x:Name="BtnPlaylistOpen" Grid.Column="2" Content="管理…" Margin="8,0,0,0"
                     FontSize="{DynamicResource FontCaption}" Padding="10,3" Classes="secondary"
                     Click="PlaylistOpen_Click"
                     ToolTip.Tip="打开歌单窗口：新建、加入曲目、调整顺序、替每一首预先选好音轨。演奏中也能开"/>
-            <Button x:Name="BtnPlaylistClose" Grid.Column="2" Content="关闭" Margin="8,0,0,0"
+            <Button x:Name="BtnPlaylistClose" Grid.Column="3" Content="关闭" Margin="8,0,0,0"
                     FontSize="{DynamicResource FontCaption}" Padding="10,3" Classes="secondary"
                     Click="PlaylistClose_Click"
-                    ToolTip.Tip="收起这块区域，并清掉设置里记住的歌单（下次启动不再出现）。歌单文件不会被删"/>
+                    ToolTip.Tip="收起这张卡，并清掉设置里记住的歌单（下次启动不再显示它的曲目）。歌单文件不会被删"/>
           </Grid>
 
           <!-- 固定高度 150：与文件夹曲目卡同高，两张卡高度不随曲目数量跳动。 -->
@@ -192,7 +198,7 @@
             <TextBlock x:Name="TxtPlaylistEmpty" IsVisible="False"
                        HorizontalAlignment="Center" VerticalAlignment="Center" Margin="12,10"
                        Classes="caption" TextWrapping="Wrap" TextAlignment="Center"
-                       Text="这份歌单还是空的。点「管理…」用「加入 MIDI…」往里放歌。"/>
+                       Text="还没有歌单。点上面的「管理…」，在「新建」里建一份，再用「加入 MIDI…」放歌。"/>
           </Grid>
         </StackPanel>
       </Border>
