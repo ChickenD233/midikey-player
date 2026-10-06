@@ -351,6 +351,56 @@ public sealed class PianoRoll : Control
     }
 
     /// <summary>
+    /// 只看的模式：歌单窗口勾音轨时，卷帘临时显示那一轨的音符给用户挑。
+    /// 挑音轨是「先看再决定」，所以这一态不许改谱 —— 双击加音、右键删音、拖动、键盘编辑全部关掉。
+    /// 缩放、滚动、定位播放头仍然可用。
+    /// </summary>
+    public bool PreviewOnly { get; private set; }
+
+    /// <summary>进「只看」模式之前的那份谱面与视口，退出时原样放回来。</summary>
+    private (List<RawNote> Notes, HashSet<int> InRange, double Total,
+             Dictionary<int, int> VoiceOfPitch, double From, double To)? _previewSaved;
+
+    /// <summary>
+    /// 进入「只看」模式。把当前谱面（含视口与配色）存下来，退出时由
+    /// <see cref="RestoreAfterPreview"/> 放回去。
+    /// </summary>
+    public void BeginPreview()
+    {
+        if (PreviewOnly) return;
+        _previewSaved = (new List<RawNote>(_notes), new HashSet<int>(_inRange), _total,
+                         new Dictionary<int, int>(_voiceOfPitch), _viewFrom, _viewTo);
+        PreviewOnly = true;
+        ClearSelection();      // 选中的是「谱面里的下标」，换了谱面就不作数了
+        _hover = -1;
+        InvalidateVisual();
+    }
+
+    /// <summary>退出「只看」模式：把之前那份谱面、视口与配色原样放回来。</summary>
+    public void RestoreAfterPreview()
+    {
+        if (!PreviewOnly) return;
+        PreviewOnly = false;
+        if (_previewSaved is { } s)
+        {
+            _previewSaved = null;
+            _notes = s.Notes;
+            _inRange = s.InRange;
+            _total = s.Total;
+            _voiceOfPitch = s.VoiceOfPitch;
+            _viewFrom = s.From;
+            _viewTo = s.To;
+            _sel.Clear();
+            _hover = -1;
+            EnsureBarsInvalid();
+            InvalidateVisual();
+            RaiseSelectionChanged();
+            RaiseViewChanged();
+        }
+        else InvalidateVisual();
+    }
+
+    /// <summary>
     /// 设置「音高 → 声轨颜色号」兜底表，供没有自带 <see cref="RawNote.Voice"/> 的音（用户手加的）
     /// 上色。同一音高只保留一个颜色号：序号小（优先级高）的声轨胜出，
     /// 与合奏时"冲突让位给编号小的声部"一致。缺省音高算 0 号。
@@ -943,6 +993,8 @@ public sealed class PianoRoll : Control
         base.OnPointerPressed(e);
         Focus();
         if (_total <= 0) return;
+        // 「只看」模式（歌单勾音轨时的预览）：能定位、能滚，不许选音符、不许加删改
+        if (PreviewOnly) return;
 
         var p = e.GetPosition(this);
         _lastPt = p;
@@ -1212,6 +1264,7 @@ public sealed class PianoRoll : Control
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+        if (PreviewOnly) return;   // 「只看」模式不许编辑
         bool ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta);
         bool shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
 

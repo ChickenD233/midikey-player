@@ -2251,6 +2251,77 @@ public partial class MainWindow : Window
         Roll.SetVoiceColors(BuildVoiceMap(GetActiveRawNotes()));
     }
 
+    /// <summary>这一首的候选行（不进主界面）。歌单窗口勾音轨时要按轨号取音符，不能靠 _tracks。</summary>
+    private ParsedMidi? _previewParsed;
+
+    /// <summary>
+    /// 【歌单预览】把这一首的指定几行画到卷帘上，只显示、不演奏、不许编辑。
+    /// 歌单窗口勾音轨时调：勾一轨看一眼，才知道每一轨是什么，也就选得对。
+    /// <paramref name="picks"/> 为空 = 全部候选行。
+    /// </summary>
+    internal void PreviewTracks(string path, IReadOnlyList<TrackRef> picks)
+    {
+        if (path.Length == 0) return;
+        try
+        {
+            _previewParsed = MidiLoader.Parse(path);
+        }
+        catch (Exception ex)
+        {
+            InsertLog($"预览读不动「{System.IO.Path.GetFileName(path)}」：{ex.Message}");
+            return;
+        }
+
+        var cands = _previewParsed.Candidates;
+        if (cands.Count == 0) { InsertLog("这一首没有任何候选音轨。"); return; }
+
+        var chosen = new List<MidiCandidate>();
+        if (picks.Count == 0)
+        {
+            chosen.AddRange(cands);
+        }
+        else
+        {
+            foreach (var t in picks)
+            {
+                var c = cands.FirstOrDefault(x => x.TrackIndex == t.TrackIndex && x.Channel == t.Channel);
+                if (c != null) chosen.Add(c);
+            }
+        }
+        if (chosen.Count == 0) return;
+
+        // 与真正演奏时同一套合并与编号：颜色号 = 勾选顺序，与主界面「合」列同口径
+        var voices = new List<(int Rank, RawNote Note)>();
+        for (int k = 0; k < chosen.Count; k++)
+            foreach (var n in chosen[k].Notes) voices.Add((k, n));
+        var merged = NoteMapper.MergeVoicesByPriority(voices);
+
+        Roll.BeginPreview();
+        Roll.SetNotes(merged, merged.Select(n => n.Pitch).Distinct().ToList(), _previewParsed.DurationSec);
+        Roll.SetVoiceColors(BuildVoiceMap(merged));
+        InsertLog($"预览这一首勾的 {chosen.Count} 行：共 {merged.Count} 个音（只看，不改谱）。");
+    }
+
+    /// <summary>【歌单预览】结束预览，卷帘回到当前演奏的那份谱面。</summary>
+    internal void EndPreviewTracks()
+    {
+        if (!Roll.PreviewOnly) return;
+        _previewParsed = null;
+        Roll.RestoreAfterPreview();
+        InsertLog("结束预览，卷帘回到当前演奏的谱面。");
+    }
+
+    /// <summary>【开发用】跑一次歌单预览，返回卷帘上的状态，供回归探针断言。</summary>
+    internal string PreviewTracksForDev(string path, params (int Track, int Channel)[] picks)
+    {
+        var list = picks.Select(p => new TrackRef { TrackIndex = p.Track, Channel = p.Channel }).ToList();
+        PreviewTracks(path, list);
+        string state = $"卷帘 {Roll.NoteCount} 个音；只看模式={Roll.PreviewOnly}；"
+                     + $"勾了 {list.Count} 行；标题={LblMelody.Text}";
+        EndPreviewTracks();
+        return state + $"；收尾后 卷帘 {Roll.NoteCount} 个音，只看模式={Roll.PreviewOnly}";
+    }
+
     private void ApplyVoiceBrushes()
     {
         foreach (var row in _tracks)
@@ -3524,6 +3595,10 @@ public partial class MainWindow : Window
     /// </summary>
     internal string LoadPlaylistEntryForDev(string spec)
     {
+        // 末尾可以再带一个 |preview：拍「勾音轨时的卷帘预览」那一态，拍完不收
+        bool keepPreview = spec.EndsWith("|preview", StringComparison.OrdinalIgnoreCase);
+        if (keepPreview) spec = spec.Substring(0, spec.Length - "|preview".Length);
+
         // 「folder:<路径>」= 按文件夹曲目那条路载入（不是从歌单点开），
         // 用来验证「同一首歌从别的入口打开，勾选照样上身」。
         if (spec.StartsWith("folder:", StringComparison.OrdinalIgnoreCase))
@@ -3549,10 +3624,17 @@ public partial class MainWindow : Window
         string file = System.IO.Path.GetFileName(entry.Path);
         LoadPlaylistEntry(entry.Path, playNow: false);
 
+        string extra = "";
+        if (keepPreview)
+        {
+            PreviewTracks(entry.Path, entry.Tracks);
+            extra = $"，预览卷帘 {Roll.NoteCount} 个音（只看模式={Roll.PreviewOnly}）";
+        }
+
         int mix = _tracks.Count(t => t.IsMix);
         var active = ActiveRows();
         return $"歌单「{name}」第 {index + 1} 首 {file}：文件里勾了 {entry.Tracks.Count} 行，"
-             + $"界面勾中 {mix} 行，实际演奏 {active.Count} 行，卷帘 {Roll.NoteCount} 个音";
+             + $"界面勾中 {mix} 行，实际演奏 {active.Count} 行，卷帘 {Roll.NoteCount} 个音{extra}";
     }
 
     /// <summary>设置窗口的回调：saved 非空表示刚保存的方案，message 是要记进日志的中文说明。</summary>
@@ -4295,6 +4377,9 @@ public partial class MainWindow : Window
         };
         // 左栏选了哪份歌单，立刻记成当前歌单：不记的话重开程序这张卡是空的
         win.ActiveChanged += name => SetActivePlaylist(name);
+        // 勾音轨时把勾的行画到卷帘上：先看音符再决定勾哪一轨
+        win.PreviewTracks += (path, picks) => PreviewTracks(path, picks);
+        win.PreviewEnded += EndPreviewTracks;
         win.Closed += (_, _) =>
         {
             _playlistWindow = null;

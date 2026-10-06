@@ -61,6 +61,18 @@ public partial class PlaylistWindow : Window
     /// <summary>主窗口正在播放的那首曲子的路径，用来在列表里打标记。</summary>
     public string PlayingPath { get; set; } = "";
 
+    /// <summary>
+    /// 预览请求：勾选变了就请主窗口把这几行的音符画到卷帘上（路径，勾选的行；空 = 全部）。
+    /// 挑音轨要先看得见音符，不然不知道哪一轨是什么。主窗口只显示，不演奏、不许改谱。
+    /// </summary>
+    public event Action<string, IReadOnlyList<TrackRef>>? PreviewTracks;
+
+    /// <summary>结束预览：主窗口把刚才那份谱面放回卷帘。</summary>
+    public event Action? PreviewEnded;
+
+    /// <summary>预览去抖：连续勾几行时不必每一勾都重解析一遍。</summary>
+    private DispatcherTimer? _previewDeb;
+
     public PlaylistWindow()
     {
         InitializeComponent();
@@ -244,6 +256,7 @@ public partial class PlaylistWindow : Window
         _current = p;
         _pickFor = -1;
         SyncEntryList();
+        StopPreview();
         Say($"当前歌单「{p.Name}」，{p.Count} 首。");
         ActiveChanged?.Invoke(p.Name);
     }
@@ -532,6 +545,47 @@ public partial class PlaylistWindow : Window
         HideDropLine();
     }
 
+    // ================= 卷帘预览 =================
+
+    /// <summary>
+    /// 勾选变了就请主窗口把这几行画到卷帘上（空清单 = 全部行）。
+    /// 挑音轨要先看得见音符，不然不知道哪一轨是什么。主窗口只显示，不演奏、不许改谱。
+    /// </summary>
+    private void PreviewChanged()
+    {
+        if (_current == null || _pickFor < 0 || _pickFor >= _current.Entries.Count)
+        {
+            StopPreview();
+            return;
+        }
+
+        // 去抖：连勾几行时只解析最后一次
+        _previewDeb ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(180) };
+        _previewDeb.Stop();
+        _previewDeb.Tick -= PreviewDeb_Tick;
+        _previewDeb.Tick += PreviewDeb_Tick;
+        _previewDeb.Start();
+    }
+
+    private void PreviewDeb_Tick(object? sender, EventArgs e)
+    {
+        _previewDeb?.Stop();
+        if (_current == null || _pickFor < 0 || _pickFor >= _current.Entries.Count)
+        {
+            StopPreview();
+            return;
+        }
+        var entry = _current.Entries[_pickFor];
+        PreviewTracks?.Invoke(entry.Path, entry.Tracks.ToList());
+    }
+
+    /// <summary>收起清单、换歌单、关窗之前都要收掉预览，别把卷帘留在别人的谱面上。</summary>
+    private void StopPreview()
+    {
+        _previewDeb?.Stop();
+        PreviewEnded?.Invoke();
+    }
+
     /// <summary>从被点的控件往上找它所在的那一行，返回歌单下标；不在任何一行上返回 -1。</summary>
     private static int RowIndexOf(object? source)
     {
@@ -554,7 +608,7 @@ public partial class PlaylistWindow : Window
     {
         if (_current == null || index < 0 || index >= _current.Entries.Count) return;
 
-        if (_pickFor == index) { _pickFor = -1; SyncEntryList(); return; }
+        if (_pickFor == index) { _pickFor = -1; SyncEntryList(); StopPreview(); return; }
 
         var entry = _current.Entries[index];
         string name = Path.GetFileName(entry.Path);
@@ -582,6 +636,7 @@ public partial class PlaylistWindow : Window
 
         _pickFor = index;
         SyncEntryList(selectAfter: index);
+        PreviewChanged();   // 展开就把这一首勾的行画到卷帘上，边看边勾
         Say($"「{name}」弹哪几行？勾上要弹的。");
     }
 
@@ -614,6 +669,7 @@ public partial class PlaylistWindow : Window
 
         // 清单不收起：还有别的行要勾。重铺会把勾选框一起换掉，所以放到下一个循环再铺。
         Dispatcher.UIThread.Post(() => SyncEntryList(selectAfter: entryIndex));
+        PreviewChanged();   // 勾一轨，卷帘立刻换成这一轨的音符
     }
 
     /// <summary>候选行上的说明：轨号 / 声道 / 声部 / 音域 / 音数。</summary>
@@ -870,6 +926,13 @@ public partial class PlaylistWindow : Window
     }
 
     private void Close_Click(object? sender, RoutedEventArgs e) => Close();
+
+    /// <summary>关窗一定要收掉预览：卷帘不能留在别人的谱面上。</summary>
+    protected override void OnClosed(EventArgs e)
+    {
+        StopPreview();
+        base.OnClosed(e);
+    }
 
     // ================= 两个小对话框 =================
 
