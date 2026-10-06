@@ -405,14 +405,6 @@ public partial class PlaylistWindow : Window
         _dragFrom = IndexAt(e.GetPosition(EntryList));
         _dragStart = e.GetPosition(EntryList);
         _dragging = false;
-
-        // 行里的「音轨」按钮：选中这一行，然后就地展开候选清单
-        if (ClickedButton(e) is { Name: "BtnTrack" })
-        {
-            if (_dragFrom >= 0) EntryList.SelectedIndex = _dragFrom;
-            e.Handled = true;
-            ToggleTrackPicker(_dragFrom);
-        }
     }
 
     private void EntryList_PointerMoved(object? sender, PointerEventArgs e)
@@ -480,16 +472,16 @@ public partial class PlaylistWindow : Window
         return -1;
     }
 
-    /// <summary>这次按下是不是落在某个按钮上。行里的按钮不是 InputElement 时返回 null。</summary>
-    private static Button? ClickedButton(PointerPressedEventArgs e)
+    /// <summary>从被点的控件往上找它所在的那一行，返回歌单下标；不在任何一行上返回 -1。</summary>
+    private static int RowIndexOf(object? source)
     {
-        var src = e.Source as Visual;
-        while (src != null)
+        var v = source as Visual;
+        while (v != null)
         {
-            if (src is Button b) return b;
-            src = src.GetVisualParent();
+            if (v is ListBoxItem item && item.Tag is int i) return i;
+            v = v.GetVisualParent();
         }
-        return null;
+        return -1;
     }
 
     // ================= 预先选音轨 =================
@@ -690,6 +682,15 @@ public partial class PlaylistWindow : Window
             IsEnabled = !missing,
         };
         ToolTip.SetTip(track, "指定这一首弹哪一行");
+        // 点按钮只管展开清单：行的下标直接问按钮自己，不按坐标猜
+        // （按坐标猜会落到行与行之间的缝里，那时整个点击就成了没反应）
+        track.Click += (_, _) =>
+        {
+            int i = RowIndexOf(track);
+            if (i < 0) return;
+            EntryList.SelectedIndex = i;
+            ToggleTrackPicker(i);
+        };
 
         var left = new StackPanel { Spacing = 2 };
         left.Children.Add(new TextBlock
