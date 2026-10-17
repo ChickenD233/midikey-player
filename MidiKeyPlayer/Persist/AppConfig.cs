@@ -69,6 +69,8 @@ public sealed class AppConfig
     public string KeymapName { get; set; } = KeymapProfile.DefaultName;
 
     public int PlayModeIndex { get; set; } = 0;
+    // 歌单是可选功能：关掉后左栏只留曲库，播放模式也一起收起，放完一首就停。
+    public bool PlaylistEnabled { get; set; } = false;
     // 上次选中的歌单名（空 = 没选过）。左栏那张曲目卡与 F9 切歌都按它找列表。
     public string ActivePlaylist { get; set; } = "";
 

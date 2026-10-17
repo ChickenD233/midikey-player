@@ -154,6 +154,7 @@ public partial class MainWindow : Window
         PreflightRow.IsVisible = _cfg.ShowPreflight;   // 默认开：自检常驻主界面状态卡
         ChkOverlay.IsChecked = _cfg.OverlayEnabled;    // 悬浮窗默认开
         ChkOverlayHideOnPause.IsChecked = _cfg.OverlayHideOnPause;   // 暂停后收起来（默认开）
+        ChkEnablePlaylist.IsChecked = _cfg.PlaylistEnabled;           // 歌单是可选功能，默认关
         TxtAboutVersion.Text = $"MIDI 按键播放器 v{AutoUpdate.CurrentVersion}";
         FillAboutLinks();
         if (_cfg.DisclaimerAccepted) DisclaimerBar.IsVisible = false;   // 确认过一次就不再显示
@@ -1448,7 +1449,7 @@ public partial class MainWindow : Window
 
         bool hasFolder = !string.IsNullOrEmpty(_folderPath);
         FolderCard.IsVisible = hasFolder;
-        UpdateFolderSplitter();
+        UpdateSplitterLayout();
         if (!hasFolder) return;
 
         // 标题只写文件夹名；根目录（C:\ 这类）取不到名字时退回完整路径，不显示空标题
@@ -1635,7 +1636,7 @@ public partial class MainWindow : Window
         _cfg.FolderPath = "";
         if (FolderList != null) FolderList.Items.Clear();
         if (FolderCard != null) FolderCard.IsVisible = false;
-        UpdateFolderSplitter();
+        UpdateSplitterLayout();
         SaveSettings();   // 立刻落盘：下次启动这张卡不再出现
         InsertLog("已收起左侧的文件夹曲目（下次启动不再显示）。");
     }
@@ -1647,6 +1648,7 @@ public partial class MainWindow : Window
     private double _splitStartPlaylist;
     private double _splitStartTracks;
     private GridLength _folderRowBeforeHide = GridLength.Auto;
+    private GridLength _playlistRowBeforeHide = GridLength.Auto;
 
     private const double FolderMinH = 165;
     private const double PlaylistMinH = 135;
@@ -1658,11 +1660,18 @@ public partial class MainWindow : Window
         if (!e.GetCurrentPoint(band).Properties.IsLeftButtonPressed) return;
 
         _splitStartFolder = FolderCard.Bounds.Height;
-        _splitStartPlaylist = PlaylistCard.Bounds.Height;
         FolderListHost.Height = double.NaN;
-        PlaylistListHost.Height = double.NaN;
+        if (PlaylistCard.IsVisible)
+        {
+            _splitStartPlaylist = PlaylistCard.Bounds.Height;
+            PlaylistListHost.Height = double.NaN;
+            LeftColumn.RowDefinitions[3].Height = new GridLength(_splitStartPlaylist);
+        }
+        else
+        {
+            _splitStartTracks = TrackCard.Bounds.Height;
+        }
         LeftColumn.RowDefinitions[1].Height = new GridLength(_splitStartFolder);
-        LeftColumn.RowDefinitions[3].Height = new GridLength(_splitStartPlaylist);
         BeginSplitDrag(band, e);
     }
 
@@ -1671,10 +1680,20 @@ public partial class MainWindow : Window
         if (_splitDrag != sender || LeftColumn == null) return;
 
         double dy = e.GetPosition(LeftColumn).Y - _splitStartY;
-        double total = _splitStartFolder + _splitStartPlaylist;
-        double folder = Math.Clamp(_splitStartFolder + dy, FolderMinH, Math.Max(FolderMinH, total - PlaylistMinH));
-        LeftColumn.RowDefinitions[1].Height = new GridLength(folder);
-        LeftColumn.RowDefinitions[3].Height = new GridLength(total - folder);
+        if (PlaylistCard.IsVisible)
+        {
+            double total = _splitStartFolder + _splitStartPlaylist;
+            double folder = Math.Clamp(_splitStartFolder + dy, FolderMinH, Math.Max(FolderMinH, total - PlaylistMinH));
+            LeftColumn.RowDefinitions[1].Height = new GridLength(folder);
+            LeftColumn.RowDefinitions[3].Height = new GridLength(total - folder);
+        }
+        else
+        {
+            // 歌单关掉时，上面一条直接调曲库与声轨
+            double max = _splitStartFolder + _splitStartTracks - TrackMinH;
+            double folder = Math.Clamp(_splitStartFolder + dy, FolderMinH, Math.Max(FolderMinH, max));
+            LeftColumn.RowDefinitions[1].Height = new GridLength(folder);
+        }
     }
 
     private void TrackSplitter_PointerPressed(object? sender, PointerPressedEventArgs e)
@@ -1719,22 +1738,29 @@ public partial class MainWindow : Window
         if (_splitDrag == sender) _splitDrag = null;
     }
 
-    /// <summary>曲库卡收起时，分隔条和它的行一起收掉，别留一段空白。</summary>
-    private void UpdateFolderSplitter()
+    /// <summary>卡片收起时，分隔条和它的行一起收掉，别留一段空白。</summary>
+    private void UpdateSplitterLayout()
     {
-        if (FolderSplitter == null || FolderCard == null || LeftColumn == null) return;
+        if (LeftColumn == null || FolderCard == null || PlaylistCard == null) return;
 
-        var row = LeftColumn.RowDefinitions[1];
-        bool hasFolder = FolderCard.IsVisible;
-        FolderSplitter.IsVisible = hasFolder;
-        if (!hasFolder)
+        ApplyRow(FolderCard, 1, ref _folderRowBeforeHide);
+        ApplyRow(PlaylistCard, 3, ref _playlistRowBeforeHide);
+
+        FolderSplitter.IsVisible = FolderCard.IsVisible;
+        TrackSplitter.IsVisible = PlaylistCard.IsVisible;
+
+        void ApplyRow(Control card, int index, ref GridLength saved)
         {
-            if (row.Height.IsAbsolute && row.Height.Value > 0) _folderRowBeforeHide = row.Height;
-            row.Height = new GridLength(0);
-        }
-        else if (row.Height.IsAbsolute && row.Height.Value <= 0)
-        {
-            row.Height = _folderRowBeforeHide;
+            var row = LeftColumn.RowDefinitions[index];
+            if (!card.IsVisible)
+            {
+                if (row.Height.IsAbsolute && row.Height.Value > 0) saved = row.Height;
+                row.Height = new GridLength(0);
+            }
+            else if (row.Height.IsAbsolute && row.Height.Value <= 0)
+            {
+                row.Height = saved;
+            }
         }
     }
 
@@ -1789,7 +1815,7 @@ public partial class MainWindow : Window
         openFolder.Click += BtnOpenFolder_Click;
         menu.Items.Add(openFolder);
 
-        var playlist = new MenuItem { Header = "歌单…" };
+        var playlist = new MenuItem { Header = _cfg.PlaylistEnabled ? "歌单…" : "启用歌单…" };
         playlist.Click += (_, _) => { HideOpenMenu(); PlaylistOpen_Click(null, new RoutedEventArgs()); };
         menu.Items.Add(playlist);
 
@@ -3052,6 +3078,9 @@ public partial class MainWindow : Window
 
     private string QueueHintText()
     {
+        // 歌单关掉时没有连播，这行不显示
+        if (!_cfg.PlaylistEnabled) return "";
+
         bool usePlaylist = _sourceIsPlaylist && _playlist is { Count: > 0 };
         int count = usePlaylist ? _playlist!.Count : _folderFiles.Count;
         if (count == 0) return "";
@@ -3677,8 +3706,9 @@ public partial class MainWindow : Window
 
     // ================= 演奏模式与连播 =================
 
-    /// <summary>当前演奏模式。存在设置里（AppConfig.PlayModeIndex），按钮上显示的也是它。</summary>
-    private PlayMode CurrentPlayMode => PlayModeNames.Clamp(_cfg.PlayModeIndex);
+    /// <summary>当前演奏模式。歌单关掉时固定为「关闭」，按钮也一起收起。</summary>
+    private PlayMode CurrentPlayMode =>
+        _cfg.PlaylistEnabled ? PlayModeNames.Clamp(_cfg.PlayModeIndex) : PlayMode.Off;
 
     /// <summary>模式列表里点了一项，按 Tag 里的模式号切换。</summary>
     private void PlayModePick_Click(object? sender, RoutedEventArgs e)
@@ -3708,7 +3738,12 @@ public partial class MainWindow : Window
     /// <summary>把当前模式写到按钮与模式列表的勾选状态上。</summary>
     private void ApplyPlayModeUi()
     {
-        if (BtnPlayMode != null) BtnPlayMode.Content = PlayModeNames.ButtonText(CurrentPlayMode);
+        bool on = _cfg.PlaylistEnabled;
+        if (BtnPlayMode != null)
+        {
+            BtnPlayMode.IsVisible = on;
+            if (on) BtnPlayMode.Content = PlayModeNames.ButtonText(CurrentPlayMode);
+        }
 
         var items = new[] { ModeItemSequential, ModeItemListLoop, ModeItemShuffle, ModeItemRepeatOne, ModeItemOff };
         foreach (var item in items)
@@ -3967,6 +4002,9 @@ public partial class MainWindow : Window
 
     private void PlaylistOpen_Click(object? sender, RoutedEventArgs e)
     {
+        // 从菜单进来时顺便打开歌单功能
+        if (!_cfg.PlaylistEnabled) SetPlaylistEnabled(true);
+
         if (_playlistWindow != null)
         {
             _playlistWindow.Activate();
@@ -4031,12 +4069,29 @@ public partial class MainWindow : Window
 
     private void PlaylistClose_Click(object? sender, RoutedEventArgs e)
     {
-        _playlist = null;
-        _playlistPos = -1;
-        _cfg.ActivePlaylist = "";
+        SetPlaylistEnabled(false);
+    }
+
+    private void EnablePlaylist_Changed(object? sender, RoutedEventArgs e)
+    {
+        if (_cfg == null || ChkEnablePlaylist == null) return;
+        bool on = ChkEnablePlaylist.IsChecked == true;
+        if (_cfg.PlaylistEnabled == on) return;
+        SetPlaylistEnabled(on);
+    }
+
+    private void SetPlaylistEnabled(bool on)
+    {
+        _cfg.PlaylistEnabled = on;
         SaveSettings();
+        if (ChkEnablePlaylist != null) ChkEnablePlaylist.IsChecked = on;
+        RefreshRecentUi();
         RefreshPlaylistCard();
-        InsertLog("已收起歌单卡。歌单文件没删，下次在歌单窗口里还能选。");
+        ApplyPlayModeUi();
+        UpdateSplitterLayout();
+        InsertLog(on
+            ? "已启用歌单：左栏显示歌单卡，也可以选演奏模式。"
+            : "已关闭歌单：左栏只留曲库，放完一首就停。歌单文件没删。");
     }
 
     /// <summary>点歌单卡里的一首：载入它。演奏中（含暂停中）接着弹，空闲时只载入。</summary>
@@ -4084,7 +4139,13 @@ public partial class MainWindow : Window
     {
         if (PlaylistCard == null || PlaylistList == null) return;   // 构造早期的防御：控件还没建好
 
-        PlaylistCard.IsVisible = true;
+        PlaylistCard.IsVisible = _cfg.PlaylistEnabled;
+        if (!PlaylistCard.IsVisible)
+        {
+            UpdateSplitterLayout();
+            return;
+        }
+
         bool has = _playlist != null;
         if (!has)
         {

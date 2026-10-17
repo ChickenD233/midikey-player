@@ -171,7 +171,7 @@
             <Button x:Name="BtnPlaylistClose" Grid.Column="3" Content="关闭" Margin="8,0,0,0"
                     FontSize="{DynamicResource FontCaption}" Padding="10,3" Classes="secondary"
                     Click="PlaylistClose_Click"
-                    ToolTip.Tip="收起这张卡，并清掉设置里记住的歌单。歌单文件不删"/>
+                    ToolTip.Tip="关闭歌单功能：左栏不再显示歌单卡。歌单文件不删，可在设置里重新启用"/>
           </Grid>
 
           <Grid x:Name="PlaylistListHost" Grid.Row="1" Margin="0,6,0,0" Height="150" MinHeight="70">
@@ -750,6 +750,10 @@
                         SelectionChanged="Theme_Changed"
                         ToolTip.Tip="自动 = 跟随 Windows 的浅色 / 深色设置，立即生效"/>
             </StackPanel>
+            <CheckBox x:Name="ChkEnablePlaylist" Content="启用歌单（左侧歌单卡与演奏模式）"
+                      FontSize="{DynamicResource FontSmall}" VerticalAlignment="Center"
+                      IsCheckedChanged="EnablePlaylist_Changed"
+                      ToolTip.Tip="关：左栏只留曲库，放完一首就停。开：显示歌单卡，并可选择顺序播放 / 列表循环 / 随机播放 / 单曲循环 / 关闭"/>
             <CheckBox x:Name="ChkShowPreflight" Content="播放前自检（管理员 / 输入法）"
                       FontSize="{DynamicResource FontSmall}" IsChecked="True" VerticalAlignment="Center"
                       IsCheckedChanged="ShowPreflight_Changed"
