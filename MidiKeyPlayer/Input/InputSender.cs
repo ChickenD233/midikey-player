@@ -111,18 +111,12 @@ public static class InputSender
 
     private static bool _mouseWarnedInDriverMode;   // 罗技驱动模式下「鼠标键发不了」只提醒一次
 
-    // ---------------------------------------------------------------- 输入后端
-
     /// <summary>输入后端：SendInput（默认，用户态注入）/ 罗技 G HUB 驱动（驱动级 HID 报告）。</summary>
     public enum BackendKind { SendInput = 0, LogitechGHub = 1 }
 
     /// <summary>当前输入后端。默认 SendInput；只有 SetBackend 成功后才会变成罗技驱动。</summary>
     public static BackendKind Backend { get; private set; } = BackendKind.SendInput;
 
-    /// <summary>
-    /// 切换输入后端。切罗技驱动时立刻初始化：失败则保持 SendInput 不变，error 是中文原因。
-    /// 成功但 G HUB 没在运行时 warn 非空（设备句柄能开但按键发不出去）。切回 SendInput 时把驱动设备句柄关掉。
-    /// </summary>
     public static bool SetBackend(BackendKind kind, out string error, out string? warn)
     {
         error = "";
@@ -139,11 +133,6 @@ public static class InputSender
         return true;
     }
 
-    /// <summary>
-    /// 播放前确认当前后端可用：罗技驱动已选但尚未初始化（比如启动时 G HUB 还没装好）时在这里补一次初始化。
-    /// 失败返回 false，error 可直接弹给用户；后端自动退回 SendInput，避免无声播放。
-    /// warn：这次真的做了初始化且发现 G HUB 没在运行时非空；没动初始化时为 null（不重复提醒）。
-    /// </summary>
     public static bool EnsureBackend(out string error, out string? warn)
     {
         error = "";
@@ -155,8 +144,6 @@ public static class InputSender
         error += "\n本次先退回 SendInput。";
         return false;
     }
-
-    // ---------------------------------------------------------------- 按下记账（A04）
 
     // 本程序真正按下过的键/鼠标键。ReleaseEverything 只抬这一份记录，绝不碰用户物理按住的键。
     private static readonly object HeldGate = new();
@@ -170,8 +157,6 @@ public static class InputSender
         if (name.Length == 1) return char.ToUpperInvariant(name[0]).ToString();
         return name;
     }
-
-    // ---------------------------------------------------------------- 键名 → 虚拟键码
 
     /// <summary>标点键的虚拟键码（US 布局，与扫描码方式配套）。</summary>
     private static readonly Dictionary<char, ushort> OemVk = new()
@@ -200,10 +185,6 @@ public static class InputSender
         0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x2D, 0x2E, 0x6F,
     };
 
-    /// <summary>
-    /// 键名 → 虚拟键码。支持字母、数字、标点、命名键（F1..F12、PageUp、NumPad0..9、Shift 等）。
-    /// 鼠标键与认不出的键名返回 false。
-    /// </summary>
     public static bool TryVkCode(string? keyName, out ushort vk)
     {
         vk = 0;
@@ -237,8 +218,6 @@ public static class InputSender
     /// <summary>字符形式 → 键名（命名键的哨兵字符在这里还原）。</summary>
     public static string KeyNameOf(char c) => KeymapProfile.NameOfKeyChar(c);
 
-    // ---------------------------------------------------------------- 发送
-
     /// <returns>true = 事件注入成功；false = 被系统拦截（SendInput 返回 0）或驱动报告失败。</returns>
     private static bool SendKeyVk(bool down, ushort vk, bool extended)
     {
@@ -271,8 +250,6 @@ public static class InputSender
     private static bool SendMouse(MouseButton button, bool down)
     {
         if (!OperatingSystem.IsWindows()) return false;
-        // 新版 G HUB 砍掉了鼠标驱动，罗技后端只发键盘。鼠标键（八度/半音修饰）仍走 SendInput，
-        // 目标程序屏蔽注入时这些键会发不出去 —— 记一次日志提醒，不刷屏。
         if (Backend == BackendKind.LogitechGHub && !_mouseWarnedInDriverMode)
         {
             _mouseWarnedInDriverMode = true;
@@ -304,7 +281,6 @@ public static class InputSender
         return SendInput(1, new[] { input }, Marshal.SizeOf<INPUT>()) == 1;
     }
 
-    /// <summary>按下一个键。键名可以是方案里的任何键名，也可以是 "MouseLeft" / "MouseRight" / "MouseMiddle"。</summary>
     public static void KeyDown(string? keyName) => SendKeyByName(keyName, true);
 
     /// <summary>松开一个键。名字规则同 <see cref="KeyDown(string?)"/>。</summary>
@@ -322,8 +298,6 @@ public static class InputSender
             if (!changed) return;
             if (!SendMouse(button, down))
             {
-                // 注入失败：回滚记账（抬起失败要留账等 ReleaseEverything 再抬；按下失败别记，
-                // 否则账上以为按着，实际没按下）
                 lock (HeldGate) { if (down) HeldButtons.Remove(button); else HeldButtons.Add(button); }
             }
             return;
@@ -343,9 +317,6 @@ public static class InputSender
         }
         if (!SendKeyVk(down, vk, ExtendedVk.Contains(vk)))
         {
-            // 注入失败（SendInput 返回 0，被系统拦截）：回滚记账。
-            // KeyUp 失败必须把键留回账里 —— 否则账上以为已抬、实际还按着，
-            // 这个键就物理卡死，连 ReleaseEverything 都救不回来；KeyDown 失败则别记账。
             lock (HeldGate) { if (down) HeldKeys.Remove(norm); else HeldKeys.Add(norm); }
         }
     }
@@ -366,18 +337,10 @@ public static class InputSender
     public static void MouseDown(MouseButton b) => SendMouse(b, true);
     public static void MouseUp(MouseButton b) => SendMouse(b, false);
 
-    /// <summary>
-    /// 只把本程序真正按下过的键/鼠标键抬起，用于停止/暂停时清理状态（A04）。
-    /// 不再遍历整张方案的键位表，也不补发硬编码的兜底键：用户自己物理按住的键不归本程序管，
-    /// 抬掉它们会让用户正在弹的音或正在用的修饰键中断。
-    /// 记账在 <see cref="KeyDown(string?)"/> / <see cref="KeyUp(string?)"/> 里完成，只记状态真正变化的键。
-    /// </summary>
     public static void ReleaseEverything()
     {
         if (!OperatingSystem.IsWindows()) return;
 
-        // 一次在锁内取一笔并结账、锁外抬键，循环到账空为止。
-        // 不能"锁内快照、锁外逐个抬"：快照后并发的 KeyDown 会落进快照之外的账里，漏抬。
         while (true)
         {
             string? key = null;

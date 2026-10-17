@@ -2,20 +2,6 @@ using System.Diagnostics;
 
 namespace MidiKeyPlayer.Engine;
 
-/// <summary>
-/// 【实验功能·远程同演】时间基准与延迟统计。
-///
-/// 两条硬规则，来自参考项目 Bili-SyncPlay 的教训（它的 clock-sync.ts 明说：
-/// "位置从本机单调时钟锚点推算，正因为没有滤波器能让双钟比较变得可信"）：
-///
-/// 1. **不比较两台机器的墙钟。** 锚点只记"本机的单调时刻"。
-///    主机传的是"从你收到起再等多久"，收到方加到自己的单调时钟上。
-/// 2. **位置只加本机测到的流逝量。** 不拿对端时间戳减本机时间戳。
-///
-/// 所以这里没有"时钟偏移"这个概念，只有：本机锚点、往返延迟、抖动。
-/// 用 <see cref="Environment.TickCount64"/> 而不是 <see cref="Stopwatch.GetTimestamp()"/>：
-/// 前者单位就是毫秒，不需要再换算频率，且同样是单调的、不受系统对时影响。
-/// </summary>
 internal sealed class SyncClock
 {
     /// <summary>保留最近这么多个往返样本。8 个约等于两分钟（每 15 秒一个）。</summary>
@@ -47,10 +33,6 @@ internal sealed class SyncClock
     /// <summary>现在这个单调时刻（毫秒）。全类只用这一个时间源，别处不许另取。</summary>
     public static long NowMs => Environment.TickCount64;
 
-    /// <summary>
-    /// 记一次往返采样。
-    /// </summary>
-    /// <param name="rttMs">本机测到的往返毫秒数。负数说明时间戳自相矛盾，直接丢掉。</param>
     public void AddSample(double rttMs)
     {
         if (double.IsNaN(rttMs) || double.IsInfinity(rttMs) || rttMs < 0) return;
@@ -111,12 +93,6 @@ internal sealed class SyncClock
     }
 }
 
-/// <summary>
-/// 本机的播放锚点："在 <see cref="AtTickMs"/> 这个本机单调时刻，曲子位置是 <see cref="PositionSec"/>"。
-///
-/// 求"现在应该在哪儿"就是：位置 + 本机流逝量 × 速度。
-/// 注意流逝量用同一次采样算，不受系统对时、休眠、跨时区影响。
-/// </summary>
 internal readonly struct SyncAnchor
 {
     public double PositionSec { get; init; }

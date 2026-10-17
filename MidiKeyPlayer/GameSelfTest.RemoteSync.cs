@@ -5,12 +5,6 @@ using MidiKeyPlayer.Midi;
 
 namespace MidiKeyPlayer;
 
-/// <summary>
-/// 【开发用】远程同演的自检：房间键派生、邀请串解析、消息序列化、
-/// 开演等待换算、单调锚点。
-///
-/// 全部不碰网络：不发一个字节，不开一个连接。所以能在自检里跑。
-/// </summary>
 internal static partial class GameSelfTest
 {
     // ================= 远程同演 =================
@@ -30,9 +24,6 @@ internal static partial class GameSelfTest
 
     private static void TestFoldOctave()
     {
-        // 折八度的判据必须用一份"音域连续"的方案来验，否则验的是那份方案的缺音，不是折八度本身。
-        // 手碟只有 9 个键而且缺音，拿它验折八度会得到一堆看似失败的噪音。
-        // 所以显式换成 21 键半音，验完一定还原 —— 不还原的话后面用到的就是手碟。
         var original = KeymapProfile.Current;
         try
         {
@@ -116,8 +107,6 @@ internal static partial class GameSelfTest
             KeymapProfile.Current = original;   // 必须还原
         }
 
-        // 再用真实的手碟看一眼"折八度也救不回来"的那一类：手碟上没有 #4 与 7，
-        // 这两个音在任何八度都没有键。这不是缺陷，是那件乐器的音阶本身缺音。
         var handpan = KeymapProfile.PresetByName("洛克王国手碟");
         if (handpan != null)
         {
@@ -391,9 +380,6 @@ internal static partial class GameSelfTest
 
     private static void TestStartDelayCompensation()
     {
-        // 房主在 tick 1000 发出，DelayMs = 3000，即计划开演在房主 tick 4000。
-        // 成员在 tick 1300 收到：消息在路上花了 300 毫秒，所以本机还要等 2700 毫秒。
-        // 不减这 300 毫秒，成员就比房主晚 300 毫秒开演，而且各人晚的量还不同。
         Check("远程同演：开演等待要减掉消息在路上的时间",
             SyncSession.RemainingDelayCore(3000, 1000, 1300) == 2700,
             $"{SyncSession.RemainingDelayCore(3000, 1000, 1300)}ms");
@@ -402,10 +388,6 @@ internal static partial class GameSelfTest
             SyncSession.RemainingDelayCore(3000, 1000, 1010) == 2990,
             $"{SyncSession.RemainingDelayCore(3000, 1000, 1010)}ms");
 
-        // 这是整套同步的关键判据：各人的网络不同，落点必须相同。
-        // 房主在 tick 1000 发出，DelayMs = 3000，计划开演 = 4000。
-        // 甲：路上 100 毫秒，tick 1100 收到 → 本机还要等 2900 → 开演在 4000。
-        // 乙：路上 800 毫秒，tick 1800 收到 → 本机还要等 2200 → 开演在 4000。
         long arriveA = 1100, arriveB = 1800;
         long startA = arriveA + SyncSession.RemainingDelayCore(3000, 1000, arriveA);
         long startB = arriveB + SyncSession.RemainingDelayCore(3000, 1000, arriveB);

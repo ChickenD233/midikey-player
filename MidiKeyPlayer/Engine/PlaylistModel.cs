@@ -3,10 +3,6 @@ using MidiKeyPlayer.Midi;
 
 namespace MidiKeyPlayer.Engine;
 
-/// <summary>
-/// 歌单条目里钉住的音轨：歌单可以预先替每一首记好「弹哪一行」，连播时不用再猜。
-/// 存轨道号加声道，不存声部身份 —— 身份随识别结果漂移，条目会指到别的行上去。
-/// </summary>
 public sealed class TrackRef
 {
     /// <summary>MIDI 里的轨道号（0 起）。</summary>
@@ -35,16 +31,8 @@ public sealed class PlaylistEntry
     /// <summary>MIDI 文件的完整路径。</summary>
     public string Path { get; set; } = "";
 
-    /// <summary>
-    /// 预先勾好要弹哪些行（0 个或多个）。弹到这一首时按这个清单勾主界面的「合」，
-    /// 卷帘也只显示这几行。空清单 = 全部候选行都弹。
-    /// </summary>
     public List<TrackRef> Tracks { get; set; } = new();
 
-    /// <summary>
-    /// 落盘用的单行字段，只存第一行。读老歌单（v1.1.24 及以前只有这一个字段）也靠它接住。
-    /// 界面不要读这个属性，读 <see cref="Tracks"/>：这里只是精简过的那一份。
-    /// </summary>
     [JsonPropertyName("track")]
     public TrackRef? Track
     {
@@ -65,9 +53,6 @@ public static class TrackRefs
         a.TrackIndex == b.TrackIndex && a.Channel == b.Channel;
 }
 
-/// <summary>
-/// 一份命名的有序曲目表。顺序就是演奏顺序，用户可以上移下移或拖放来改。
-/// </summary>
 public sealed class Playlist
 {
     /// <summary>歌单名，同时是文件名。</summary>
@@ -84,28 +69,14 @@ public sealed class Playlist
     public static Playlist Create(string name) => new() { Name = name };
 }
 
-/// <summary>挑一行来演奏的结果。</summary>
-/// <param name="Candidate">挑中的候选；没挑到是 null。</param>
-/// <param name="Reason">给日志用的一句话。</param>
-/// <param name="Exact">true = 按存下来的轨道号加声道精确命中的。</param>
 public readonly record struct TrackPick(MidiCandidate? Candidate, string Reason, bool Exact)
 {
     /// <summary>是否挑到了。</summary>
     public bool Found => Candidate != null;
 }
 
-/// <summary>
-/// 歌单的数据与规则。规则都是纯函数，便于内置自检直接测。
-/// </summary>
 public static class PlaylistModel
 {
-    /// <summary>
-    /// 从候选行里克出一个下标。用于「歌单没预设音轨」与「预设的行已经不在文件里」两种情况。
-    /// 优先级：歌单预设的行 → 上一首的声部身份 → 第一条非打击乐行 → 第一条。
-    /// </summary>
-    /// <param name="candidates">当前文件解析出来的候选行。</param>
-    /// <param name="preferred">歌单里预先选好的音轨，可以为空。</param>
-    /// <param name="lastRole">上一首演奏行的声部身份，用来「接着上一首同一轨」。</param>
     public static TrackPick Pick(
         IReadOnlyList<MidiCandidate> candidates,
         TrackRef? preferred = null,
@@ -143,11 +114,6 @@ public static class PlaylistModel
         return new TrackPick(candidates[0], "只剩打击乐轨，按第一条", false);
     }
 
-    /// <summary>
-    /// 把下标 <paramref name="from"/> 的条目挪到 <paramref name="to"/>。
-    /// 上移、下移、拖放三条路都调这一个函数，自检测的也是它。
-    /// 下标越界或原地不动返回 false，调用方据此跳过重画。
-    /// </summary>
     public static bool Move<T>(IList<T> list, int from, int to)
     {
         if (list == null) return false;
@@ -167,10 +133,6 @@ public static class PlaylistModel
     /// <summary>下移一格。已经在最下面返回 false。</summary>
     public static bool MoveDown<T>(IList<T> list, int index) => Move(list, index, index + 1);
 
-    /// <summary>
-    /// 拖放用：把 <paramref name="from"/> 插到 <paramref name="target"/> 这个位置上。
-    /// 往下拖时目标下标要减一 —— 元素先被抽走，后面的会整体前移一格。
-    /// </summary>
     public static bool MoveOnto<T>(IList<T> list, int from, int target)
     {
         if (list == null) return false;

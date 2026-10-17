@@ -10,10 +10,6 @@ public sealed class RawNote
     /// <summary>MIDI 通道 0..15（9 = 通道 10 = 打击乐）；-1 = 未知。单音提取用它排除打击乐。</summary>
     public int Channel { get; init; } = -1;
 
-    /// <summary>
-    /// 这个音属于哪条声轨（合奏时的声部序号，0 起）；-1 = 未标注。
-    /// 让音符自己携带归属，卷帘才能按声轨上色，而不是按音高猜。
-    /// </summary>
     public int Voice { get; init; } = -1;
 
     public override string ToString() => $"{Music.NoteName(Pitch)} {Start:F2}s~{End:F2}s";
@@ -82,16 +78,9 @@ public static class Music
     /// <summary>简谱记号（含升降号），音高模 12。不带八度点，内部用途保留。</summary>
     public static string DegreeName(int pitch) => JianPu[Mod(pitch, 12)];
 
-    // 八度点用「间距」字符，不用组合字符：界面的字体（Microsoft YaHei UI 等）没有
-    // U+0307 / U+0323 的字形，组合点会渲染成豆腐块。U+02D9 是上点，点号是下点，两者都必定有字形。
     private const string DotUp = "\u02D9";     // ˙ 上点
     private const string DotDown = ".";        // . 下点
 
-    /// <summary>
-    /// 面向用户的简谱音高：数字 1..7 加升降号，八度用数字后面的点表示，上点是高八度，下点是低八度。
-    /// 基准是 60（中音 do = 1，不带点）；往上每十二个半音加一个上点，往下加下点，最多两个。
-    /// 例如 1 / 1˙ / 1˙˙ / 1. / #4。
-    /// </summary>
     public static string SolfegeName(int pitch)
     {
         int octave = (int)Math.Floor((pitch - 60) / 12.0);

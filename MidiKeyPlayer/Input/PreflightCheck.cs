@@ -3,13 +3,6 @@ using System.Runtime.InteropServices;
 
 namespace MidiKeyPlayer.Input;
 
-/// <summary>
-/// 播放前自检：管理员权限、前台窗口输入法状态。
-///
-/// 输入法这块只有一个真正要判的问题：**现在按下的字母键会不会被输入法截走**。
-/// 中文键盘布局本身不影响，中文输入法切到英文模式也只是输入法内部状态变化，
-/// 键盘布局和语言列表都不变 —— 所以不能只看布局，必须直接问"现在是不是英文输入"。
-/// </summary>
 public static class PreflightCheck
 {
     /// <summary>自检结论。三态：通过 / 提醒 / 不通过。</summary>
@@ -138,10 +131,6 @@ public static class PreflightCheck
         finally { if (token != IntPtr.Zero) CloseHandle(token); }
     }
 
-    /// <summary>
-    /// 前台窗口所属线程的键盘布局；低 16 位是 LANGID（0x0804 简中、0x0404 繁中、0x0411 日文）。
-    /// 注意：中文输入法用 Shift 切英文时键盘布局不变，所以它**读不出**中英文状态。
-    /// </summary>
     public static ushort ForegroundKeyboardLayoutId()
     {
         if (!OperatingSystem.IsWindows()) return 0;
@@ -167,15 +156,6 @@ public static class PreflightCheck
         _ => $"0x{lang:X4}"
     };
 
-    /// <summary>
-    /// 纯判定逻辑（便于测试）。
-    /// 只要有一条证据说明"不是中文输入状态"，就放行 —— 判错的代价是误解，
-    /// 而误报"不通过"会让用户每次都得手动确认，还会拦住本来能用的配置。
-    /// </summary>
-    /// <param name="windowLayout">前台窗口的键盘布局 LANGID，0 = 读不到。</param>
-    /// <param name="open">输入法开关：1 开、0 关、-1 读不到。</param>
-    /// <param name="alphanumeric">是否英文/半角模式；仅在 open = 1 时有意义。</param>
-    /// <param name="focusedThreadLayout">前台窗口里**真正获得焦点**的那个 GUI 线程的键盘布局，0 = 读不到。</param>
     public static ImeMode Decide(ushort windowLayout, int open, bool? alphanumeric,
                                  ushort focusedThreadLayout = 0)
     {
@@ -193,9 +173,6 @@ public static class PreflightCheck
         return ImeMode.Unknown;
     }
 
-    /// <summary>
-    /// 读前台窗口的输入法状态。带上检测过程里的原始证据，便于排障与说明。
-    /// </summary>
     public static (ImeMode Mode, ImeProbe Probe) DetectImeModeDetailed()
     {
         if (!OperatingSystem.IsWindows())
@@ -292,7 +269,6 @@ public static class PreflightCheck
         return fallbackThread;
     }
 
-    /// <summary>读输入法开关：1 开、0 关、-1 读不到。跨进程用 WM_IME_CONTROL，失败再退回 ImmGetContext。</summary>
     private static int ReadOpenStatus(IntPtr hWnd)
     {
         if (hWnd != IntPtr.Zero)
@@ -332,14 +308,6 @@ public static class PreflightCheck
         finally { if (hImc != IntPtr.Zero) ImmReleaseContext(hWnd, hImc); }
     }
 
-    /// <summary>
-    /// 读输入法状态的最可靠来源：前台窗口的**默认输入法窗口**（ImmGetDefaultIMEWnd）。
-    ///
-    /// 直接问前台窗口（尤其是目标窗口）往往读不到，因为它不一定处理 WM_IME_CONTROL；
-    /// 而默认输入法窗口是系统为这个窗口建的 IME 窗口，它的 IMC_GETCONVERSIONMODE
-    /// 能反映"现在是中文还是英文"—— 微软拼音按 Shift 切换时这个值会从 0x0401
-    /// （IME_CMODE_NATIVE，中文）变成 0x0000（半角英文）。
-    /// </summary>
     private static (bool Ok, int Open, uint Conversion) ReadImeWindowState(IntPtr hWnd)
     {
         if (hWnd == IntPtr.Zero) return (false, -1, 0);
@@ -363,25 +331,12 @@ public static class PreflightCheck
         catch { return (false, -1, 0); }
     }
 
-    /// <summary>
-    /// 转换模式是否属于"英文/半角"，也就是按键不会被输入法截走。
-    /// 判据是 IME_CMODE_NATIVE 位为 0（微软拼音中文态是 0x0401，英文态是 0x0000）。
-    /// 注意 IME_CMODE_ALPHANUMERIC 本身是 0x0000，不能拿它做位与判断 —— 那样永远为真。
-    /// </summary>
     private static bool IsAlphanumeric(uint conversion) => (conversion & IME_CMODE_NATIVE) == 0;
 
     /// <summary>转换模式是否属于"全角/假名"，这种状态一定会截键。</summary>
     private static bool IsWideOrKana(uint conversion) =>
         (conversion & (IME_CMODE_FULLSHAPE | IME_CMODE_KATAKANA)) != 0;
 
-    /// <summary>
-    /// 从各条证据得出结论。
-    ///
-    /// 判"不通过"要有硬证据：输入法开着，且转换模式明确不是英文
-    /// （中文的 0x0401、全角假名的 0x0411/0x0419 都带 IME_CMODE_NATIVE 或全角位）。
-    /// 其余情况一律放行或只提醒 —— 误报"不通过"会拦住本来能用的配置（微软拼音按 Shift
-    /// 切英文就是布局不变、只变转换模式），代价比漏报大得多。
-    /// </summary>
     public static ImeMode Conclude(bool wndOk, int wndOpen, uint wndConv, int open, bool? alnum)
     {
         if (!wndOk)
@@ -412,8 +367,6 @@ public static class PreflightCheck
                 Ime = new Check("输入法", false, "非 Windows")
             };
 
-        // ① 模拟按键受 UIPI 限制：仅当目标程序以管理员运行时，注入方才需要同权。
-        //    默认不提权（asInvoker），所以这里只提醒、不判不通过 —— 普通目标程序完全不受影响。
         bool admin = IsSelfElevated();
         var adminCheck = admin
             ? new Check("管理员", Status.Pass, "已提权")
@@ -421,8 +374,6 @@ public static class PreflightCheck
                 "未提权：普通目标程序不受影响；目标以管理员运行时 SendInput 会被拦截"
                 + "（可换「罗技 G HUB 驱动」输入方式，不受此限；或点「以管理员重启」）");
 
-        // ② 输入法：只有"输入法开着且在中文/假名状态"才会截走按键。
-        //    误报"不通过"会拦住本来能用的配置，所以读不准只提醒、不报错。
         var (mode, probe) = DetectImeModeDetailed();
         string layout = probe.WindowLayout == 0 ? "读不到布局" : $"{LayoutName(probe.WindowLayout)}布局";
 

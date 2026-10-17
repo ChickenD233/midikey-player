@@ -4,17 +4,6 @@ using System.Text.Json;
 
 namespace MidiKeyPlayer.Engine;
 
-/// <summary>
-/// 【实验功能·远程同演】与中转站之间的连接。
-///
-/// 就是一根 WebSocket：说 JSON，收到什么就交给上层。没有心跳、没有轮询、
-/// 没有周期上报 —— 只有人真的操作时才发消息，这是刻意的，为了把用量压到最低。
-///
-/// 与旧的 MQTT 方案比，这里省掉了：报文编解码、订阅握手、保活、
-/// 发布/订阅语义、保留消息。中转站自己负责转发，不需要那套东西。
-///
-/// 线程约定：事件都在后台线程触发，界面订阅方自己 marshal 回 UI 线程。
-/// </summary>
 internal sealed class SyncRelay : IDisposable
 {
     /// <summary>连接状态变了。</summary>
@@ -60,10 +49,6 @@ internal sealed class SyncRelay : IDisposable
     internal SyncConnState Connection => _conn;
     internal bool IsOnline => _conn == SyncConnState.Online;
 
-    /// <summary>
-    /// 开始连接。第一条 join 消息带着房间名以外的全部身份信息（密码、名字、声部）。
-    /// 房间名不进网络：它已经变成连接地址里的房间键了。
-    /// </summary>
     public void Connect(string voice, int xpose)
     {
         _pendingJoin = new SyncMessage

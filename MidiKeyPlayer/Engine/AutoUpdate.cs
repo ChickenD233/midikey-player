@@ -9,11 +9,6 @@ namespace MidiKeyPlayer.Engine;
 /// <summary>后台静默检查 GitHub 新版本，有新版时界面提示并可跳转 Release 页。</summary>
 public static class AutoUpdate
 {
-    /// <summary>
-    /// 自动更新开关。仓库已转为公开（v1.0.9 起开启检查；私有库时期未带凭据的检查会返回 404）。
-    /// 用 static readonly 而不是 const：const 为 false 时编译器会把后面整段检查代码
-    /// 判成不可达并报 CS0162。
-    /// </summary>
     private static readonly bool Enabled = true;
 
     private const string Owner = "ChickenD233";
@@ -46,11 +41,6 @@ public static class AutoUpdate
     /// <summary>作者在 B 站的名字：第一次使用时的验证题答案。</summary>
     public const string AuthorName = "Chicken丁";
 
-    /// <summary>
-    /// 第一次使用的验证题答案判定：忽略大小写与空白/分隔符，
-    /// 「Chicken丁」「chicken 丁」「CHICKEN丁」都算过；填作者 B 站的数字 ID（主页地址里的那串）也算。
-    /// 目的不是拦住谁，而是让盗卖者的买家停下来看到「这是免费软件」。
-    /// </summary>
     public static bool IsAuthorAnswer(string? text)
     {
         if (string.IsNullOrWhiteSpace(text)) return false;
@@ -65,25 +55,14 @@ public static class AutoUpdate
         return s == "chicken丁" || s == "28440883";
     }
 
-    /// <summary>
-    /// 免费声明。有人把这个免费开源的程序拿去卖，所以每个版本都要把这句话摆出来。
-    /// 措辞用正式的书面语，只写两件事：软件免费、付费购买就退款并举报。
-    /// </summary>
     public const string FreeNotice =
         "本软件免费开源，没有付费版本，作者从未销售本软件。"
         + "若你付费购买，请立即申请退款并举报卖家。"
         + "设置里的赞助是自愿打赏，不是付费购买。";
 
-    /// <summary>
-    /// 常规页「关于」卡里的一行短声明：浮层那一段太长，这里只留最要紧的两句 ——
-    /// 免费、被骗就退款并举报。全文仍在首次启动的浮层里。
-    /// </summary>
     public const string FreeNoticeShort =
         "本软件免费开源，没有付费版本。若你付费购买，请申请退款并举报卖家。";
 
-    /// <summary>
-    /// 验证题上的一句话：只说免费与退款，**不提作者名字**（名字就是那道题的答案，写在题面上等于送答案）。
-    /// </summary>
     public const string QuizRefundNote =
         "本程序完全免费、开源。如果你是「购买」的此软件，立刻退款，你被骗了："
         + "到购买平台的订单里申请退款，并举报卖家。";
@@ -91,29 +70,10 @@ public static class AutoUpdate
     /// <summary>验证题下面单列的一行：送给倒卖的。</summary>
     public const string ResellerLine = "祝倒狗冚家富貴=）";
 
-    /// <summary>
-    /// 强制更新标记：最新 Release 的标题或说明里带这个串，就表示「低于该版本的程序必须更新」。
-    /// 这样任何一版都能把「强制」发给还在用旧版的用户 —— 硬编码的强制线只能约束装着那条线的版本，
-    /// 管不了更老的版本（老版本里根本没有这段代码）。
-    /// 发版时在 Release 说明里加一行 [强制更新] 即可，见 tools\release.ps1 的 -Mandatory。
-    /// </summary>
     public const string MandatoryMarker = "[强制更新]";
 
-    /// <summary>
-    /// 免费声明与链接的展示版本号：改这段文案时一起改，程序据此只弹一次通知。
-    /// 1.1.0：免费声明浮层加了「爱发电」按钮，文案也点了赞助不等于购买 → 版本号加一，
-    /// 让已经看过 1.0.32 那版的人再看一次，才拿得到新的赞助入口。
-    /// 1.2.0：「关于」卡那行长声明换成 <see cref="FreeNoticeShort"/>。
-    /// 1.3.0：免费声明改成正式措辞；免费声明 + 验证题 + 快速上手合成一个启动浮层。
-    /// 注意这里写的是不带 v 的三段号，与 csproj 的 &lt;Version&gt; 不是同一个字符串，但要对得上版本。
-    /// </summary>
     public const string NoticeVersion = "1.3.0";
 
-    /// <summary>
-    /// 强制更新线：低于这个版本的实例必须更新到最新版才能继续用。
-    /// 判定是「本常量比当前版本新」，所以装着本常量版本或更新版本的实例不受影响。
-    /// 想解除强制更新：把本常量改成当前版本号，重新发一版即可。
-    /// </summary>
     public const string RequiredVersion = "1.0.32";
 
     /// <summary>当前版本是否低于强制更新线（低 = 必须更新）。</summary>
@@ -134,11 +94,6 @@ public static class AutoUpdate
         return false;
     }
 
-    /// <summary>
-    /// 当前程序版本（如 1.0.7，第三段必须取 Build，第四段是内部版本号）。
-    /// 版本号只支持三段数字（<c>x.y.z</c>）。预发布后缀（<c>1.0.0-rc.1</c> 里的 <c>-rc.1</c>）
-    /// 不参与比较，会被丢弃，所以它等于 <c>1.0.0</c>。写 tag 时请只用 <c>vX.Y.Z</c>。
-    /// </summary>
     public static string CurrentVersion
     {
         get
@@ -192,14 +147,9 @@ public static class AutoUpdate
             string body = root.TryGetProperty("body", out var bd) ? (bd.GetString() ?? "") : "";
             string html = root.TryGetProperty("html_url", out var h) ? (h.GetString() ?? "") : "";
 
-            // 地址白名单：接口返回的 html_url 只认本仓库前缀，其它一律退回固定的 Releases 页，
-            // 免得将来换了数据源以后把 file:/ms-*: 之类的地址直接交给 shell。
             if (html.Length > 0 && !IsAllowedUrl(html))
                 Persist.LogFile.Append($"[更新] 接口返回的地址不在白名单，改用 Releases 页：{html}");
 
-            // 更新包直链：从 Release 资产里找 MidiKeyPlayer-win-x64-*.zip，
-            // 地址同样要过白名单（只认本仓库 releases/download/ 前缀），找不到就是空串，
-            // 界面据此退回「打开下载页」的手动流程。
             string assetUrl = "";
             if (root.TryGetProperty("assets", out var assets) && assets.ValueKind == JsonValueKind.Array)
             {
@@ -260,8 +210,6 @@ public static class AutoUpdate
         var outv = new int[3];
         for (int i = 0; i < parts.Length; i++)
         {
-            // 只比较前三段。预发布段（1.0.0-rc.1 里的 rc）既不参与比较，也不尝试解析 ——
-            // 否则每个预发布标签都会白写一条"不是数字"的警告。
             if (i >= 3) break;
             if (!int.TryParse(parts[i], out int n))
             {
@@ -301,11 +249,6 @@ public static class AutoUpdate
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "MidiKeyPlayer", "update");
 
-    /// <summary>
-    /// 把更新包下载到本地（<see cref="UpdateDir"/>）。返回 zip 路径；失败或被取消返回 null（原因写日志）。
-    /// 只允许白名单里的本仓库资产地址。先写 .part 临时文件、下完再改名：
-    /// 中途断网/关程序留下的半截文件不会被当成完整包。
-    /// </summary>
     public static async Task<string?> DownloadAsync(string url, IProgress<double>? progress = null,
                                                     CancellationToken ct = default)
     {
@@ -358,10 +301,6 @@ public static class AutoUpdate
         }
     }
 
-    /// <summary>
-    /// 校验更新包并解出新 exe：包内必须有 MidiKeyPlayer.exe 与 更新日志.txt；
-    /// exe 必须是 PE（MZ 头）且大于 5 MB。返回解出的新 exe 路径；校验不过返回 null（原因写日志）。
-    /// </summary>
     public static string? ExtractNewExe(string zipPath)
     {
         try
@@ -403,11 +342,6 @@ public static class AutoUpdate
         }
     }
 
-    /// <summary>
-    /// 启动更新脚本并返回 true：脚本等本进程退出后，把新 exe 覆盖到当前程序路径并重启新版。
-    /// 调用方随后应当走正常退出流程（保存设置、松按键、注销热键）。
-    /// 当前 exe 路径取不到、新 exe 不存在时不写脚本，返回 false。
-    /// </summary>
     public static bool StartUpdater(string newExePath)
     {
         try
@@ -438,8 +372,6 @@ public static class AutoUpdate
                 "Start-Sleep -Milliseconds 500",
                 "$tmp = \"$target.tmp\"",
                 "$bak = \"$target.bak\"",
-                // 先把新 exe 复制到同目录的临时文件：直接原地覆盖目标时一旦中断（断电、被杀），
-                // 装好的程序就变砖。exe 文件可能还被系统占用一小会：重试一分钟
                 "$ok = $false",
                 "for ($i = 0; $i -lt 120; $i++) {",
                 "    try { Copy-Item -LiteralPath $new -Destination $tmp -Force -ErrorAction Stop; $ok = $true; break }",

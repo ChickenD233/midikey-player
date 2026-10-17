@@ -5,16 +5,6 @@ using Avalonia.Styling;
 
 namespace MidiKeyPlayer;
 
-/// <summary>
-/// 皮肤（主题）开关：自动 / 浅色（白）/ 深色（黑）。
-///
-/// 只做一件事：把设置里的档位换成 <see cref="Application.RequestedThemeVariant"/>。
-/// 界面上的颜色一律走 <c>DynamicResource</c>（深浅两套写在 Styles\Theme.axaml 的
-/// ThemeDictionaries 里），所以换皮肤不用重建窗口，也不用重启。
-///
-/// 代码里自己画的颜色（卷帘、状态行的 ✔/✘）不走绑定，换皮肤时由
-/// <c>MainWindow.OnThemeChanged</c> 重新取一遍。
-/// </summary>
 internal static class ThemeSwitch
 {
     /// <summary>设置文件里的取值：0 自动（跟随系统）、1 浅色、2 深色。</summary>
@@ -42,12 +32,6 @@ internal static class ThemeSwitch
         if (Application.Current is { } app) app.RequestedThemeVariant = VariantOf(mode);
     }
 
-    /// <summary>
-    /// 按资源名取主题画刷。**必须带上当前主题变体**：颜色住在 ThemeDictionaries 里，
-    /// 不指定变体的查找拿不到它们 —— 拿到 null 的 Foreground 会让键帽文字看不见
-    /// （鼠标悬停时 Fluent 模板会换一个底色，字才露出来），所以这条路径只有这一个入口。
-    /// 取不到就返回 null，调用方自己决定兜底。
-    /// </summary>
     public static IBrush? BrushOf(string key)
     {
         var app = Application.Current;

@@ -48,6 +48,7 @@
 
 1. 点「打开 MIDI 文件 / 文件夹」，选一个文件，或选一个文件夹让程序列出里面的曲目。支持 `.mid`、`.midi`、`.kar`、`.rmi`。
 2. 选了文件夹之后，左栏在声轨列表上方会多出一块「文件夹曲目」区域，列出这个文件夹里的 MIDI，点哪首载入哪首，右上角「关闭」收起。按钮右边的箭头菜单里还有「最近打开」。
+   曲目列表与声轨列表之间有一条分隔条，上下拖动可调整两块的高度。
    曲目多时默认只列 50 行，末尾一条「显示其余 N 项」点一下就把这一份列表整份列出来；上面还有一个搜索框，按名字过滤（只搜当前文件夹，不进子文件夹）。
 3. 想按自己的顺序连着放一串曲子，就建一份**歌单**（见下面的「歌单与连播」）。歌单卡和「文件夹曲目」卡可以同时在，互不干扰。
 4. 在左侧点一行，作为主旋律（选中的行带 ● 标记）。打击乐轨也可以选：有的目标乐器自带鼓组。想一起出声，就在左侧勾多个声部。
@@ -59,7 +60,7 @@
 常用项就在右边。设备接入、输入兼容、热键、导出按键表、键位方案这些不常改的，都收在一个「设置」窗口里，主界面只留一个按钮。播放前自检不在设置里：它常驻在主界面右上方的状态卡。
 
 播放中，你可以拖卷帘或进度条跳转。也可以实时改速度和移调。暂停时可以直接打开另一首换歌。
-演奏模式不是「顺序播放」时，一首放完会自动接下一首，不用守着按切歌键。
+演奏模式是「顺序播放」「列表循环」「随机播放」时，一首放完会自动接下一首，不用守着按切歌键。「关闭」与「单曲循环」不接下一首。
 
 ## MIDI 从哪来
 
@@ -140,11 +141,12 @@ v1.1.8 已移除。
   悬浮窗右上角的 ✕ 只让**本次播放**不再弹它，设置里的开关不动，下次播放自动恢复。
   想永久关掉，仍然在 设置 → 常规 → 界面 里取消「播放悬浮窗」。
 - **导出按键表**。导出 G HUB 脚本（.lua），或通用 CSV。内容跟随当前键位方案，与实际演奏一致。
-- **演奏模式**（在「试听」按钮右边，点一下换下一个）。四种模式循环切换：
+- **演奏模式**（在「试听」按钮右边，点开选）。五种模式：
   **▶ 顺序播放**（默认）：一首放完接着放下一首，到列表末尾就停。
   **↻ 列表循环**：一首放完接着放下一首，到列表末尾回到第一首，一直放。
   **⤨ 随机播放**：一首放完随机挑列表里的另一首。
   **↺ 单曲循环**：一直重播当前这一首。
+  **■ 关闭**：放完这一首就停，不接下一首。
   模式记进设置，重启后还是上次选的那个。
 - **数值范围**。速度 10%–400%，默认 100%。移调 ±24 半音，默认 0。倒计时 0 / 3 / 5 / 10 秒，默认 3 秒。
 - **设置…**。点这个按钮打开设置窗口，三页。
@@ -170,6 +172,7 @@ v1.1.8 已移除。
 
 - 从**文件夹曲目**卡点开的，接着放文件夹里的下一首。
 - 从**歌单**卡点开的，接着放歌单里的下一首。
+- 模式是**关闭**时，放完这一首就停，不接下一首。
 
 每首之间走设置里那一档**倒计时**（默认 3 秒）。这一段悬浮窗会写「下一首：歌名」，
 来不及反应就按 **F6** 取消。用户按**停止**（或 F6 暂停后停止）就整条连播停下，不会再往下走。
@@ -531,7 +534,7 @@ To see what changed in a version, open this file. The source file is `MidiKeyPla
 ## Usage
 
 1. Click "Open MIDI File / Folder" (打开 MIDI 文件 / 文件夹), pick a file, or pick a folder to have the program list the songs inside. Supports `.mid`, `.midi`, `.kar`, `.rmi`.
-2. After selecting a folder, a "Folder Songs" (文件夹曲目) area appears above the track list in the left column, listing the MIDI files in that folder — click one to load it; "Close" (关闭) at the top right collapses it. The arrow menu next to the button also has "Recently Opened" (最近打开).
+2. After selecting a folder, a "Folder Songs" (文件夹曲目) area appears above the track list in the left column, listing the MIDI files in that folder — click one to load it; "Close" (关闭) at the top right collapses it. The arrow menu next to the button also has "Recently Opened" (最近打开). Drag the divider between the song list and the track list to set their heights.
    With many songs, only 50 rows are listed by default; a "Show the remaining N" (显示其余 N 项) row at the end expands the whole list in one click. A search box above the list filters by name (current folder only, no recursion into subfolders).
 3. Click a row on the left as the main melody. The green dot marks the row recommended by the program. Percussion tracks can also be selected: some target instruments come with a drum kit. To sound multiple parts together, tick multiple tracks on the left.
 4. When you need to edit the score, edit it directly on the piano roll. See below for how.

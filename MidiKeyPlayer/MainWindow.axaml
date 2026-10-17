@@ -46,20 +46,11 @@
     </Style>
   </Window.Styles>
 
-  <!-- 打开入口是 SplitButton，它是 ContentControl，不是 Button：Styles\Controls.axaml 里的
-       Button.accent 不适用。Fluent 主题里 SplitButton 用到的八个画刷键（键名见
-       Avalonia.Themes.Fluent 的 SplitButton.xaml）改在 Styles\Theme.axaml 的主题字典里覆盖，
-       深浅两套各指一份品牌绿。本窗口只有这一个 SplitButton。
-       不这样做的话，按钮是 Fluent 默认的浅灰，颜色与主按钮不一致；放在窗口级资源里也不行 ——
-       那里是 StaticResource，解析时不认主题变体，只有一套颜色。 -->
-
   <Grid>
 
     <!-- 左：文件/轨道；右：演奏控制 -->
     <DockPanel x:Name="MainBody" Margin="14">
 
-    <!-- 最近一条消息。原来的一整块日志列表已经去掉：占地，且用户基本不看。
-         完整历史仍然写进 %LOCALAPPDATA%\MidiKeyPlayer\play.log。 -->
     <Border DockPanel.Dock="Bottom" Margin="0,6,0,0" Padding="10,4" CornerRadius="8"
             Background="{DynamicResource BrushSurfaceAlt}">
       <TextBlock x:Name="TxtLastMsg" FontSize="{DynamicResource FontCaption}"
@@ -83,16 +74,10 @@
     </Border>
 
     <!-- ================= 左栏：文件 → 文件夹曲目 → 歌单 → 轨道 ================= -->
-    <!-- 四行：打开卡 / 文件夹曲目卡（选过文件夹才可见）/ 歌单卡（选过歌单才可见）/ 轨道列表卡。
-         文件夹曲目卡与歌单卡并存（Q12）：前者管「这个目录里有什么」，后者管「我要按这个顺序弹」，
-         不用互相导入。F9 与连播走哪一张，看当前这首是从哪张卡点开的（Q18），见 SwitchSong。 -->
-    <Grid Width="440" RowDefinitions="Auto,Auto,Auto,*" DockPanel.Dock="Left" Margin="0,0,12,0">
+    <Grid x:Name="LeftColumn" Width="440" RowDefinitions="Auto,Auto,Auto,*" DockPanel.Dock="Left" Margin="0,0,12,0">
 
       <Border Grid.Row="0" Classes="card">
         <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
-          <!-- 打开入口：主体 = 文件选择对话框（一键，行为与旧按钮一样）；
-               右侧箭头 = 菜单，只有两级（打开文件… / 打开文件夹… / 分隔线 / 最近打开 ▸）。
-               菜单项全部由 RefreshRecentUi() 重建，见 MainWindow.axaml.cs。 -->
           <SplitButton x:Name="BtnOpen" Content="打开 MIDI 文件" Click="BtnOpen_Click"
                        Padding="14,7" FontSize="{DynamicResource FontBody}" VerticalAlignment="Center"
                        ToolTip.Tip="点左边直接选文件；点右边的 ▾ 选文件夹或从最近打开里挑">
@@ -103,26 +88,14 @@
           <TextBlock Grid.Column="1" x:Name="LblFile" VerticalAlignment="Center"
                      Margin="12,0,0,0" Text="未选择文件" Classes="caption"
                      TextTrimming="CharacterEllipsis"/>
-          <!-- 第二行是格式说明。本程序只吃 MIDI 文件：音频转 MIDI 已在 v1.1.8 移除，
-               需要 MIDI 就上网找成品（.mid / .midi / .kar / .rmi 都能直接打开）。 -->
           <TextBlock Grid.Row="1" Grid.Column="1" Classes="sectionLabel" VerticalAlignment="Center"
                      Margin="12,8,0,0"
                      Text="支持 .mid / .midi / .kar / .rmi"/>
         </Grid>
       </Border>
 
-      <!-- ============ 文件夹曲目卡（常驻区域，选过文件夹才可见）============
-           整块由 RefreshFolderUi()（MainWindow.axaml.cs）填内容与控制显隐：
-           FolderList 里每一条都是代码建的 ListBoxItem（Tag = FolderRow(路径, 是否子文件夹)，
-           悬浮提示 = 完整路径）。子文件夹排在文件前面，双击进入；MIDI 文件单击即载入，
-           走 OpenFolderFileAsync —— 与「打开文件…」同一条链路，
-           「有未导出手动改动要先确认」的保护照旧生效。
-           没有「上一级」按钮（issue #57 去掉）：进子目录靠双击，回上层靠重新选目录。
-           当前目录写进设置（AppConfig.FolderPath），重启后自动恢复这张卡；
-           目录不在就留空隐藏，见 RestoreFolderFromConfig()。
-           列表区固定 150px 高：曲目多少张，卡片高矮都不变，下面的轨道列表不会跟着跳；
-           最多 50 行（子文件夹 + 文件），其余合并成一条不可点的说明。 -->
-      <Border x:Name="FolderCard" Grid.Row="1" Classes="card" Margin="{DynamicResource CardGap}"
+      <StackPanel Grid.Row="1">
+      <Border x:Name="FolderCard" Classes="card" Margin="{DynamicResource CardGap}"
               Padding="12,10" IsVisible="False">
         <StackPanel Spacing="6">
           <!-- 标题行：文件夹名（过长省略）+ 「关闭」小按钮。两列，固定排版。 -->
@@ -143,10 +116,7 @@
                    ToolTip.Tip="按名字过滤下面的列表，留空显示全部。只搜当前文件夹，不进子文件夹"/>
 
           <!-- 固定高度 150：文件少时也留一块稳定区域，卡片高度不随曲目数量跳动。 -->
-          <Grid Height="150">
-            <!-- 列表：子文件夹在前（📁 前缀，双击进入），MIDI 文件在后（单击载入）。
-                 条目由代码建，双击处理器只挂在子文件夹行上（见 BuildFolderItem）。
-                 超过 FolderMenuMax 行时末尾有一条可点的「显示其余 N 项」，点开就全列出来。 -->
+          <Grid x:Name="FolderListHost" Height="150">
             <ListBox x:Name="FolderList" SelectionMode="Single" Background="Transparent"
                      SelectionChanged="FolderList_SelectionChanged"
                      ScrollViewer.VerticalScrollBarVisibility="Auto"
@@ -161,13 +131,6 @@
         </StackPanel>
       </Border>
 
-      <!-- ================= 歌单卡（始终可见） =================
-           与文件夹曲目卡并存。这一张的列表是用户自己排的顺序，也是连播与 F9 的候选来源。
-           卡片始终显示（v1.1.22 改）：原来「没选过歌单就整张卡隐藏」，
-           于是第一次用的人看不到卡上的「管理…」，而新建歌单在那个窗口里 —— 没有起点。
-           「打开 MIDI 文件 ▾」菜单里另有一条常驻的「歌单…」，两条路都进得去。
-           列表固定 150px 高，和文件夹曲目卡一样：曲目多少张，卡片高矮都不变。
-           条目里带 ▶ 标记的是正在演奏的那一首。 -->
       <Border x:Name="PlaylistCard" Grid.Row="2" Classes="card" Margin="{DynamicResource CardGap}"
               Padding="12,10">
         <StackPanel Spacing="6">
@@ -202,8 +165,19 @@
           </Grid>
         </StackPanel>
       </Border>
+      </StackPanel>
 
-      <Border Grid.Row="3" Classes="card" Margin="{DynamicResource CardGap}" Padding="0">
+      <!-- 拖动分隔条：上下调整曲库列表与声轨列表的高度 -->
+      <Grid x:Name="LibrarySplitter" Grid.Row="2" Height="10" IsVisible="False"
+            ToolTip.Tip="上下拖动，调整曲库与声轨的高度">
+        <Border Width="46" Height="3" CornerRadius="2" IsHitTestVisible="False"
+                HorizontalAlignment="Center" VerticalAlignment="Center"
+                Background="{DynamicResource BrushBorder}"/>
+        <Thumb x:Name="LibrarySplitterThumb" Background="Transparent" Cursor="SizeNorthSouth"
+               DragDelta="LibrarySplitter_DragDelta"/>
+      </Grid>
+
+      <Border x:Name="TrackCard" Grid.Row="3" Classes="card" Margin="{DynamicResource CardGap}" Padding="0">
         <Grid RowDefinitions="Auto,*">
           <!-- 列头 -->
           <Border Classes="tableHead">
@@ -255,8 +229,6 @@
                                Padding="4,3" FontSize="{DynamicResource FontSmall}"/>
                     <TextBlock Grid.Column="3" Text="{Binding ChannelLabel}" VerticalAlignment="Center"
                                Padding="4,3" FontSize="{DynamicResource FontSmall}"/>
-                    <!-- 声部标牌：识别出的角色（鼓 / 贝斯 / 电吉他 / 和声 / 人声…）。
-                         底色按角色分组，未参与演奏时整块变淡；悬浮看识别依据。 -->
                     <Border Grid.Column="4" CornerRadius="4" Padding="4,1" Margin="2,0"
                             VerticalAlignment="Center" HorizontalAlignment="Left"
                             Background="{Binding RoleBrush}" Opacity="{Binding RoleActive, Converter={StaticResource ActiveOpacity}}"
@@ -293,9 +265,6 @@
     <!-- ================= 右栏：演奏 ================= -->
     <Grid x:Name="RightColumn" RowDefinitions="Auto,*,Auto">
 
-      <!-- 顶部一张卡：状态大字 + 当前主旋律信息。
-           原来这是两张卡（状态一张、主旋律一张），各占一行却都只有一行字，
-           纵向浪费明显，看着也碎。 -->
       <StackPanel Grid.Row="0">
         <Border x:Name="UpdateBanner" IsVisible="False" Classes="card"
                 Margin="0,0,0,12" Padding="12,9" Background="{DynamicResource BrushInfoSoft}"
@@ -318,16 +287,11 @@
                        FontSize="{DynamicResource FontSmall}" Text=""
                        PointerPressed="LblWarn_PointerPressed"
                        ToolTip.Tip="有音被跳过时，点这里看明细（哪些音、什么时间、什么原因）"/>
-            <!-- UI-01 / UI-02：常驻的「有未导出改动」提示。手动改动只在内存里，
-                 换歌与关窗都会丢弃，所以不能只靠「还原为自动」按钮变亮来暗示。 -->
             <TextBlock x:Name="TxtEditMark" IsVisible="False" TextWrapping="Wrap" TextAlignment="Center"
                        FontSize="{DynamicResource FontSmall}" FontWeight="SemiBold"
                        Foreground="{DynamicResource BrushWarn}"
                        Text="⚠ 有未导出的手动改动：改动只在内存里，换歌或关窗会丢弃。请先点「导出 MIDI…」保存。"/>
 
-            <!-- 播放前自检：通过打勾、未通过打叉。这块原来收在设置的「常规」页里，
-                 新人根本看不到；现在常驻在主界面状态卡里。不想要就在设置里关掉
-                 （AppConfig.ShowPreflight，默认开）。控件只有这一份，设置页只留开关。 -->
             <StackPanel x:Name="PreflightRow" Spacing="2" Margin="0,6,0,0">
               <Border BorderThickness="0,1,0,0" BorderBrush="{DynamicResource BrushBorder}" Margin="0,0,0,5"/>
               <WrapPanel HorizontalAlignment="Center" ItemSpacing="14" LineSpacing="4">
@@ -357,23 +321,9 @@
         </Border>
       </StackPanel>
 
-      <!-- ClipToBounds：窗口拉到最小高度时这张卡的高度会被压到内容需要的值以下，
-           卡片里的子元素原来会画到自己格子之外（就是「卷帘盖住工具栏按钮」那条）。
-           裁掉溢出，宁可少显示一点，也不许越界压别的控件。 -->
       <Border Grid.Row="1" Classes="card" Margin="{DynamicResource CardGap}" ClipToBounds="True">
-        <!-- 外层两列：左=工具栏+卷帘+走带，右=用法说明。
-             说明栏必须跨整张卡的高度，不能只跟卷帘同一行 —— 卷帘那一行只有几十像素高，
-             说明会被裁得只剩开头几行，还得滚动才看得到。 -->
         <Grid ColumnDefinitions="*,Auto" ClipToBounds="True">
-          <!-- 卷帘所在的格子（Grid.Row=1，`*`）。ClipToBounds 是这条遮挡的正面修复：
-               格子被压小的时候卷帘原来会溢出到相邻的工具栏行上。 -->
           <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto" ClipToBounds="True">
-          <!-- 卷帘编辑工具栏。
-               原来是单行横向 StackPanel：窗口拉到 MinWidth(980) 时右栏只剩约 470px，
-               一行放不下十来个控件，末端的「缩小 / 放大 / 全曲」被挤出卡片右缘、显示不全。
-               现在固定两行，并且**所有内容都放在 Auto 列，只留一个 * 空列吸收余量**——
-               这样宽度不足时被压缩的是那片空白，而不是按钮本身（WrapPanel 放在 * 列里
-               实测会「量出一行、摆进更窄的地方」从而直接裁掉末尾控件，不再使用）。 -->
           <Grid Grid.Row="0" RowDefinitions="Auto,Auto" Margin="0,0,0,6">
             <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*,Auto">
               <TextBlock Grid.Column="0" Text="MIDI 编辑" Classes="sectionLabel"
@@ -421,18 +371,10 @@
                       ToolTip.Tip="显示 / 收起右侧操作说明"/>
             </Grid>
           </Grid>
-          <!-- 卷帘：上=时间标尺，左=琴键栏。
-               MinHeight 从 150 降到 90：窗口到最小高度（980x820）时右栏只有约 100px
-               留给卷帘，150 放不下就会把卡片顶出格子。90 是标尺 20 + 两行琴键的可用下限。
-               ClipToBounds 再兜一层：控制自身不越界画（PianoRoll 构造函数里也设了，这里写死更明确）。 -->
           <local:PianoRoll x:Name="Roll" Grid.Row="1" MinHeight="90" Margin="0,0,0,10"
                            ClipToBounds="True"
                            ToolTip.Tip="标尺拖动=定位；琴键栏点击=选中该音高；拖音符=移动；拖任一端=改长度；空白拖=框选；双击空白=加音；右键=删音；Ctrl+A 全选；Esc 清空；方向键微调"/>
           <Grid Grid.Row="2" RowDefinitions="Auto,Auto">
-            <!-- 走带按钮与热键提示同一行。用 WrapPanel 而不是 Grid 的 Auto 列：
-                 右栏在最小宽度下只有约 470px，"播放+停止+循环+热键提示" 加起来会超过它，
-                 Grid 的 * 列被压到 0 之后子元素会互相压字（实测 f6 提示会盖住时间）。
-                 WrapPanel 放不下就换行，永远不会重叠。 -->
             <WrapPanel Grid.Row="0" ItemSpacing="10" LineSpacing="6" VerticalAlignment="Center">
               <Button x:Name="BtnPlay" Content="▶ 播放 (F6)" Click="BtnPlay_Click"
                       Classes="accent" FontSize="{DynamicResource FontTitle}" Padding="20,8" IsEnabled="False"/>
@@ -442,12 +384,59 @@
               <Button x:Name="BtnPreview" Content="试听" Click="Preview_Click"
                       Classes="secondary" FontSize="{DynamicResource FontTitle}" Padding="20,8"
                       ToolTip.Tip="只放声音：不发按键、不走倒计时、不最小化窗口。再点一下停止"/>
-              <!-- 演奏模式：点一下换下一个。四态：顺序播放 / 列表循环 / 随机播放 / 单曲循环。
-                   它取代了原来的「循环」勾选框：那个只有「重播这一首」一种含义，
-                   而「一首放完往哪走」需要四种。文案见 PlayModeNames.ButtonText。 -->
-              <Button x:Name="BtnPlayMode" Content="▶ 顺序播放（点击切换）" Click="PlayMode_Click"
-                      Classes="secondary" FontSize="{DynamicResource FontBody}" Padding="12,8"
-                      ToolTip.Tip="点一下换下一个模式。顺序播放：一首首放完就停；列表循环：放完最后一首回到第一首；随机播放：每次随机挑一首；单曲循环：重播这一首。列表指文件夹曲目或歌单，看当前这首是从哪张卡点开的"/>
+              <!-- 演奏模式：点开选。顺序播放 / 列表循环 / 随机播放 / 单曲循环 / 关闭。 -->
+              <Button x:Name="BtnPlayMode" Content="▶ 顺序播放 ▾" FontSize="{DynamicResource FontBody}" Padding="12,8"
+                      Classes="secondary" ToolTip.Tip="点开选演奏模式">
+                <Button.Flyout>
+                  <MenuFlyout Placement="TopEdgeAlignedLeft">
+                    <MenuItem x:Name="ModeItemSequential" Tag="0" ToggleType="Radio" GroupName="PlayMode"
+                              Click="PlayModePick_Click">
+                      <MenuItem.Header>
+                        <StackPanel Spacing="1">
+                          <TextBlock Text="▶ 顺序播放"/>
+                          <TextBlock Classes="caption" Text="一首放完接下一首，到列表末尾就停"/>
+                        </StackPanel>
+                      </MenuItem.Header>
+                    </MenuItem>
+                    <MenuItem x:Name="ModeItemListLoop" Tag="1" ToggleType="Radio" GroupName="PlayMode"
+                              Click="PlayModePick_Click">
+                      <MenuItem.Header>
+                        <StackPanel Spacing="1">
+                          <TextBlock Text="↻ 列表循环"/>
+                          <TextBlock Classes="caption" Text="放完最后一首回到第一首"/>
+                        </StackPanel>
+                      </MenuItem.Header>
+                    </MenuItem>
+                    <MenuItem x:Name="ModeItemShuffle" Tag="2" ToggleType="Radio" GroupName="PlayMode"
+                              Click="PlayModePick_Click">
+                      <MenuItem.Header>
+                        <StackPanel Spacing="1">
+                          <TextBlock Text="⤨ 随机播放"/>
+                          <TextBlock Classes="caption" Text="每首放完随机挑一首"/>
+                        </StackPanel>
+                      </MenuItem.Header>
+                    </MenuItem>
+                    <MenuItem x:Name="ModeItemRepeatOne" Tag="3" ToggleType="Radio" GroupName="PlayMode"
+                              Click="PlayModePick_Click">
+                      <MenuItem.Header>
+                        <StackPanel Spacing="1">
+                          <TextBlock Text="↺ 单曲循环"/>
+                          <TextBlock Classes="caption" Text="一直重播这一首"/>
+                        </StackPanel>
+                      </MenuItem.Header>
+                    </MenuItem>
+                    <MenuItem x:Name="ModeItemOff" Tag="4" ToggleType="Radio" GroupName="PlayMode"
+                              Click="PlayModePick_Click">
+                      <MenuItem.Header>
+                        <StackPanel Spacing="1">
+                          <TextBlock Text="■ 关闭"/>
+                          <TextBlock Classes="caption" Text="放完这一首就停"/>
+                        </StackPanel>
+                      </MenuItem.Header>
+                    </MenuItem>
+                  </MenuFlyout>
+                </Button.Flyout>
+              </Button>
               <TextBlock x:Name="TxtHotHint" Classes="sectionLabel" VerticalAlignment="Center"
                          Text="F6：开始 / 暂停 / 继续"/>
             </WrapPanel>
@@ -465,8 +454,6 @@
           </Grid>
 
           <!-- 帮助：跨整张卡的高度，紧挨卷帘右侧。工具栏的「帮助」按钮可收起。 -->
-          <!-- UI-12：宽度 188 时装不下「左列操作 + 右列说明」，右列尾部被裁。
-               加宽到 248，并把右列改成 Wrap 兜底：正常不换行，字体度量有出入时也不丢字。 -->
           <Border x:Name="RollHelp" Grid.Column="1" Width="248" Margin="12,0,0,0" Padding="10,8"
                   Background="{DynamicResource BrushSurfaceAlt}"
                   BorderBrush="{DynamicResource BrushBorder}" BorderThickness="1" CornerRadius="8">
@@ -494,17 +481,6 @@
         </Grid>
       </Border>
 
-      <!-- ================= 选项区（主界面右下角） =================
-           原来整块是一张卡三行：速度/移调/设置入口挤在头一行，两个移调按钮独占一行却半空着，
-           倒计时与两个勾选框又混在第三行 —— 一眼看不出哪几个管「怎么弹」、哪几个会改谱子。
-           现在按「动的是什么」拆成两张卡，每张卡一行小标题：
-
-             · 演奏参数：速度、移调、倒计时、播放后自动最小化 —— 只影响怎么弹，不改谱面；
-             · 谱面调整：一键移调、自然音最多、去除开头空拍 —— 都会改谱面，卷帘里看得到。
-
-           卡内用两列网格对齐：左列速度、倒计时，右列移调、播放后最小化，行与行的控件对得上。
-           设置入口挪进标题行右端，方案名就贴在它左边（原来孤零零挂在滑块后面，看不出是什么）。
-           控件名、ToolTip、事件处理器一律没改，代码里的引用照旧。 -->
       <StackPanel x:Name="OptionsArea" Grid.Row="2" Spacing="8" Margin="{DynamicResource CardGap}">
 
         <!-- 卡 1：演奏参数 -->
@@ -569,8 +545,6 @@
           </StackPanel>
         </Border>
 
-        <!-- 卡 2：谱面调整。三个动作都会改当前谱面，与「演奏参数」分开。
-             卡名与控件同一行：这张卡只有一行控件，再占一行标题就是白花竖排空间（卷帘要用）。 -->
         <Border Classes="card" Padding="14,10">
           <WrapPanel ItemSpacing="16" LineSpacing="8">
             <TextBlock Text="谱面调整" Classes="sectionLabel" MinWidth="52"
@@ -604,12 +578,6 @@
     </Grid>
   </DockPanel>
 
-  <!-- ================= 设置窗口「常规」页的实体内容（不在主界面显示） =================
-       这块内容由「设置…」按钮搬进 SettingsWindow 的常规页显示，关窗再搬回来。
-       为什么把 XAML 留在主窗：这些控件的 x:Name 与事件处理器都在 MainWindow.axaml.cs 里，
-       搬走声明就要连带改几十处引用与处理器归属；留在原处则代码一行不动，
-       控件实例也只有一个，不存在两份状态。
-       藏法：外层 Border 不可见且零尺寸，内容在视觉树上但不参与布局。 -->
   <Border x:Name="AdvancedStash" IsVisible="False" Width="0" Height="0">
     <StackPanel x:Name="AdvancedBody" Spacing="10">
 
@@ -748,8 +716,6 @@
         </StackPanel>
       </Border>
 
-      <!-- 界面：皮肤与主界面上显示什么。播放前自检本体在主界面状态卡里（见上面的 PreflightRow），
-           这里只有它的显示开关：不想要的人可以关掉，默认开。 -->
       <Border Classes="card" Padding="14,10">
         <StackPanel Spacing="6">
           <TextBlock Text="界面" Classes="sectionLabel" FontSize="{DynamicResource FontSmall}"
@@ -780,9 +746,6 @@
         </StackPanel>
       </Border>
 
-      <!-- 关于：版本号、手动检查更新、使用教程。
-            更新说明 / 第三方声明 / 许可证三份合规文本仍然嵌在 exe 里（csproj 的 AvaloniaResource），
-            只是不再给按钮：常规页不需要那么多字。教程按钮重弹「快速上手」浮层。 -->
       <Border Classes="card" Padding="14,10">
         <StackPanel Spacing="6">
           <TextBlock Text="关于" Classes="sectionLabel" FontSize="{DynamicResource FontSmall}"
@@ -799,8 +762,6 @@
           </WrapPanel>
           <TextBlock Classes="caption" TextWrapping="Wrap" LineHeight="19"
                      Text="提示条点一下自动更新，右键跳过本版本。"/>
-          <!-- 免费声明与作者入口：文案由代码从 AutoUpdate 的常量填（见 FillAboutLinks），
-               避免同一个群号/链接在 XAML 与代码里各写一遍。 -->
           <Border Background="{DynamicResource BrushDangerSoft}" BorderBrush="{DynamicResource BrushDangerBorder}"
                   BorderThickness="1" CornerRadius="8" Padding="12,9" Margin="0,3,0,0">
             <StackPanel Spacing="7">
@@ -827,10 +788,6 @@
     </StackPanel>
   </Border>
 
-  <!-- 启动浮层：首次启动、换过免费声明文案、或还没答过验证题时弹一次。
-       免费声明、验证题、快速上手合成这一层，只有一个「知道了」。
-       点它写入 FirstRunDone 与 NoticeShownVersion，之后不再弹；
-       「关于」卡里的「使用教程」可以随时把它叫回来。 -->
   <Border x:Name="StartupOverlay" IsVisible="False" Background="#66101828" CornerRadius="0">
     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="560" Margin="24">
       <Border Classes="card" Padding="24,20">
@@ -856,8 +813,6 @@
                      Foreground="{DynamicResource BrushTextSecondary}"
                      Text="目标程序用窗口化，输入法切英文。没反应就先点一下目标窗口。"/>
 
-          <!-- 验证题：没答对过才显示（AppConfig.AuthorQuizPassed）。答对并选「验证」。
-               答之前「知道了」也能关掉浮层：它只是一道题，不是进门的锁。 -->
           <StackPanel x:Name="PanelStartupQuiz" Spacing="8" Margin="0,4,0,0">
             <TextBlock FontSize="{DynamicResource FontSmall}" FontWeight="SemiBold"
                        Text="作者的 B 站 ID（答对只记一次，不挡使用）"/>
@@ -889,8 +844,6 @@
     </StackPanel>
   </Border>
 
-  <!-- 强制更新浮层：当前版本低于 AutoUpdate.RequiredVersion 时盖住整个窗口。
-       更新包自动开始下载；下载好之后点「重启并完成更新」。没有「稍后」「跳过」这类出路。 -->
   <Border x:Name="ForcedUpdateOverlay" IsVisible="False" Background="#CC0B1420" CornerRadius="0">
     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="640" Margin="24">
       <Border Classes="card" Padding="24,20">

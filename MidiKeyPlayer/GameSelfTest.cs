@@ -6,19 +6,6 @@ using MidiKeyPlayer.Midi;
 
 namespace MidiKeyPlayer;
 
-/// <summary>
-/// 【开发用】纯逻辑自检：键位方案（内置预设、键名、绑定的键）与简谱换算。
-///
-/// 用法：设环境变量 <c>MIDIKEY_GAME_SELFTEST=1</c> 启动程序，或在值里给一个输出文件路径（以 .txt 结尾）：
-/// <c>MIDIKEY_GAME_SELFTEST=E:\tmp\keymap-selftest.txt</c>。
-/// 不写路径就写到 <c>%TEMP%\midikey-keymap-selftest.txt</c>。
-/// 取值 <c>0</c> / <c>false</c> / <c>no</c> / <c>off</c> 等于没设，程序照常开窗。
-///
-/// 环境变量名带 GAME 是历史原因，不改：改名会让 run-selftest.ps1 与既有用法一起失效。
-///
-/// 走这条路时程序**不创建窗口、不注册热键、不碰按键与 MIDI 设备**，跑完直接退出，
-/// 退出码 0 = 全过，1 = 有用例失败。和 DevUISnapshot / DevPreviewProbe 一样属于可删的开发件。
-/// </summary>
 internal static partial class GameSelfTest
 {
     public const string EnvVar = "MIDIKEY_GAME_SELFTEST";
@@ -35,10 +22,6 @@ internal static partial class GameSelfTest
         }
     }
 
-    /// <summary>
-    /// 「明确关掉」的取值：0 / false / no / off（不分大小写）。
-    /// <c>MIDIKEY_GAME_SELFTEST=0</c> 以前也会让程序不建窗口直接退出，与仓库其它开关的 <c>=="1"</c> 约定不一致。
-    /// </summary>
     private static bool IsOffValue(string value)
     {
         string v = value.Trim();
@@ -114,13 +97,6 @@ internal static partial class GameSelfTest
 
     // ================= 内置方案 =================
 
-    /// <summary>
-    /// 内置预设的自检：套数下限、名字唯一且取得回、每套的键名与偏移不重复。
-    ///
-    /// 套数只断言下限、不写死：预设正在被改（6 套 → 3 套），写死数字一改就红。
-    /// 「一个八度的半音阶方案」这类具体配置同样随预设一起改过，不再是硬要求，
-    /// 只在方案存在时检查它内部自洽。
-    /// </summary>
     private static void TestPresetBinding()
     {
         var presets = KeymapProfile.Presets;
@@ -143,8 +119,6 @@ internal static partial class GameSelfTest
         int emptyKeys = 0;
         foreach (var p in presets)
         {
-            // 口径是「按键 + 要不要 Shift」：自带 Shift 的键位（Roblox 钢琴的黑键）
-            // 与它下面那个白键共用一个物理键，但发出去的字符不同，不算重键。
             var keys = p.Keys.Where(k => k != null && !string.IsNullOrWhiteSpace(k.Key))
                              .Select(k => (k.Shift ? "Shift+" : "") + KeymapProfile.CanonicalKeyName(k.Key))
                              .ToList();
@@ -158,8 +132,6 @@ internal static partial class GameSelfTest
         var notFound = names.Where(n => KeymapProfile.PresetByName(n) == null).ToList();
         Check("预设：每套都能按名字取回", notFound.Count == 0, string.Join(" | ", notFound));
 
-        // 默认方案是内置方案时也要能查回来，否则「回到默认」这条路径会落空。
-        // 默认方案允许不是预设（用户自建方案可以当默认），所以用「取不回才失败」的写法。
         string defaultName = KeymapProfile.Default.Name;
         bool defaultPresent = names.Any(n => string.Equals(n, defaultName, StringComparison.Ordinal));
         Check("预设：默认方案的名字取得回",
@@ -186,16 +158,6 @@ internal static partial class GameSelfTest
 
     // ================= 键名 =================
 
-    /// <summary>
-    /// 键名这条链路：方案认不认这个名字（<see cref="KeymapProfile.IsKnownKeyName"/>），
-    /// 以及键名能不能换成字符（<see cref="KeymapProfile.KeyCharOf"/>）。每个键名都必须是方案认得的。
-    ///
-    /// 这里不再自己写一份「Avalonia 按键 → 键名」的翻译。原来那份是 Input\GameKeyMap.cs
-    /// （音游认键用）搬过来的副本，只被自检调用，断言的是它自己，覆盖不到产品代码：
-    /// 生产里录制按键走 KeymapWindow 的 KeyLabelOf / ModifierNameOf，键名归一化走
-    /// <see cref="KeymapProfile.CanonicalKeyName"/>。副本和依赖它的断言一起删掉，
-    /// 原因与取舍见 midikey-audit\fixes\42-leftovers.md（LF-09）。
-    /// </summary>
     private static void TestKeyMapNames()
     {
         // 鼠标键要能被方案认出来，否则鼠标修饰键永远匹配不上
@@ -203,8 +165,6 @@ internal static partial class GameSelfTest
               IsUsableName("MouseLeft") && IsUsableName("MouseRight") && IsUsableName("MouseMiddle"),
               "MouseLeft / MouseRight / MouseMiddle");
 
-        // 内置三套预设都不带功能键：这是设计（不是所有方案都需要，界面另有启用开关）。
-        // 所以这里断言「空着，或者写的是认得的键名」，而不是强制三个都非空。
         var def = KeymapProfile.Default;
         Check("键名：方案里的功能键要么留空、要么认得",
               IsBlankOrKnown(def.OctaveDown) && IsBlankOrKnown(def.OctaveUp) && IsBlankOrKnown(def.Sharp),
@@ -237,10 +197,6 @@ internal static partial class GameSelfTest
 
     // ================= 简谱换算 =================
 
-    /// <summary>
-    /// 简谱音高换算：中音区只有数字，高八度加上点，低八度加下点，最多两个点。
-    /// 音域文字（SolfegeRange）与音名（NoteName）一起验，界面上到处在用。
-    /// </summary>
     private static void TestSolfegeNames()
     {
         // 中音区（60 起）：do re mi fa sol la si = 1 2 3 4 5 6 7
@@ -285,12 +241,6 @@ internal static partial class GameSelfTest
 
     // ================= 降半音键 =================
 
-    /// <summary>
-    /// 降半音键（v1.0.14 新增）：「21 键半音」预设有 Shift 升半音 + Ctrl 降半音；
-    /// 黑键两条路都能到时固定优先升半音；最低键下面那一个半音只能用降半音；
-    /// 只绑降半音键的方案用「上方邻键 + 降半音」补黑键。
-    /// v1.0.15 把短命的「异环键位」并入「21 键半音」，老名字走别名表。
-    /// </summary>
     private static void TestFlatModifier()
     {
         var p = KeymapProfile.PresetByName("21 键半音");
@@ -330,12 +280,6 @@ internal static partial class GameSelfTest
 
     // ================= Roblox 钢琴键位 =================
 
-    /// <summary>
-    /// Roblox 钢琴键位（v1.0.27 新增，v1.0.28 改成「一个半音一条键位」）：
-    /// 36 个白键 + 25 个黑键 = 61 条，黑键是「下面那个白键 + Shift」，显示成 ! @ $ % ^ * ( 与 Q W E …。
-    /// 不用功能键区（开关关、四个功能键全空），但 Shift 仍然要按。
-    /// 白键表与黑键表逐条写在这里：偏移改错一个音，这一条就红。
-    /// </summary>
     private static void TestRobloxPiano()
     {
         var p = KeymapProfile.PresetByName("Roblox 钢琴键位");
@@ -414,12 +358,6 @@ internal static partial class GameSelfTest
 
     // ================= FF14 钢琴键位 =================
 
-    /// <summary>
-    /// FF14 钢琴键位（本版新增）：演奏模式的 37 键，**一个半音一条键位**，不用功能键，也不按 Shift。
-    /// 三排各 12 个半音（一行一个八度），最后再接一个最高的 do。
-    /// 低八度 Z 1 X 2 C V 3 B 4 N 5 M、中八度 A 6 S 7 D F 8 G 9 H 0 J、高八度 K Y L U Q W I E O R P T、,
-    /// 逐条写在这里：偏移或键名改错一个音，这一条就红。
-    /// </summary>
     private static void TestFf14Piano()
     {
         var p = KeymapProfile.PresetByName("FF14 钢琴键位");
@@ -477,12 +415,6 @@ internal static partial class GameSelfTest
 
     // ================= 心动小镇 =================
 
-    /// <summary>
-    /// 心动小镇：37 键，**一个半音一条键位**，不用功能键，也不按 Shift。
-    /// 三排各一个八度：低音排偏移 −12、中音排 0、高音排 +12（高音排末尾多一个高音 do）。
-    /// 每排白键 7 个，黑键是数字排与符号键上的那 5 个。
-    /// 逐条写在这里：偏移或键名改错一个音，这一条就红。
-    /// </summary>
     private static void TestXindong()
     {
         var p = KeymapProfile.PresetByName("心动小镇");
@@ -518,7 +450,6 @@ internal static partial class GameSelfTest
         Check("心动小镇：演奏时不按任何修饰键", p.SharpKeyToHold == null,
               $"SharpKeyToHold=「{p.SharpKeyToHold}」");
 
-        // 一行一个八度：低音 12 条（偏移 −12..−1）、中音 12 条（0..11）、高音 13 条（12..24，末尾多一个 do）。
         bool rowsOk = p.Keys.Count(k => k.Row == 0) == 12 && p.Keys.Count(k => k.Row == 1) == 12
                       && p.Keys.Count(k => k.Row == 2) == 13
                       && p.Keys.Where(k => k.Row == 0).All(k => k.Offset is >= -12 and <= -1)
@@ -540,10 +471,6 @@ internal static partial class GameSelfTest
               same ? "" : $"原 {p.Keys.Count} 条 / 回读 {round.Keys.Count} 条");
     }
 
-    /// <summary>
-    /// 旧副本迁移：内置键位改版之后，用户目录里那份「一字不差还是上一版」的副本会被换成当前内置键位。
-    /// 用户自己动过一个键、或说明已经不是那一版的，都必须原样保留 —— 迁移只认历史版本的完整样子。
-    /// </summary>
     private static void TestLegacyCopyMigration()
     {
         var old = KeymapProfile.BuildXindongV1117();   // v1.1.17 / v1.1.18 的样子
@@ -572,11 +499,6 @@ internal static partial class GameSelfTest
               !KeymapProfile.IsUntouchedLegacyCopy(null, old) && !KeymapProfile.IsUntouchedLegacyCopy("心动小镇", null));
     }
 
-    /// <summary>
-    /// 旧副本迁移的**落盘**验证：把方案目录指到临时目录，造一份 v1.1.17 的 keymap.json 与用户副本，
-    /// 各走一遍 <see cref="KeymapProfile.Load"/> 与 <see cref="KeymapProfile.LoadByName"/>，
-    /// 内存里与文件里都必须换成当前内置键位；用户改过的副本一个字都不许动。
-    /// </summary>
     private static void TestLegacyCopyRewrite()
     {
         string root = Path.Combine(Path.GetTempPath(), "midikey-selftest-legacy");
@@ -649,12 +571,6 @@ internal static partial class GameSelfTest
 
     // ================= 和弦调度 =================
 
-    /// <summary>
-    /// 和弦调度自检：修饰键状态相同的同刻音必须**同时按下**（和弦），不是被顺延成琶音；
-    /// 不重叠的单音线不能被改坏；同一根键不会被同时按住两次。
-    /// 用公开的 <see cref="PlaybackEngine.BuildSchedulePreview"/>（导出按键表走的就是它），
-    /// 所以发布版也能跑，不需要 MIDIKEY_TEST。
-    /// </summary>
     private static void TestChordScheduling()
     {
         // 三个同刻音（都在基准八度、不需要修饰键）→ 必须同时按住 3 根
@@ -719,11 +635,6 @@ internal static partial class GameSelfTest
 
     // ================= 和弦保留（谱面合并） =================
 
-    /// <summary>
-    /// 谱面合并自检：同一条声轨（同一个 Rank）同一时刻的音是和弦，必须**一个不丢**。
-    /// 用户报过「导入带和弦的 MIDI，和弦只剩一个音」，根因就在这里。
-    /// 另外钉住合奏的既有规则：不同声部同刻相撞时，编号小的优先。
-    /// </summary>
     private static void TestChordMerge()
     {
         // 1) 一个声部里的三音和弦：一个音都不许少
@@ -758,9 +669,6 @@ internal static partial class GameSelfTest
         });
         Check("和弦保留：长音上叠三音和弦共 4 个音", layered.Count == 4, $"实际 {layered.Count} 个音");
 
-        // 5) 不同声部同刻相撞：**两条声部的音都要留下**。
-        //    这里曾经只留编号小的那个，那是三角洲口琴时代的规定（当时乐器一次只能发一个音）。
-        //    现在面向全功能 MIDI 乐器，能同时按多个键，再压就是白丢音。
         var clash = NoteMapper.MergeVoicesByPriority(new List<(int, RawNote)>
         {
             (0, MergeNote(60, 0.0, 1.0)),
@@ -859,10 +767,6 @@ internal static partial class GameSelfTest
         Channel = 0,
     };
 
-    /// <summary>
-    /// 自检用：写一份格式 0 的 MIDI，一条轨道一个声道，开头是 C 大三和弦（C4 / E4 / G4）。
-    /// 手工拼事件，不依赖 DryWetMidi 的写接口。
-    /// </summary>
     private static void WriteChordMidi(string path)
     {
         var events = new List<MidiEvent>
@@ -903,15 +807,8 @@ internal static partial class GameSelfTest
         return max;
     }
 
-    // v1.1.8 移除音频转 MIDI：WAV 解析、重采样、模型推理、音符解码共 10 条断言，
-    // 随 Audio\ 整条链路一起删。
-
     // ================= 声部识别 =================
 
-    /// <summary>
-    /// 声部识别（GM 音色表 + 角色映射 + 无音色时的推断）。
-    /// 这张表是左侧「声部」列的唯一来源，错一个号就会把鼓标成贝斯，所以逐条钉住。
-    /// </summary>
     private static void TestTrackRoles()
     {
         // 音色表必须满 128 条，而且都要有名字：少一条就说明抄表时漏了行
@@ -1037,22 +934,24 @@ internal static partial class GameSelfTest
 
     // ================= 歌单与连播（v1.1.21） =================
 
-    /// <summary>
-    /// 连播的全部判断：四种模式往哪走、放不出来怎么跳、歌单条目怎么排顺序、按什么挑音轨。
-    ///
-    /// 这些都是纯函数（PlayAdvance / PlaylistModel），所以能在不建窗口、不发按键的这条自检里跑。
-    /// 界面里那三条入口（上移按钮、下移按钮、拖放）调的就是这里测的同一个函数，
-    /// 所以拖放这种没法在无窗口环境里模拟的手势，逻辑也照样被钉住了。
-    /// </summary>
     private static void TestPlaylistAdvance()
     {
         // —— 模式名与切换 ——
-        Check("演奏模式有四种", PlayModeNames.All.Length == 4 && PlayModeNames.Short.Length == 4,
+        Check("演奏模式有五种", PlayModeNames.All.Length == 5 && PlayModeNames.Short.Length == 5,
             string.Join(" / ", PlayModeNames.All));
-        Check("模式点击循环 3→0", PlayModeNames.Next(PlayMode.RepeatOne) == PlayMode.Sequential);
-        Check("模式点击循环 0→1", PlayModeNames.Next(PlayMode.Sequential) == PlayMode.ListLoop);
+
+        bool mapOk = true;
+        for (int i = 0; i < PlayModeNames.All.Length; i++)
+            if ((int)PlayModeNames.Clamp(i) != i || PlayModeNames.All[i].Length == 0) mapOk = false;
+        Check("每个模式号都有自己的名字", mapOk && PlayModeNames.All[(int)PlayMode.Off] == "关闭");
+
         Check("越界的模式号夹回顺序播放",
             PlayModeNames.Clamp(-1) == PlayMode.Sequential && PlayModeNames.Clamp(99) == PlayMode.Sequential);
+
+        // —— 关闭：放完这一首就停 ——
+        var off = PlayAdvance.AfterFinish(PlayMode.Off, 3, 0);
+        Check("关闭：放完这一首就停", off.Kind == PlayAdvance.Move.Stop, off.Reason);
+        Check("关闭：放不出来也不换歌", PlayAdvance.NextAfterFailure(PlayMode.Off, 4, 1) == -1);
 
         // —— 顺序播放：一首接一首，到底就停 ——
         var seq1 = PlayAdvance.AfterFinish(PlayMode.Sequential, 3, 0);
@@ -1132,8 +1031,6 @@ internal static partial class GameSelfTest
             !PlaylistModel.Move(order, -1, 1) && !PlaylistModel.Move(order, 9, 1) &&
             string.Join("", order) == "ABC", string.Join("", order));
 
-        // 拖放：把第 1 行拖到第 3 行上。元素先被抽走，后面的整体前移一格，
-        // 所以 A 落在原来 B 的位置上 = BAC（不是「挪到最末尾」）。
         order = new List<string> { "A", "B", "C" };
         Check("拖放：A 拖到 C 的位置上变成 BAC",
             PlaylistModel.MoveOnto(order, 0, 2) && string.Join("", order) == "BAC", string.Join("", order));
@@ -1186,10 +1083,6 @@ internal static partial class GameSelfTest
 
     // ================= 歌单存盘（v1.1.23） =================
 
-    /// <summary>
-    /// 歌单的落盘与读回。目录用 <see cref="PlaylistStore.DirPathForDev"/> 指到临时目录，不碰用户真正的歌单。
-    /// 覆盖三件事：多行勾选往返、老文件的单行字段接得住、旧版本多写的 label 字段不挡读盘。
-    /// </summary>
     private static void TestPlaylistStore()
     {
         string tmp = Path.Combine(Path.GetTempPath(), "midikey-selftest-playlists-" + Guid.NewGuid().ToString("N"));

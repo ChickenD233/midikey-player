@@ -11,23 +11,6 @@ internal static class PreviewProbeMode
         Environment.GetEnvironmentVariable("MIDIKEY_PREVIEW_PROBE") == "1";
 }
 
-/// <summary>
-/// 【开发用，可删】试听抖动自动跑测：无人值守地跑一次试听，把抖动统计写进报告文件后退出。
-/// 删本文件时记得同时删 MainWindow 里的 InstallPreviewProbe(this) 与构造函数里的两处门控。
-///
-/// 环境变量（都不设 = 本文件零行为）：
-/// MIDIKEY_PREVIEW_PROBE=1              总开关（必须正好是 1）
-/// MIDIKEY_PREVIEW_PROBE_FILE=xx.mid    自动载入的 MIDI
-/// MIDIKEY_PREVIEW_PROBE_OUT=report.txt 报告输出文件（追加写）
-/// MIDIKEY_PREVIEW_PROBE_MIX=all        载入后把所有非打击乐声轨勾进合奏（更密）
-/// MIDIKEY_PREVIEW_PROBE_SEEKS=5,20     到达这些秒数时跳转一次（验"跳转前先清音"）
-/// MIDIKEY_PREVIEW_PROBE_STOPAT=10      到第 10 秒点"停止"（验"停止时全清"）
-/// MIDIKEY_PREVIEW_PROBE_CLOSEAT=5      到第 5 秒关窗口（验"关窗口时全清"）
-/// MIDIKEY_PREVIEW_PROBE_SWITCH=xx.mid  播放中换曲（验"换曲时全清"）
-/// MIDIKEY_PREVIEW_PROBE_SWITCHAT=3     换曲时刻（秒）
-/// MIDIKEY_PREVIEW_PROBE_RESTART=1      换曲后立刻再开始试听
-/// MIDIKEY_PREVIEW_PROBE_SHOT=shot.png  播放中截一张图（界面仍可用的证据）
-/// </summary>
 public partial class MainWindow
 {
     private DispatcherTimer? _probeMonitor;

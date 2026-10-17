@@ -6,16 +6,6 @@ using MidiKeyPlayer.Engine;
 
 namespace MidiKeyPlayer;
 
-/// <summary>
-/// 设置窗口「实验功能」页：远程同演。
-///
-/// 这一页只做三件事，同步逻辑全在 <see cref="SyncSession"/> 里：
-/// 1. 把界面操作翻成对会话的调用（建房、加入、改声部、开演…）。
-/// 2. 把会话推上来的名单翻成界面文字。
-/// 3. 每 2 秒把名单刷新一次（名单只在有人进出时变，刷新只是为了显示得及时）。
-///
-/// 刻意没有的东西：不测延迟、不显示往返时间、不做漂移校正、没有周期上报。
-/// </summary>
 public partial class SettingsWindow
 {
     private SyncSession? _sync;
@@ -77,8 +67,6 @@ public partial class SettingsWindow
 
         if (SyncConnectCard != null) SyncConnectCard.IsVisible = !connected;
         if (SyncRoomCard != null) SyncRoomCard.IsVisible = connected;
-        // 连接之后收起顶上的说明卡：它会把这页底部的「下一步做什么」与演出按钮
-        // 挤到滚动条外面 —— 那两样才是暂停之后要看的东西。
         if (SyncIntroCard != null) SyncIntroCard.IsVisible = !connected;
         if (!connected) return;
 
@@ -152,9 +140,6 @@ public partial class SettingsWindow
             TxtSyncSpeed.Text = $"{state}　速度 {session.Speed * 100:F0}%{unified}";
         }
 
-        // 提示行由 ApplySyncTransportUi 按状态写（旧写法是一句固定的「再点开演」，
-        // 停演之后还挂着，等于告诉用户一件已经做完的事）。
-
         RebuildSyncPeerRows();
         RebuildSyncVoiceRows();
     }
@@ -178,10 +163,6 @@ public partial class SettingsWindow
         }
     }
 
-    /// <summary>
-    /// 重建声部勾选表。声部由每个人自己选，所以这里不做占用检查 ——
-    /// 名单上看得见各自选了什么，重了是人自己看着办。
-    /// </summary>
     private void RebuildSyncVoiceRows()
     {
         if (_sync == null) return;
@@ -371,8 +352,6 @@ public partial class SettingsWindow
     private void OnSyncStartRequested(double positionSec)
         => Dispatcher.UIThread.Post(() =>
         {
-            // 把「还差多久才到全场开演时刻」一起交出去：各人收到的时刻不一样，
-            // 这段等待就是用来抹平网络快慢的（会话那边已经减掉了传输耗时）。
             _mainWindow?.StartSyncPlaybackForSettings(positionSec, _sync?.LeadInMs ?? 0);
             RefreshSyncUi();
         });
@@ -446,13 +425,6 @@ public partial class SettingsWindow
 
     // ================= 演出控制 =================
 
-    /// <summary>
-    /// 一个按钮管三件事：开演 / 暂停 / 继续。按一下先看现在是什么状态，再做对应的事。
-    ///
-    /// 为什么合并：旧界面把「开演 / 暂停 / 继续 / 跳转 / 停止」平铺成五个按钮，
-    /// 暂停与继续互斥却并排摆着。暂停之后要在一排长得差不多的按钮里找「继续」，
-    /// 找不到就以为卡住了。现在暂停之后，同一个大按钮自己写着「▶ 继续」。
-    /// </summary>
     private void SyncPrimary_Click(object? sender, RoutedEventArgs e)
     {
         if (_sync is not { IsHost: true } session) return;
@@ -490,12 +462,6 @@ public partial class SettingsWindow
         _sync?.HostStop();
         RefreshSyncUi();
     }
-
-    // ================= 状态 → 界面 =================
-    //
-    // 演出控制只认「现在处于哪个状态」：主按钮按哪个、次要按钮能不能按、下一步做什么。
-    // 真会话（RefreshSyncUi）与开发快照（FillSyncPageForDev）走同一个入口，
-    // 所以快照拍到的就是真状态下用户会看到的界面。
 
     /// <summary>一次界面判定要用到的全部状态。</summary>
     private sealed class SyncUiState
@@ -553,8 +519,6 @@ public partial class SettingsWindow
                 ? "按当前状态来：没开演就是开演，演奏中就是暂停，暂停中就是继续"
                 : null);
         }
-        // 跳转与停止是次要动作：只有正在演或暂停中才有意义。
-        // 成员看不到这三个按钮，改看右边那行字 —— 一排灰按钮只会让人以为自己点错了。
         bool hostCanControl = s.IsHost && s.Transport is SyncTransport.Playing or SyncTransport.Paused;
         if (BtnSyncSeek != null)
         {
@@ -570,10 +534,6 @@ public partial class SettingsWindow
         if (TxtSyncHint != null) TxtSyncHint.Text = SyncHintText(s);
     }
 
-    /// <summary>
-    /// 「下一步做什么」。房主与成员分开写：成员那三个按钮是隐藏的，
-    /// 必须有一句话明确告诉他「不用你操作、等房主」，否则他只能猜。
-    /// </summary>
     private static string SyncHintText(SyncUiState s)
     {
         switch (s.Transport)
@@ -611,18 +571,12 @@ public partial class SettingsWindow
 
     // ================= 小工具 =================
 
-    /// <summary>往页面上那行提示写字。没地方写就记日志。
-    /// 名字不叫 Say：键位页已经有一个 Say（写键位页的提示行），同类里重名会编译不过。</summary>
     private void SaySync(string message)
     {
         if (TxtSyncJoinHint != null) TxtSyncJoinHint.Text = message;
         else _mainWindow?.InsertSyncLogForSettings("远程同演：" + message);
     }
 
-    /// <summary>
-    /// 每 2 秒刷一次界面。**只读名单，不发任何消息** ——
-    /// 名单变的时候服务器已经推过新名单了，这个计时器只是让"连接中断"这类状态显示得及时。
-    /// </summary>
     private void StartSyncUiTimer()
     {
         _syncUiTimer?.Stop();
@@ -643,13 +597,6 @@ public partial class SettingsWindow
         _mainWindow?.ApplySyncMaskForSettings(ParseVoices(session.SelfVoice), session.SelfTranspose);
     }
 
-    /// <summary>
-    /// 【开发用】切到这一页后填一套假的房间状态，供界面快照拍出有内容的一页。
-    ///
-    /// <paramref name="state"/> 选拍哪个演出状态：idle（默认，等待开演）/ playing / paused / stopped，
-    /// 前面加 <c>member:</c> 拍成员视角（例：<c>member:paused</c>）。
-    /// 状态 → 界面这一段走的是 <see cref="ApplySyncTransportUi"/>，与真会话完全同一条路。
-    /// </summary>
     internal void FillSyncPageForDev(string state = "idle")
     {
         bool isHost = true;

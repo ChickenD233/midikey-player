@@ -4,11 +4,6 @@ using MidiKeyPlayer.Midi;
 
 namespace MidiKeyPlayer.Engine;
 
-/// <summary>
-/// 播放调度引擎：把映射后的音符变成键盘/鼠标按下抬起事件，后台线程按真实时间发送（SendInput）。
-/// 时间模型：事件表用"音乐时间"（秒，与速度无关）；工作线程按速度把物理流逝时间积分成音乐时间，
-/// 因此 Speed 随时可变、SeekFraction 可跳转、UpdateNotes 可播放中更换剩余音符（实时移调）。
-/// </summary>
 public sealed class PlaybackEngine : IDisposable
 {
     // —— 对外事件（工作线程触发，UI 需自行 marshal）——
@@ -16,11 +11,6 @@ public sealed class PlaybackEngine : IDisposable
     public event Action<string>? CurrentNoteChanged;   // 正在演奏的音符描述（"" 表示无）
     public event Action? Finished;                     // 自然播完或手动停止
 
-    /// <summary>
-    /// 一个待派发的物理输入事件。T 为**音乐时间**（秒，与速度无关）。
-    /// 用可变类而非 record，是为了在派发时回填"真正发出的时刻"，供时序诊断使用。
-    /// 音键用字符形式（命名键是私用区哨兵字符），修饰键用键名（鼠标键或键盘键都行）。
-    /// </summary>
     private sealed class PhysicalEvent
     {
         public double T;
@@ -45,10 +35,6 @@ public sealed class PlaybackEngine : IDisposable
             => new(t, K_Modifier, ' ', name, slot, down, "");
     }
 
-    /// <summary>
-    /// 一根正在按着的音键：DownT = 实际按下时刻，UpT = 计划抬起时刻（都是音乐时间）。
-    /// 同一组（修饰键状态相同）里可以同时有多根，和弦靠它发声。
-    /// </summary>
     private readonly record struct HeldKey(char Key, double DownT, double UpT);
 
     private const int K_Key = 0;
@@ -104,19 +90,10 @@ public sealed class PlaybackEngine : IDisposable
         set => _speed = Math.Clamp(value, MinSpeed, MaxSpeed);
     }
 
-
     /// <summary>输入时序预算（物理毫秒）。播放中可改，下一轮播放生效。</summary>
     public InputTiming Timing { get; set; } = InputTiming.Standard;
 
-    // 原来的第 4 节「和弦开关与单音提取」已整体删除：ChordMode / PlayedNotes /
-    // ResolveNotes（两个重载）/ ApplyChordMode 全都没有调用者。
-    // 谱面现在由上游 MainWindow.ComputeAutoNotes 定好（演奏全部音），本类只负责派发按键。
-
 #if MIDIKEY_TEST
-    /// <summary>
-    /// 仅供时序回归测试使用：按指定预算构建事件表。
-    /// 注意用局部副本设置 Timing，避免副作用污染引擎状态。
-    /// </summary>
     public (double T, int Kind, char Code, bool Down)[] BuildScheduleForTest(
         IReadOnlyList<MappedNote> notes, InputTiming timing)
     {
@@ -137,21 +114,11 @@ public sealed class PlaybackEngine : IDisposable
     /// <summary>本轮播放的输入时序诊断（由 Execute 在派发时统计）。</summary>
     public InputTimingProbe Probe { get; } = new();
 
-    /// <summary>
-    /// 本轮"没能成音"的音符数：按键时值被压到一个帧点都盖不住，目标程序读不到。
-    /// 修复后正常曲子应为 0。不是 0 就说明这首谱面挤得比输入档位允许的最快速度还快，
-    /// 用户可以换「稳健」档或把速度降一点。
-    /// B04：只算「被迫压缩」（谱面时值本来就放不下），不算重叠音的「正常让位」。
-    /// </summary>
     public int SqueezedNotes => Probe.CompressedNotes;
 
     /// <summary>对外暴露的调度事件（音乐时间，秒）。用于导出按键表/宏，保证与实际演奏一致。</summary>
     public sealed record ScheduledEvent(double MusicTime, string Kind, char Key, bool Down)
     {
-        /// <summary>
-        /// 便于人读的按键名。命名键（鼠标键、PageUp 等）在 <see cref="MappedNote.Key"/> 里是私用区哨兵字符，
-        /// 一律不显示；调用方要用键名请读 MappedNote.KeyName。
-        /// </summary>
         public string KeyLabel => Key == ' ' || Key >= '\uE000' ? "" : (Key == ',' ? "，" : Key.ToString());
     }
 
@@ -160,13 +127,8 @@ public sealed class PlaybackEngine : IDisposable
         IReadOnlyList<MappedNote> notes, InputTiming? timing = null, double speed = 1.0)
     {
         var engine = new PlaybackEngine { Timing = timing ?? InputTiming.Standard };
-        // 先把速度写进引擎再建表：BuildSchedule 用 _speed 把物理毫秒预算（修饰键提前量、
-        // 最短按住、重触发间隔）换算成音乐时间。留成默认的 1.0 会在导出时有速度误差——
-        // 400% 下修饰键提前量按 10ms 排出，小于一帧，导出的脚本就会漏掉八度 / 升半音键。
         double safeSpeed = speed <= 0 ? 1.0 : Math.Clamp(speed, MinSpeed, MaxSpeed);
         engine.Speed = safeSpeed;
-        // 谱面已由上游定好（MainWindow.ComputeAutoNotes），这里不再自己按音域取舍。
-        // 只跳过没有可用按键的音（Key 不是按键字符），免得排出一次空格键。
         var decided = notes.Where(n => n.Key != ' ' && n.Key != '\0').ToList();
         var (evs, _) = engine.BuildSchedule(decided, ModState.None);
 
@@ -207,17 +169,10 @@ public sealed class PlaybackEngine : IDisposable
         lock (_gate)
         {
             if (_running) StopInternal();
-            // 上一代线程可能还没走到 finally：它会在收尾时再清一次物理状态与 _running。
-            // 先换世代号把它隔离，再等一小会，避免它把新一轮的状态清掉（R2-05）。
             _wgen = ++_generation;
             if (_thread is { IsAlive: true } previous) previous.Join(200);
 
             _speed = speed <= 0 ? 1.0 : Math.Clamp(speed, MinSpeed, MaxSpeed);
-            // 提前量在派发时与**音乐时间**比较（T 与 _musicNow 都是音乐时间），
-            // 所以物理毫秒预算必须乘速度换成音乐秒，否则物理提前量 = lead / speed：
-            // 400% 时只剩 14ms（小于一帧，预置修饰键被推到音键之后 → 音高全错）；
-            // 10% 时膨胀到 570ms。换算方向与建表侧 A01 一致：音乐秒 = 物理秒 × 速度。
-            // 下限仍须 ≥ ModLeadMs + 一帧，保证修饰键先于音键发出。
             double needLeadMs = Timing.ModLeadMs + Timing.FrameMs;
             _leadSec = Math.Max(Timing.LeadMs, needLeadMs) / 1000.0 * _speed;
             // 诊断口径跟着本轮速度走：表里的时间差是音乐时间，报出的毫秒要乘速度换回物理时间（A13）
@@ -231,9 +186,6 @@ public sealed class PlaybackEngine : IDisposable
 
             // 只保留可演奏音（跳转会重建整表，必须同样过滤）
             _allNotes = notes.Where(n => n.InRange).ToList();
-            // 起点 = 引擎记录的物理修饰键状态，与 _nextIdx = 0 处的表状态一致。
-            // 本文件每条释放路径都走 ReleaseAllInput()，它会把 _physOctKey / _physSharpKey 清零，
-            // 所以这里就是「全松」；跳转/换谱建表也用 ModState.None，三处口径相同。
             (_events, _totalMusic) = BuildSchedule(_allNotes, CurrentModifiers());
             _snapTotal = _totalMusic;
 
@@ -267,12 +219,8 @@ public sealed class PlaybackEngine : IDisposable
 
             var inRange = notes.Where(n => n.InRange).ToList();
             _allNotes = inRange;
-            // 新表从「没有修饰键按着」这个已知状态建起，同一根键在表里不会出现两次相邻 KeyDown。
-            // 换谱点真正按着的修饰键由 ResyncModifiersAt 直接物理补按，不往表里插表头事件。
             var (evs, total) = BuildSchedule(inRange, ModState.None);
             _events = evs;
-            // 直接采用新表总长：不能用 Max 保留旧值，否则换成更短的谱面后，
-            // 工作线程会按陈旧的更大总长空等几分钟才循环 / 结束。
             _totalMusic = total;
             _nextIdx = FindNextIdx(_musicNow);
             ResyncModifiersAt(_nextIdx);
@@ -291,8 +239,6 @@ public sealed class PlaybackEngine : IDisposable
             ForceReleaseModifiers();
 
             double target = Math.Clamp(fraction, 0, 1) * _totalMusic;
-            // 重新构建整张表：从「没有修饰键按着」这个已知状态建起，同一根键不会两次相邻 KeyDown；
-            // 跳转点该按着的修饰键不靠表来补，而由 ResyncModifiersAt 当场物理补按（RV-01）。
             var (evs, total) = BuildSchedule(_allNotes, ModState.None);
             _events = evs;
             _totalMusic = total;
@@ -309,14 +255,9 @@ public sealed class PlaybackEngine : IDisposable
         lock (_gate)
         {
             if (!_running || _paused) return;
-            // 先记下当时真正按着的修饰键（按事件表已派发部分推算），
-            // 下面松开物理键后，Resume 才能按同一份状态补按（IN-02）。
             _pausedMods = ReadModifierStateAt(_nextIdx);
             _paused = true;
             _resumeGate.Reset();
-            // 物理键全松并清零状态：Resume 靠 _pausedMods 补按回来（IN-02）。
-            // A10：物理状态改写全部收进 _gate，避免与派发线程的 Execute 交错
-            //（旧写法在锁外松开，工作线程可能刚派发完一个 KeyDown 又被这里抬掉）。
             ReleaseAllInput();
         }
         SetCurrentNote("");
@@ -328,8 +269,6 @@ public sealed class PlaybackEngine : IDisposable
         lock (_gate)
         {
             if (!_running || !_paused) return;
-            // 暂停时松开了全部物理键，这里把当时按着的修饰键补按回去，
-            // 否则继续之后到下一次状态变化之前整段八度 / 升半音都错（IN-02）。
             RestoreHeldModifiers(_pausedMods);
             _pausedMods = ModState.None;
             _paused = false;
@@ -390,20 +329,10 @@ public sealed class PlaybackEngine : IDisposable
                     continue;
                 }
 
-                // 1) 积分：物理流逝 × 速度 → 音乐时间
-                // dt 在锁外采样（读物理时钟不需锁），但累加进 _musicNow 必须进锁：
-                // SeekFraction / UpdateNotes 在锁内改写 _musicNow，锁外累加会把那次写入冲掉（丢更新）。
                 double now = _clock.Elapsed.TotalSeconds;
                 double dt = now - _lastPhys;
                 _lastPhys = now;
 
-                // 2) 派发到期的事件
-                // _leadSec 已是音乐时间口径（Play 里已乘速度），与 _musicNow 直接可比；
-                // 实际发出的物理提前量恒等于 InputTiming 的毫秒值，换算由积分步长承担（A01）。
-                //
-                // 派发段与跳转 / 换谱 / 暂停共用 _gate：否则 SeekFraction 重建表之后，
-                // 工作线程可能先派发新表的第一个音，而补按的修饰键晚一步（R2-01、R2-02）。
-                // 锁内只做派发与判定，所有等待都放到锁外。
                 int next = 0;              // 0 = 继续，1 = 等尾音，2 = 循环，3 = 自然播完
                 double slackT = 0;
                 double wakeMusic = 0;
@@ -447,8 +376,6 @@ public sealed class PlaybackEngine : IDisposable
                     }
                 }
 
-                // 派发路径的音符文字放到锁外调用：订阅者目前是 0 个，但这条路径一次要跑很多事件，
-                // 不把外部回调留在锁内。其它路径的 SetCurrentNote 调用点在锁内，订阅者同样为 0（R3-04）
                 if (pendingNote != null) SetCurrentNote(pendingNote);
 
                 if (next == 1)
@@ -482,8 +409,6 @@ public sealed class PlaybackEngine : IDisposable
                             double t2 = _clock.Elapsed.TotalSeconds;
                             double d2 = t2 - _lastPhys;
                             _lastPhys = t2;
-                            // 累加同样要进锁：这里也在跑时用户拖进度条（SeekFraction 锁内写 _musicNow）
-                            // 会被锁外累加冲掉，与派发段同型竞态
                             if (d2 > 0) { lock (_gate) { _musicNow += d2 * _speed; } }
                         }
                     }
@@ -492,8 +417,6 @@ public sealed class PlaybackEngine : IDisposable
         }
         catch (Exception ex)
         {
-            // A05：后台线程异常绝不能杀进程（SendInput 失败、表被并发改坏等）。
-            // 写一条日志、松开物理键、把结束状态置好，再走正常收尾。
             Log?.Invoke($"播放线程异常，已停止播放：{ex.GetType().Name}: {ex.Message}");
             global::MidiKeyPlayer.Persist.LogFile.Append($"[播放] 线程异常：{ex}");
             ReleaseAllInput();
@@ -536,12 +459,8 @@ public sealed class PlaybackEngine : IDisposable
 
     private void RestartLoop()
     {
-        // 状态改写与跳转 / 暂停共用 _gate：否则循环边界撞上用户跳转时，两边会互相冲掉
-        // _musicNow 与 _nextIdx，或出现「物理按着修饰键、表却回到下标 0」（R3-02）。
         lock (_gate)
         {
-            // 重开一遍前先物理松开并清零修饰键状态：上一遍末尾按着的键不会带进这一遍，
-            // 表头也没有任何待派发的陈旧事件，建表起点与 _nextIdx = 0 一致（RV-04）。
             ReleaseAllInput();
             _loopCount++;
             _snapLoop = _loopCount;
@@ -554,11 +473,6 @@ public sealed class PlaybackEngine : IDisposable
         _lastPhys = _clock.Elapsed.TotalSeconds;
     }
 
-    /// <summary>
-    /// 定位「下一个待派发」事件：返回第一个晚于预滚窗口起点的事件下标。
-    /// 保留预滚窗口，是为了让跳转/换谱后紧接的事件从头重放一遍修饰键变化；
-    /// 窗口按**物理**时间预算折算成音乐时间（速度越快，同样物理时长覆盖的音乐时间越多）。
-    /// </summary>
     private int FindNextIdx(double musicNow)
     {
         double physSec = (Math.Max(Timing.ModLeadMs, Timing.ReleaseGapMs) + Timing.FrameMs) / 1000.0;
@@ -568,12 +482,6 @@ public sealed class PlaybackEngine : IDisposable
         return idx;
     }
 
-    /// <summary>把物理事件真正发出去，并顺带记录时序诊断（发出时的音乐时间）。</summary>
-    /// <summary>
-    /// 试听模式：整个时间轴、倒计时、速度、循环、定位都照常走，但**不真的发按键/鼠标**。
-    /// 界面改用内置 MIDI 合成器发声，于是"试听"就是放音频而不是在目标程序里按键。
-    /// 状态机仍然照常更新，切换到非试听时不会有残留状态。
-    /// </summary>
     public bool Silent { get; set; }
 
     private void Execute(PhysicalEvent ev)
@@ -619,10 +527,6 @@ public sealed class PlaybackEngine : IDisposable
 
     // ================= 事件表构建（音乐时间） =================
 
-    /// <summary>
-    /// 修饰键的真实按下状态（键名；null = 没按）。避免"我以为按着"与目标程序实际状态不一致。
-    /// 修饰键可以绑键盘键（PageUp / Shift / O）也可以绑鼠标键（MouseLeft …），所以记键名。
-    /// </summary>
     private readonly record struct ModState(string? OctaveKey, string? SharpKey, string? FlatKey)
     {
         public static ModState None => new(null, null, null);
@@ -642,12 +546,6 @@ public sealed class PlaybackEngine : IDisposable
         lock (_gate) return new ModState(_physOctKey, _physSharpKey, _physFlatKey);
     }
 
-    /// <summary>
-    /// 读「事件表里派发到 idx 之前（不含 idx）时，表认为按着的修饰键」。
-    /// 物理状态始终与 idx 处的表状态一致（每次重建表后都由 <see cref="ResyncModifiersAt"/> 对齐），
-    /// 所以这个推算值就是物理真值：暂停（IN-02）、跳转/换谱后的补按（RV-01）都用它。
-    /// 只由持 <see cref="_gate"/> 的调用方使用。
-    /// </summary>
     private ModState ReadModifierStateAt(int idx)
     {
         string? oct = null, sharp = null, flat = null;
@@ -665,11 +563,6 @@ public sealed class PlaybackEngine : IDisposable
         return new ModState(oct, sharp, flat);
     }
 
-    /// <summary>
-    /// 把物理修饰键状态对齐到 mods：按下其中记着的键，并同步 _physOctKey / _physSharpKey。
-    /// Resume（IN-02）与跳转/换谱后的补按（RV-01）共用这一条路径。
-    /// 调用前必须已经全松（见 <see cref="ForceReleaseModifiers"/>），否则旧键会留在按下状态。
-    /// </summary>
     private void RestoreHeldModifiers(ModState mods)
     {
         if (mods.OctaveKey is { Length: > 0 } oct)
@@ -689,15 +582,6 @@ public sealed class PlaybackEngine : IDisposable
         }
     }
 
-    /// <summary>
-    /// 重建表（跳转 / 实时移调）之后，把物理修饰键状态对齐到新表 idx 处的状态。
-    /// 新表从「全松」建起，表头到 idx 之间的修饰键事件不派发、物理上也从没按过，
-    /// 所以这里直接物理补按，而不是往表里插补按事件（插进表里的事件会被预滚窗口跳过，RV-01）。
-    /// 补按与重建表在同一个 <see cref="_gate"/> 内完成（与 Resume 的写法一致），
-    /// 所以跳转返回之后工作线程才派发的新表事件一定晚于补按：修饰键 KeyDown 先于第一个音键。
-    /// 暂停中（工作线程停在 _resumeGate）不发按键，只记到 _pausedMods，由 Resume 先补按再放行（IN-02）。
-    /// 只由持 <see cref="_gate"/> 的调用方使用。
-    /// </summary>
     private void ResyncModifiersAt(int idx)
     {
         var want = ReadModifierStateAt(idx);
@@ -709,13 +593,6 @@ public sealed class PlaybackEngine : IDisposable
         RestoreHeldModifiers(want);
     }
 
-    /// <summary>
-    /// 松开全部物理键，并把两个修饰键状态字段清零：本文件所有释放路径的唯一入口。
-    /// 只抬本程序真正按下过的键：InputSender 内部记账，用户物理按住的键不动（A04）。
-    /// 清零是让 <see cref="CurrentModifiers"/> 说真话的前提 —— 否则上一轮结束时若还按着修饰键，
-    /// 下一轮 <see cref="Play"/> 会以那个已经松开的陈旧键为起点建表，整轮都不再补发它的 KeyDown。
-    /// _physHeldKeys 有意不动：下一轮建表会按它补发一次音键 KeyUp（见 <see cref="BuildSchedule"/> 起点处理）。
-    /// </summary>
     private void ReleaseAllInput()
     {
         InputSender.ReleaseEverything();
@@ -724,10 +601,6 @@ public sealed class PlaybackEngine : IDisposable
         _physFlatKey = null;
     }
 
-    /// <summary>
-    /// 强制把修饰键与音键全部松开，并把状态机复位，供换谱/跳转以「全松」为起点重建表。
-    /// 顺带复位时序诊断：跳转前那一轮的事件记录已经作废。
-    /// </summary>
     private void ForceReleaseModifiers()
     {
         ReleaseAllInput();
@@ -741,34 +614,6 @@ public sealed class PlaybackEngine : IDisposable
         return name.Length == 0 ? null : name;
     }
 
-    /// <summary>
-    /// 把一个主旋律音符序列压成物理键盘/鼠标事件时间表（音乐时间，秒，与速度无关）。
-    /// 旧实现把所有最小间隔写成 12ms / 8ms 这类远小于一帧的硬编码值，
-    /// 把"松开前音 + 八度键 + 中键 + 本音按下"全挤在 20ms 内，目标程序按帧采样时整簇被折叠、
-    /// 排在末尾的音键被吃掉 → 漏音。本实现所有最小间隔改用 InputTiming 的**物理毫秒**：
-    /// 修饰键比音键早 ModLeadMs 且音键至少晚一帧；同键两次按下 ≥ RetriggerMs；
-    /// 每次按下至少按住一帧。
-    ///
-    /// **和弦**：修饰键状态相同的一组音可以同时按住多根音键，同刻起音就真的同时发声。
-    /// 组内自由重叠，不再互相顺延。组与组之间必须顺延：一个八度键 / 半音键只有一种状态，
-    /// 切换修饰键时按着的音在目标程序里的音高会跟着变，所以换组前先把这一组全部松开，
-    /// 而且修饰键的按下一定晚于最后一根音键的松开。同一根键要重按时，
-    /// 也先松开再按重触发间隔按回去 —— 不会出现同一根键被"按两次"的错觉。
-    /// 顺延的音保留原时值，绝不靠缩短前音腾位置：那会排出零时长的按键，
-    /// 目标程序按帧采样时一帧都读不到，整段音被吃掉。
-    ///
-    /// startMods = 建表这一刻目标程序侧真实按着的修饰键。当前唯一的调用点（Play）传
-    /// CurrentModifiers()，但每条释放路径都会先清掉物理状态，所以实际总是 ModState.None。
-    /// 这个参数只为将来复用保留，不是当前行为的一部分。修饰键的成对性由
-    /// 「物理全松 + 物理补按」承担，跳转/换谱的物理状态另由 <see cref="ResyncModifiersAt"/> 对齐。
-    ///
-    /// 关键口径（A01）：本表的 T 是**音乐时间**，InputTiming 的预算是**物理毫秒**，
-    /// 两者靠播放速度换算 —— 音乐秒 = 物理秒 × 速度。所以下面每个物理预算都乘了 scale = _speed：
-    /// 派发时工作线程按「音乐时间 += 物理流逝 × 速度」积分，两边抵消，实际发出的物理间隔
-    /// 恒等于 InputTiming 的毫秒值，10% 与 400% 两端都不变。漏掉这一步就是旧 bug：
-    /// 400% 时 45ms 的按住被压成 11ms（小于一帧）、修饰键提前量被压成 10ms → 漏音。
-    /// 注意乘的是**建表时刻**的速度。播放中改速度不会重建表，已排定的间隔会按新速度等比变化。
-    /// </summary>
     private (List<PhysicalEvent>, double) BuildSchedule(
         IReadOnlyList<MappedNote> notes, ModState startMods)
     {
@@ -783,19 +628,11 @@ public sealed class PlaybackEngine : IDisposable
         // 音乐秒 = 物理秒 × 速度：下面所有物理预算都乘这个系数（A01）
         double scale = _speed;
         double frame = Timing.FrameMs / 1000.0 * scale;
-        // "至少提前一帧"与"至少跨一帧"都要在**物理**时间上成立，所以 Math.Max 的两个操作数
-        // 必须同一口径：两边都是乘过 scale 的物理值。只乘一边会在 10% 速度下失守
-        // （物理间隔被压到 1.7ms，比一帧还小 → 照样漏音）。
         double modLead = Math.Max(Timing.ModLeadMs / 1000.0 * scale, frame);   // 修饰键至少提前一帧
         // 重触发间隔：至少要跨过"抬起被采样到"的那一帧，同时不小于配置值
         double retrig = Math.Max(Timing.RetriggerMs / 1000.0 * scale, frame);
-        // 最短按住时刻：比一帧再多一点余量。
-        // 只有刚好一帧时，若按下刚好落在帧边界上，整个按住区间可能一个帧点都不含 → 目标程序读不到。
-        // 加 1ms 余量后，区间内一定落得进至少一个帧点。（1ms 也是物理值，同样乘速度）
         double minUpT = (Timing.FrameMs / 1000.0 + 0.001) * scale;
 
-        // —— 修饰键状态机（起点 = 目标程序侧当前真实状态）——
-        // 方案里的八度/半音键可以是键盘键（PageUp / Shift / O），也可以是鼠标键（MouseLeft …）。
         var profile = KeymapProfile.Current;
         string? octUpKey = KeyOrNull(profile.OctaveUp);
         string? octDownKey = KeyOrNull(profile.OctaveDown);
@@ -850,9 +687,6 @@ public sealed class PlaybackEngine : IDisposable
             }
         }
 
-        // —— 和弦：同一组（修饰键状态相同）的音可以同时按着多根音键 ——
-        // group = 当前按着的那一组音键。组内自由重叠，这就是和弦发声的地方；
-        // 组与组之间必须顺延，因为一个八度键 / 半音键只有一种状态。
         var group = new List<HeldKey>();
         bool hasGroup = false;          // 上面这一组是不是已经按出来了（空组不算）
         string? groupOct = null;
@@ -862,8 +696,6 @@ public sealed class PlaybackEngine : IDisposable
         var lastDown = new Dictionary<char, double>();     // 每根键上一次按下时刻（重触发用）
         double lastRelease = double.NegativeInfinity;      // 本音之前最后一次"松开音键"的时刻
 
-        // 松开一根按着的音键。limit = 必须抬起的最晚时刻；scoreEnd = 触发这次让位的音符的谱面结束时刻。
-        // 只有"提前松开"记诊断，自然结束不记（口径同 B04：被迫压缩 / 正常让位）。
         void ReleaseHeld(HeldKey h, double limit, double scoreEnd)
         {
             double natural = Math.Max(h.UpT, h.DownT + minUpT);          // 自然抬起也要跨过一个帧点
@@ -904,8 +736,6 @@ public sealed class PlaybackEngine : IDisposable
                 }
             }
 
-            // ② 本音要的修饰键状态与这一组不同 → 整组让位：先全松，再切修饰键。
-            //    一个修饰键只能有一种状态；切换时按着的音在目标程序里会跟着变音高。
             if (group.Count > 0 &&
                 !(hasGroup && groupOct == wantOct && groupSharp == wantS && groupFlat == wantF))
             {
@@ -933,8 +763,6 @@ public sealed class PlaybackEngine : IDisposable
             if (lastDown.TryGetValue(n.Key, out double prevDown) && downT < prevDown + retrig)
                 downT = prevDown + retrig;
 
-            // 若顺延已超过本音结束时刻，就按"本音可用时长"临时收敛重触发间隔：
-            // 极快段落宁可留一点粘连风险，也不能把整段音推没（时值会归零）。
             if (lastDown.TryGetValue(n.Key, out prevDown) && downT > endT)
             {
                 double avail = Math.Max(0, endT - prevDown);
@@ -942,8 +770,6 @@ public sealed class PlaybackEngine : IDisposable
                 downT = Math.Max(t, Math.Min(endT, prevDown + effRetrig));
             }
 
-            // ⑥ 修饰键切换：提前 modLead 发出，但一定晚于最后一根音键的松开（否则按着的音会跟着变调），
-            //    并保证音键至少晚于一帧。
             if (wantOct != heldOct || wantS != sharpHeld || wantF != flatHeld)
             {
                 double modT = Math.Max(0, downT - modLead);
@@ -980,10 +806,6 @@ public sealed class PlaybackEngine : IDisposable
         foreach (HeldKey h in group)
             evs.Add(PhysicalEvent.Key(Math.Max(h.UpT, h.DownT + minUpT), h.Key, false, ""));
 
-        // 表尾不补修饰键 KeyUp：表若在「某根修饰键还按着」处结束，接手的必定是一条释放路径 ——
-        // 自然播完（Worker 收尾）、循环重开（RestartLoop）、下一轮跳转/换谱（ForceReleaseModifiers），
-        // 三条都调 ReleaseAllInput() 物理松开并清零状态，不会把按下的键留到下一版或下一遍（RV-04）。
-        // 稳定排序：同刻事件保持"先修饰键、后音键"的插入顺序
         evs = evs.OrderBy(e => e.T).ToList();
         double total = evs.Count == 0 ? 0 : evs[^1].T;
         return (evs, total);

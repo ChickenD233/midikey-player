@@ -1,14 +1,6 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-  <!-- ===================== 调色板（唯一真源） =====================
-       换配色只改这里，界面里不出现裸 #RRGGBB；品牌绿需与 App.axaml 的 SystemAccentColor 保持一致。
-
-       两套皮肤：Light（白）与 Dark（黑），键名两边完全一致。
-       跟随系统由 App.axaml.cs 设 Application.RequestedThemeVariant 决定，
-       界面一律用 DynamicResource 取值，切主题时不需要重建窗口。
-       用户可选项：自动（跟随系统）/ 浅色 / 深色，见设置「常规」页的外观一栏。 -->
-
   <ResourceDictionary.ThemeDictionaries>
 
     <!-- ===================== 白（默认） ===================== -->
@@ -25,7 +17,6 @@
       <!-- 文字 -->
       <SolidColorBrush x:Key="BrushText"          Color="#1F2933"/>
       <SolidColorBrush x:Key="BrushTextSecondary" Color="#5B6673"/>
-      <!-- 弱化色 #8A93A0 在白底上只有 3.1:1，低于 WCAG AA 正文 4.5:1；提到 #6B7480（约 4.6:1）。 -->
       <SolidColorBrush x:Key="BrushTextMuted"     Color="#6B7480"/>
 
       <!-- 品牌绿 -->
@@ -51,8 +42,6 @@
       <SolidColorBrush x:Key="BrushInfoBorder"   Color="#BBD6F5"/>
       <SolidColorBrush x:Key="BrushInfoText"     Color="#1B4F91"/>
 
-      <!-- 倒计时时整窗的暖色提醒底。XAML 里没有引用：MainWindow.SetCountdownChrome
-           用 TryFindResource 按名字读它，所以不要当死键删掉。 -->
       <SolidColorBrush x:Key="BrushCountdownChrome" Color="#FFF3E4D8"/>
 
       <!-- 控件自绘用的小色（深浅两套都在，卷帘与状态行按主题取） -->
@@ -73,11 +62,6 @@
       <SolidColorBrush x:Key="BrushRollReadoutBorder" Color="#C3D6F2"/>
       <SolidColorBrush x:Key="BrushRollMarquee" Color="#331F6FEB"/>
 
-      <!-- 声轨配色（12 色）：白底那一套，色号与 Dark 一一对应（同色号 = 同一路声部）。
-           白底上原样用深色皮肤那批亮色（黄 #FFD166、青 #7FE0E8 等）只有 1.4:1 左右，
-           列表里的轨名与卡片底融为一体，等于看不见，所以白底换一批「深而饱和」的。
-           取值口径：对 #F4F6F9 画布对比度 ≥ 4.7:1（WCAG AA 正文 4.5:1 留余量），
-           对 #FFFFFF 卡片 ≥ 5.1:1。改色值必须重跑这条对比度。 -->
       <SolidColorBrush x:Key="BrushVoice0"  Color="#1660C8"/>
       <SolidColorBrush x:Key="BrushVoice1"  Color="#0F7A46"/>
       <SolidColorBrush x:Key="BrushVoice2"  Color="#8A6500"/>
@@ -91,8 +75,6 @@
       <SolidColorBrush x:Key="BrushVoice10" Color="#4A4ED0"/>
       <SolidColorBrush x:Key="BrushVoice11" Color="#96601A"/>
 
-      <!-- Fluent 的 SplitButton 模板按这几个键名取色（本窗口只有一个 SplitButton，见 MainWindow.axaml）。
-           放在主题字典里、深浅各指一份，按钮才跟着皮肤走。 -->
       <StaticResource x:Key="SplitButtonBackground" ResourceKey="BrushAccent"/>
       <StaticResource x:Key="SplitButtonBackgroundPointerOver" ResourceKey="BrushAccentHover"/>
       <StaticResource x:Key="SplitButtonBackgroundPressed" ResourceKey="BrushAccentPressed"/>
@@ -163,8 +145,6 @@
       <SolidColorBrush x:Key="BrushRollReadoutBorder" Color="#33507A"/>
       <SolidColorBrush x:Key="BrushRollMarquee" Color="#404C9AFF"/>
 
-      <!-- 声轨配色（12 色）：黑底那一套。深底上用亮色，对 #1A2027 画布 5.1:1 起。
-           与白底那套同色号一一对应，换皮肤时同一路声部换的只是明度，不改色相。 -->
       <SolidColorBrush x:Key="BrushVoice0"  Color="#4EA1FF"/>
       <SolidColorBrush x:Key="BrushVoice1"  Color="#4ED8A0"/>
       <SolidColorBrush x:Key="BrushVoice2"  Color="#FFD166"/>
@@ -192,35 +172,15 @@
 
   </ResourceDictionary.ThemeDictionaries>
 
-  <!-- ===================== 声轨配色说明 =====================
-       12 个色号 BrushVoice0..11 分深浅两套，写在上面各自的 ThemeDictionaries 里。
-       分配：声轨在列表里的序号（从上往下）% 12。
-       左侧列表文字与卷帘音符共用同一号色，声轨一一对应。
-       未参与演奏的声轨统一用弱化灰 BrushTextMuted（不叠加不透明度，否则对比度不足）。
-       卷帘与列表都不写裸色值，一律按序号取这里的资源。
-       两套都必须对各自的画布过 WCAG AA 正文 4.5:1：白底漏了会把轨名写成看不见的浅黄。 -->
-
-  <!-- ===================== 声部标牌配色（唯一真源，两套皮肤共用） =====================
-       左侧列表「声部」列的小标牌按角色分组取色，白字压在色块上：
-         节奏 = 鼓；低音 = 贝斯；和声 = 吉他 / 键盘 / 弦乐 / 和声 / 铺底；旋律 = 旋律 / 人声 / 主音；
-         其它 = 铜管 / 管乐 / 效果。
-       四个色值在深浅两套底上都有足够对比（白字对比度都 ≥ 3:1），所以不做两套。
-       未识别（Unknown）不给色块，文字退回默认色，见 MainWindow.ApplyVoiceBrushes。 -->
   <SolidColorBrush x:Key="BrushRoleRhythm"  Color="#B2553A"/>   <!-- 鼓 -->
   <SolidColorBrush x:Key="BrushRoleLow"     Color="#2F6D8E"/>   <!-- 贝斯 -->
   <SolidColorBrush x:Key="BrushRoleHarmony" Color="#3F7A4F"/>   <!-- 吉他 / 键盘 / 弦乐 / 和声 -->
   <SolidColorBrush x:Key="BrushRoleLead"    Color="#8A4E9E"/>   <!-- 旋律 / 人声 / 主音 -->
   <SolidColorBrush x:Key="BrushRoleOther"   Color="#6A6F78"/>   <!-- 铜管 / 管乐 / 效果 -->
 
-  <!-- ===================== 字体 =====================
-       Windows 用雅黑；macOS/Linux 回退苹方/思源，避免整窗掉到默认字体。 -->
   <FontFamily x:Key="FontUi">Microsoft YaHei UI, 微软雅黑, PingFang SC, Hiragino Sans GB, Noto Sans CJK SC, Source Han Sans SC, Segoe UI, Helvetica Neue, sans-serif</FontFamily>
   <FontFamily x:Key="FontMono">Cascadia Mono, Consolas, SF Mono, Menlo, DejaVu Sans Mono, monospace</FontFamily>
 
-  <!-- ===================== 字号刻度（原来的 7 档收敛而来） =====================
-       说明文字（列头、帮助栏、按钮小字）不小于 12.5px：11 / 11.5 太小，配合弱化色读不清（UI-08）。
-       FontTitle 由 XAML 按名字引用；FontDisplay 与 FontCountdown 只在代码里用
-       （MainWindow.ResourceFontSize 按名字读），所以这三个键都不要当死键删掉。 -->
   <x:Double x:Key="FontMicro">12.5</x:Double>
   <x:Double x:Key="FontCaption">12.5</x:Double>
   <x:Double x:Key="FontSmall">12.5</x:Double>

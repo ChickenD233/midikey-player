@@ -4,27 +4,8 @@ using MidiKeyPlayer.Persist;
 
 namespace MidiKeyPlayer.Input;
 
-/// <summary>
-/// IbInputSimulator 驱动注入（第三方组件，MIT 许可，作者 Chaoses-Ib）。
-/// 即「罗技 G HUB 驱动」输入方式：直接向罗技驱动设备发标准 HID 键盘报告，
-/// 与 SendInput 的用户态注入不是一条链路。
-///
-/// 用法：先 <see cref="TryInit"/>（选「罗技 G HUB 驱动」时调用一次），之后
-/// <see cref="Keybd"/> 发按下/抬起。不需要罗技硬件，但要求装过 G HUB 或 LGS
-/// （驱动设备由它们的驱动注册；没装就报 DeviceNotFound）。
-///
-/// 限制（来自该库的 Logitech 后端）：
-/// - 只发键盘；新版 G HUB（≥2022.3）砍掉了鼠标驱动，鼠标键发不了。
-/// - 标准 8 字节 HID 键盘报告：最多 6 个普通键同时按住（+修饰键另算）。
-///   和弦超过 6 个音时，多出来的键会被该后端悄悄丢掉。
-///
-/// DLL（244 KB，x64）作为 Avalonia 资源嵌在 exe 里（Libs/IbInputSimulator.dll），
-/// 首次使用时释放到 %LOCALAPPDATA%\MidiKeyPlayer\ 再 LoadLibrary —— 发布包保持
-/// 「只有一个 exe」的形态不变。
-/// </summary>
 internal static class IbDriver
 {
-    // Send::SendType（Simulator/include/IbInputSimulator/InputSimulator.hpp）
     private const uint SendTypeLogitech = 2;          // LGS / 旧版 G HUB
     private const uint SendTypeLogitechGHubNew = 6;   // 新版 G HUB
 
@@ -57,11 +38,6 @@ internal static class IbDriver
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                      "MidiKeyPlayer", "IbInputSimulator.dll");
 
-    /// <summary>
-    /// 初始化罗技驱动注入。成功返回 true；失败时 error 是中文原因（可直接弹给用户）。
-    /// warn：初始化成功但检测到 G HUB 代理（lghub_agent）没在运行 —— 实测此时 IOCTL 照样成功
-    /// 但按键不会进系统，必须提醒用户启动 G HUB。线程安全；重复调用只在未成功时真正重试。
-    /// </summary>
     public static bool TryInit(out string error, out string? warn)
     {
         lock (Gate)
@@ -100,8 +76,6 @@ internal static class IbDriver
             _ready = true;
             error = "";
 
-            // 实测：G HUB 代理（lghub_agent）不运行时，打开设备与发报告的 IOCTL 都照样成功，
-            // 但按键根本不进系统。初始化成功的这一刻检查一次，提前把话说清楚。
             if (!GHubAgentRunning())
             {
                 warn = "检测到 Logitech G HUB 没在运行：驱动设备在，但按键发不出去。"
@@ -153,7 +127,6 @@ internal static class IbDriver
         error = "";
         try
         {
-            // AvaloniaResource 清单里叫 Libs/IbInputSimulator.dll（见 csproj 的 Link）
             var uri = new Uri("avares://MidiKeyPlayer/Libs/IbInputSimulator.dll");
             using var stream = Avalonia.Platform.AssetLoader.Open(uri);
             using var ms = new MemoryStream();

@@ -3,19 +3,6 @@ using System.Runtime.InteropServices;
 
 namespace MidiKeyPlayer.Engine;
 
-/// <summary>
-/// 内置试听：借用 Windows 自带的 MIDI 合成器（winmm 的 MIDI Out，默认设备通常是
-/// "Microsoft GS Wavetable Synth"）发声，方便改谱时边改边听。
-///
-/// 为什么不用第三方音频库：本项目是自包含单文件发布，引入 NAudio 之类会明显
-/// 增加体积，而 winmm 是系统自带的，P/Invoke 即可 —— 与项目已有的 SendInput /
-/// user32 调用风格一致，零新增依赖。
-///
-/// 打不开设备时 <see cref="IsAvailable"/> 为 false，界面据此把开关灰掉并说明原因。
-///
-/// 本类只管"往设备发消息"（单音试听 + 清音）。整曲试听的调度在
-/// <see cref="MidiPreviewSequencer"/>：独立线程 + 高精度等待 + 短前瞻派发。
-/// </summary>
 public sealed class MidiPreview : IDisposable
 {
     private const uint MidiMapper = 0xFFFFFFFF;   // 选默认设备
@@ -110,10 +97,6 @@ public sealed class MidiPreview : IDisposable
         }
     }
 
-    /// <summary>
-    /// 试听一个音。<paramref name="autoRelease"/> 为 true 时到点自动放开（适合点一下听一声）；
-    /// 为 false 时一直响，直到显式调用 <see cref="StopNote"/>（适合整曲试听）。
-    /// </summary>
     public void PlayNote(int pitch, int milliseconds = 420, int velocity = 96, bool autoRelease = true)
     {
         if (!IsAvailable || _disposed) return;
@@ -153,10 +136,6 @@ public sealed class MidiPreview : IDisposable
         lock (_gate) { NoteOffLocked(Math.Clamp(pitch, 0, 127)); }
     }
 
-    /// <summary>
-    /// 立刻放开所有正在响的音：逐个补 note-off，再对 16 个通道发 CC123（All Notes Off）
-    /// 与 CC120（All Sound Off）。停止、跳转、换曲、关窗口都走这里。
-    /// </summary>
     public void StopAll() => AllNotesOff();
 
     /// <summary>同 <see cref="StopAll"/>：清掉全部发声，保证不留残音。</summary>
@@ -241,18 +220,6 @@ public sealed class MidiPreview : IDisposable
     }
 }
 
-/// <summary>
-/// 整曲试听的调度器：**独立线程 + 高精度等待 + 短前瞻派发**。
-///
-/// 关键点（对应卡顿的六个可能来源）：
-/// 1. 时间用单调时钟 <see cref="Stopwatch"/>，不用 DateTime.Now。
-/// 2. 播放前 timeBeginPeriod(1)，播放后 timeEndPeriod(1) 复原。
-/// 3. 事件表只在 <see cref="Load"/> 里建一次，播放中不重建。
-/// 4. 每轮只派发"当前时间 + 前瞻窗口（默认 20ms）"以内的事件，然后精确睡到下一个事件时刻；
-///    不会每个 tick 把未来一大段事件一次灌进 winmm 队列。
-/// 5. 不碰 UI 线程：位置由 UI 自己低频读取 <see cref="PositionSeconds"/>。
-/// 6. 停止 / 跳转先清音（AllNotesOff + AllSoundOff），线程结束后再清一次兜底。
-/// </summary>
 public sealed class MidiPreviewSequencer : IDisposable
 {
     private const uint TimerPeriodMs = 1;
@@ -304,10 +271,6 @@ public sealed class MidiPreviewSequencer : IDisposable
 
     public MidiPreviewSequencer(MidiPreview output) => _out = output;
 
-    /// <summary>
-    /// 建事件表（只调用一次）。<paramref name="spans"/> 是谱面秒（未除速度），
-    /// <paramref name="speed"/> 与演奏共用同一套换算：真实秒 = 谱面秒 / 速度。
-    /// </summary>
     public void Load(IReadOnlyList<(double Start, double End, int Pitch)> spans, double speed)
     {
         if (_running) throw new InvalidOperationException("播放中不能重建事件表");
@@ -546,11 +509,6 @@ public sealed class MidiPreviewSequencer : IDisposable
     private double Seconds() => (Stopwatch.GetTimestamp() - Volatile.Read(ref _baseTicks)) / (double)Stopwatch.Frequency;
 }
 
-/// <summary>
-/// 【诊断用，可删】试听派发抖动统计：记录每个事件"计划时刻"与"实际发出时刻"的差值。
-/// 只有环境变量 MIDIKEY_PREVIEW_PROBE 非空时才收集，正常使用零行为、零输出。
-/// 报告用 <see cref="WriteReport"/> 落到 MIDIKEY_PREVIEW_PROBE_OUT 指向的文件。
-/// </summary>
 internal static class PreviewJitterProbe
 {
     internal static readonly bool Enabled =

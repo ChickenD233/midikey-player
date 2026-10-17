@@ -8,18 +8,6 @@ using MidiKeyPlayer.Midi;
 
 namespace MidiKeyPlayer;
 
-/// <summary>
-/// 界面快照 / 文件夹换歌回归的开关。设了任意一个 MIDIKEY_UI_SNAPSHOT* 变量就为 true。
-/// 用途：<see cref="Program"/> 里跳过单实例锁 —— 这些探针不演奏、不发按键，
-/// 允许与用户正在用的实例并存（与 PreviewProbeMode 同一个理由）。
-///
-/// 判据分两步，两步都要：
-///   1. 逐个已知变量名去问 <see cref="Environment.GetEnvironmentVariable"/>。
-///      **这是唯一可靠的一步。** 不能改成遍历 <see cref="Environment.GetEnvironmentVariables"/>：
-///      父进程设的那个变量在遍历结果里可能看不到（实测：只遍历会让探针被单实例锁挡掉，
-///      程序静默退出、退出码 0、不建窗口、不写日志，看起来像"这个功能坏了"）。
-///   2. 再按前缀扫一遍，兜住以后新加的变量。
-/// </summary>
 internal static class DevSnapshotMode
 {
     private static readonly string[] Known =
@@ -62,38 +50,6 @@ internal static class DevSnapshotMode
     }
 }
 
-/// <summary>
-/// 【开发用，可删】无显示器时把界面渲染成 PNG 再退出。
-///
-/// MIDIKEY_UI_SNAPSHOT=/path/main.png
-///     在主窗打开后拍主界面（“快速上手”浮层先关掉拍一张、再打开拍一张）。
-/// MIDIKEY_UI_SNAPSHOT_KEYMAP=/path/keymap.png
-///     额外打开「键位设置」窗口并把它也拍成 PNG。
-/// MIDIKEY_UI_SNAPSHOT_MIDI=/path/song.mid
-///     主窗打开后自动走「打开 MIDI 文件」这条链路载入该文件（同一个 LoadMidiFile）。
-/// MIDIKEY_UI_SNAPSHOT_MIX=all
-///     载入后把左侧所有非打击乐候选按列表顺序勾进合奏（第一个 = 0 号声部）。
-/// MIDIKEY_UI_SNAPSHOT_REPORT=/path/report.txt
-///     拍图前把「左侧每行文字颜色 ↔ 卷帘每个音符颜色」的对照表写成文本，便于逐行核对。
-/// MIDIKEY_UI_SNAPSHOT_THEME=0|1|2
-///     拍图前先切皮肤（0 自动 / 1 浅色 / 2 深色），走的是设置里那个下拉框的同一条链路。
-/// MIDIKEY_UI_SNAPSHOT_OVERLAY=notice|forced|quiz|tutorial
-///     配合 MIDIKEY_UI_SNAPSHOT 用：把「免费声明」「强制更新」「验证题」或「使用教程」浮层打开再拍图。
-///     强制更新那条传空资产地址，所以不会真的联网下载。
-/// MIDIKEY_UI_SNAPSHOT_ADVANCED=/path/advanced.png
-///     打开设置窗口，切到「常规」页拍一张（并顺带走一遍「开 → 关 → 再开」）。
-/// MIDIKEY_UI_SNAPSHOT_SPONSOR=/path/sponsor.png
-///     打开设置窗口，切到第三页「赞助」拍一张（爱发电置顶 + B 站 / GitHub）。
-/// MIDIKEY_UI_SNAPSHOT_SYNC=/path/sync.png
-///     打开设置窗口，切到第四页「实验功能」拍一张。
-///     这一页默认是"未连接"的样子；拍图前先填一套假的房间状态，
-///     否则拍到的是一张空表，看不出成员表与声部表长什么样。
-/// MIDIKEY_UI_SNAPSHOT_SYNC_STATE=idle|playing|paused|stopped
-///     配上面那条用，选拍哪个演出状态（房主视角）。前面加 member: 拍成员视角，例 member:paused。
-///
-/// 各变量可以只设一个；全都不设则本文件无任何行为。
-/// 删本文件时记得同时删 MainWindow 里的 InstallDevSnapshot(this)。
-/// </summary>
 public partial class MainWindow
 {
     internal static void InstallDevSnapshot(MainWindow window)
@@ -127,16 +83,12 @@ public partial class MainWindow
             }
             catch { }
 
-            // 换皮肤：走设置里那个下拉框的同一条链路（用户改档位就是这个入口），
-            // 用来验证「不重启就能换色」，而不是只看启动时读设置的结果。
             if (!string.IsNullOrWhiteSpace(themeMode) && int.TryParse(themeMode, out int themeIndex))
             {
                 window.SetThemeForDev(themeIndex);
                 Log($"已切皮肤：档位 {themeIndex}");
             }
 
-            // MIDIKEY_UI_SNAPSHOT_SIZE=980x880：拍图前把主窗设为指定尺寸。
-            // 用来验证「窗口拉到最小尺寸时排版不串行」——左栏两张卡都在时尤其要看。
             var sizeOverride = Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_SIZE");
             if (!string.IsNullOrWhiteSpace(sizeOverride))
             {
@@ -160,17 +112,12 @@ public partial class MainWindow
                 window.MixAllPlayableTracksForDev();
             }
 
-            // MIDIKEY_UI_SNAPSHOT_PLAYLIST_ENTRY=<歌单名>|<序号>：按歌单里第 N 首走一遍
-            // 「从歌单点开」那条链路，然后拍主窗。用来验证「歌单勾的音轨真的显示在卷帘上」。
             var entrySpec = Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_PLAYLIST_ENTRY");
             if (!string.IsNullOrWhiteSpace(entrySpec))
             {
                 Log("歌单条目场景：" + window.LoadPlaylistEntryForDev(entrySpec!));
             }
 
-            // 浮层快照（MIDIKEY_UI_SNAPSHOT_OVERLAY=notice|forced）：必须在这里挂上。
-            // 900ms 那个计时器是在同一帧里改可见性再拍图，拍到的还是上一帧的画面，
-            // 所以浮层要提前开，等下一次渲染完再拍。
             var overlayMode = Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_OVERLAY");
             if (!string.IsNullOrWhiteSpace(overlayMode))
             {
@@ -240,8 +187,6 @@ public partial class MainWindow
                     {
                         if (window.StartupOverlay != null)
                             window.StartupOverlay.IsVisible = false;
-                        // 键位窗口的拍照与退出都在它自己的计时器里做：
-                        // 这里绝不能立刻 Environment.Exit，否则那个计时器根本跑不到。
                         CaptureKeymap(window, keymapPath!);
                         return;
                     }
@@ -250,8 +195,6 @@ public partial class MainWindow
                 {
                     Console.Error.WriteLine("UI snapshot failed: " + ex);
                 }
-                // A19：退出前先走一遍主窗的显式清理（停播放与试听、停热键与 MIDI 服务、
-                // 释放按键、移除托盘图标），不再直接 Environment.Exit 把清理全部跳过
                 window.DevCleanUpForExit();
                 Environment.Exit(0);
             };
@@ -259,11 +202,6 @@ public partial class MainWindow
         };
     }
 
-    /// <summary>
-    /// 【开发用，可删】浮层快照：用真实代码把启动浮层铺出来拍图。
-    /// v1.3.0 起免费声明、验证题、快速上手合成一层：notice / quiz / tutorial 都拍这一层。
-    /// 强制更新是另一个浮层，传空资产地址，不会真的联网下载。
-    /// </summary>
     private static void ShowOverlayForDev(MainWindow w, string mode)
     {
         if (string.Equals(mode, "forced", StringComparison.OrdinalIgnoreCase))
@@ -271,26 +209,11 @@ public partial class MainWindow
             w.ShowForcedUpdate("1.0.30", AutoUpdate.ReleasesUrl, "");
             return;
         }
-        w.ShowTutorialForDev();     // 「关于」卡里的「使用教程」按钮走的同一条链路
-        // quiz：把验证题那一块强制显示出来（跑脚本这台机器答过题时，设置里会把它藏掉）
+        w.ShowTutorialForDev();
         if (string.Equals(mode, "quiz", StringComparison.OrdinalIgnoreCase) && w.PanelStartupQuiz != null)
             w.PanelStartupQuiz.IsVisible = true;
     }
 
-    /// <summary>
-    /// 【开发用】回归场景：在「文件夹曲目」卡里连续换歌三次，检查换过一首之后还能不能接着换。
-    ///
-    /// MIDIKEY_UI_SNAPSHOT_FOLDER=&lt;目录&gt;
-    /// MIDIKEY_UI_SNAPSHOT_FOLDER_REPORT=&lt;报告路径&gt;（不写就落 %TEMP%\midikey-folder-probe.txt）
-    ///
-    /// 退出码：0 = 三次都换成功；1 = 有一步没换过去，或列表塌了。
-    ///
-    /// 背景：用户报过「选了一首之后，别的就点不动了」。根因是换歌时
-    /// RefreshFolderUi 带着选中项清空 FolderList.Items，ListBox 的选择模型随后
-    /// 拿旧下标回查条目，抛 ArgumentOutOfRangeException；异常被 LoadMidiFile 接住只写日志，
-    /// 界面上留下的是曲目卡再也点不动。修复见 FolderList_SelectionChanged 的说明。
-    /// 这个场景就是那个 bug 的回归测试：连续换三首，每步都要换过去，且列表行数不塌。
-    /// </summary>
     private static async void RunFolderClickProbe(MainWindow window, string dir, string? reportPath)
     {
         var sb = new System.Text.StringBuilder();
@@ -372,14 +295,8 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>
-    /// 【开发用】打开「高级设置」窗口并拍成 PNG。
-    /// MIDIKEY_UI_SNAPSHOT_ADVANCED=&lt;png 路径&gt;
-    /// </summary>
     private static void CaptureAdvanced(MainWindow owner, string path)
     {
-        // 先走一遍「开 → 关 → 再开」：关窗要把常规页的内容还给主窗，再开要能再搬一次。
-        // 这一圈跑通，才说明内容归属来回搬是干净的。
         owner.OpenSettingsForDev();
         var first = owner.SettingsWindowForDev;
         first?.Close();
@@ -394,8 +311,6 @@ public partial class MainWindow
         }
         win.SelectPageForDev(0);   // 常规页
 
-        // MIDIKEY_UI_SNAPSHOT_ADVANCED_BOTTOM=1：拍图前把「关于」卡滚到底。
-        // 常规页比窗口高时默认只能拍到上面几张卡，免费声明与作者链接（卡片最下面）就拍不到。
         if (Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_ADVANCED_BOTTOM") == "1")
             owner.TxtQqCopied?.BringIntoView();
 
@@ -421,14 +336,6 @@ public partial class MainWindow
         guard.Start();
     }
 
-    /// <summary>
-    /// 【开发用】歌单窗口快照。
-    /// MIDIKEY_UI_SNAPSHOT_PLAYLIST=&lt;png 路径&gt;
-    /// MIDIKEY_UI_SNAPSHOT_PLAYLIST_DIR=&lt;装 MIDI 的目录&gt;（不给就用 示例MIDI）
-    ///
-    /// 会真的建一份歌单并存进 %LOCALAPPDATA%\MidiKeyPlayer\playlists\，
-    /// 所以开发机上会多出一份叫「快照歌单」的歌单，这是刻意的：拍到的必须是真界面。
-    /// </summary>
     private static void CapturePlaylist(MainWindow owner, string path, string? dir)
     {
         const string DevListName = "快照歌单";
@@ -503,11 +410,6 @@ public partial class MainWindow
     /// <summary>【开发用】当前已载入的文件路径。没载入就是空串。</summary>
     internal string ParsedPathForDev => _parsed?.FilePath ?? "";
 
-    /// <summary>
-    /// 【开发用】把左侧所有候选（含打击乐轨）按列表顺序勾进合奏：第一个勾的 = 0 号声部，
-    /// 颜色号依次 0,1,2…。收尾走 <see cref="SyncMixOrder"/>，与用户手点勾选框完全同一条链路。
-    /// 打击乐轨现在也可以勾选，所以这里不再跳过它们。
-    /// </summary>
     internal void MixAllPlayableTracksForDev()
     {
         foreach (var row in _tracks)
@@ -519,11 +421,6 @@ public partial class MainWindow
         Log($"MIX=all：已勾 {_mixOrder.Count} 条合奏声部");
     }
 
-    /// <summary>
-    /// 【开发用】把「左侧每行文字颜色 ↔ 卷帘里每个音符的颜色」写成对照表。
-    /// 颜色号来源：左侧 = VoiceIndexOf，卷帘 = PianoRoll.VoiceOfNote（渲染用的同一个函数）。
-    /// 两者都取主题里同一份 BrushVoiceN 资源，所以文本里的色值就是画面上的色值。
-    /// </summary>
     private static void WriteColorReport(MainWindow window, string reportPath)
     {
         var sb = new System.Text.StringBuilder();
@@ -653,10 +550,6 @@ public partial class MainWindow
     private static string HexOf(Avalonia.Media.IBrush? brush) =>
         brush is Avalonia.Media.SolidColorBrush s ? s.Color.ToString() : "(无画刷)";
 
-    /// <summary>
-    /// 拍图前把右栏三行的高度打到控制台，便于核对「卷帘是否拿回完整剩余高度」。
-    /// 只在设了快照变量时运行，正常使用无输出、无行为。
-    /// </summary>
     private static void ReportRowHeights(MainWindow window)
     {
         try
@@ -692,10 +585,6 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>
-    /// 把主窗内容渲染成 PNG。96 DPI + 与布局等大的画布，和真实窗口 1:1 对应
-    /// （试过 192 DPI + 双倍画布，会被窗口 RenderScaling 再乘一次只剩左上角，别用）。
-    /// </summary>
     private static void CaptureMain(MainWindow window, string path)
     {
         var root = (Visual?)window.Content ?? window;
@@ -705,11 +594,6 @@ public partial class MainWindow
         Save(root, path, new PixelSize(w, h), new Vector(96, 96));
     }
 
-    /// <summary>
-    /// 打开「键位设置」窗口并拍图。
-    /// 用 Show() 而不是 ShowDialog()：模态对话框会一直阻塞到用户关闭，而这里拍完就要退出。
-    /// 拍照走 DispatcherTimer（主窗快照用的就是这个办法，实测能跑到），不用 Post。
-    /// </summary>
     private static void CaptureKeymap(MainWindow owner, string path)
     {
         // 键位页现在是设置窗口的第二页：打开设置，切到「键位」，再拍整窗。
@@ -748,10 +632,6 @@ public partial class MainWindow
         guard.Start();
     }
 
-    /// <summary>
-    /// 【开发用，可删】赞助页快照：设置窗口的第三页（爱发电置顶 + B 站 / GitHub）。
-    /// 与键位页、常规页同一个做法：切页 → 等布局 → 拍窗口本体 → 退出，另配一个兜底计时器。
-    /// </summary>
     private static void CaptureSponsor(MainWindow owner, string path)
     {
         owner.OpenSettingsForDev();
@@ -786,11 +666,6 @@ public partial class MainWindow
         guard.Start();
     }
 
-    /// <summary>
-    /// 【开发用，可删】实验功能页快照：设置窗口的第四页（远程同演）。
-    /// 拍之前先填一套假的房间状态（<see cref="SettingsWindow.FillSyncPageForDev"/>）：
-    /// 这一页默认是"未连接"的空表，直接拍看不出成员表与声部表长什么样。
-    /// </summary>
     private static void CaptureSync(MainWindow owner, string path)
     {
         Log("CaptureSync 开始，目标 " + path);
@@ -803,10 +678,7 @@ public partial class MainWindow
             Environment.Exit(1);
         }
         Log("设置窗口已打开，准备切到实验功能页");
-        win.SelectPageForDev(3);   // 实验功能页
-        // 演出状态由 MIDIKEY_UI_SNAPSHOT_SYNC_STATE 选，默认 idle：
-        // idle / playing / paused / stopped，前面加 member: 拍成员视角（例 member:paused）。
-        // 状态 → 界面走的是真会话那条 ApplySyncTransportUi，所以拍到的就是真界面。
+        win.SelectPageForDev(3);
         string syncState = Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_SYNC_STATE") ?? "idle";
         win.FillSyncPageForDev(syncState);
         Log($"设置窗口已打开，当前页 = 实验功能（假房间状态 = {syncState}）");

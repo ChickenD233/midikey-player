@@ -52,10 +52,6 @@ public sealed class ScoreEditor
         return _notes.IndexOf(n);
     }
 
-    /// <summary>
-    /// 整批替换（卷帘一次手势提交的结果）。仍压一次快照，
-    /// 所以「拖动一组音」在撤销栈里只算一步，而不是每个音一步。
-    /// </summary>
     public void ReplaceAll(IEnumerable<RawNote> notes)
     {
         Snapshot();

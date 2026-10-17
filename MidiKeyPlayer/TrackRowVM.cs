@@ -102,10 +102,6 @@ public sealed class TrackRowVM : INotifyPropertyChanged
     /// <summary>声部标牌的字：鼓 / 贝斯 / 电吉他 / 和声 / 人声…（识别结果，见 GmInstrument）。</summary>
     public string RoleTag => Candidate.RoleTag;
 
-    /// <summary>
-    /// 标牌取的色（声部角色配色，由 MainWindow 按 RoleTone 取主题资源写入）。
-    /// 未识别时为 null，文字退回默认色。
-    /// </summary>
     public Avalonia.Media.IBrush? RoleBrush
     {
         get => _roleBrush;
@@ -151,18 +147,10 @@ public sealed class TrackRowVM : INotifyPropertyChanged
         }
     }
 
-    /// <summary>
-    /// 能否选作主旋律。打击乐轨也可以选：有的目标乐器自带鼓组，
-    /// 这种时候鼓点就该被当成正常声部发出去。
-    /// </summary>
     public bool IsPlayable => true;
 
     // ================= 声轨配色 =================
 
-    /// <summary>
-    /// 声轨颜色号：参与合奏的轨 = 勾选顺序（0 起），未参与合奏时主旋律轨 = 0，其余 = -1。
-    /// 卷帘按同一个号上色，所以左侧文字与卷帘音符一一对应。
-    /// </summary>
     public int VoiceIndex
     {
         get => _voiceIndex;
@@ -174,10 +162,6 @@ public sealed class TrackRowVM : INotifyPropertyChanged
         }
     }
 
-    /// <summary>
-    /// 名称列的文字颜色。色块来自 Styles\Theme.axaml 的 BrushVoice0..11，
-    /// 由 MainWindow 按 VoiceIndex 取资源后写入；未参与合奏与打击乐轨用弱化色。
-    /// </summary>
     public Avalonia.Media.IBrush? VoiceBrush
     {
         get => _voiceBrush;
@@ -207,10 +191,6 @@ public sealed class TrackRowVM : INotifyPropertyChanged
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
 
-/// <summary>
-/// 「这条轨参与演奏吗」→ 声部标牌的不透明度：参与 1.0，没参与 0.45（整块变淡但还看得清）。
-/// 只用在 MainWindow.axaml 的声部标牌上。
-/// </summary>
 public sealed class ActiveOpacityConverter : Avalonia.Data.Converters.IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture)

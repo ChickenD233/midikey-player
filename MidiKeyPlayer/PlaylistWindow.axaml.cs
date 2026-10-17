@@ -12,15 +12,6 @@ using MidiKeyPlayer.Midi;
 
 namespace MidiKeyPlayer;
 
-/// <summary>
-/// 歌单窗口：建歌单、往里放曲目、替每一首勾好弹哪几行、拖放改顺序。
-///
-/// 三个出口给主窗口：<see cref="EntryActivated"/>（双击一行，载入这一首）、
-/// <see cref="Changed"/>（歌单存过盘）、<see cref="ActiveChanged"/>（换了一份当前歌单）。
-///
-/// 顺序规则全在 <see cref="PlaylistModel"/> 的纯函数里，上移、下移、拖放调的是同一个，
-/// 所以内置自检测到的就是这里真正跑的那段代码。
-/// </summary>
 public partial class PlaylistWindow : Window
 {
     private readonly List<Playlist> _lists = new();
@@ -61,10 +52,6 @@ public partial class PlaylistWindow : Window
     /// <summary>主窗口正在播放的那首曲子的路径，用来在列表里打标记。</summary>
     public string PlayingPath { get; set; } = "";
 
-    /// <summary>
-    /// 预览请求：勾选变了就请主窗口把这几行的音符画到卷帘上（路径，勾选的行；空 = 全部）。
-    /// 挑音轨要先看得见音符，不然不知道哪一轨是什么。主窗口只显示，不演奏、不许改谱。
-    /// </summary>
     public event Action<string, IReadOnlyList<TrackRef>>? PreviewTracks;
 
     /// <summary>结束预览：主窗口把刚才那份谱面放回卷帘。</summary>
@@ -76,9 +63,6 @@ public partial class PlaylistWindow : Window
     public PlaylistWindow()
     {
         InitializeComponent();
-        // 拖放改顺序：必须走 handledEventsToo。
-        // 行（ListBoxItem）在按下时就把事件标记成「已处理」，XAML 里挂的处理器收不到，
-        // 于是按下这一半永远不执行、拖放整个失效 —— 用户报的「顺序不能拖」就是这个。
         EntryList.AddHandler(InputElement.PointerPressedEvent, EntryList_PointerPressed,
             RoutingStrategies.Bubble, handledEventsToo: true);
         EntryList.AddHandler(InputElement.PointerMovedEvent, EntryList_PointerMoved,
@@ -359,10 +343,6 @@ public partial class PlaylistWindow : Window
         AddPaths(paths);
     }
 
-    /// <summary>
-    /// 批量加入。同一首歌在歌单里出现两次是可以的，所以只拦这一次操作里重复的路径，
-    /// 不拦手动重复加。
-    /// </summary>
     private void AddPaths(IReadOnlyList<string> paths)
     {
         if (_current == null || paths.Count == 0) return;
@@ -514,9 +494,6 @@ public partial class PlaylistWindow : Window
             var target = DropTargetAt(e.GetPosition(EntryList));
             if (target is { } t)
             {
-                // 目标下标：先算出「插到哪一行前面」，再折算成抽走自己之后的下标。
-                // 往下拖一格时这一步不能少：不折算的话元素先被抽走、后面的整体前移一格，
-                // 插回去正好又落回原位，表现就是「往上能拖、往下拖不动」。
                 int insertAt = t.After ? t.Row + 1 : t.Row;
                 int to = insertAt < _dragFrom ? insertAt : insertAt - 1;
                 if (PlaylistModel.Move(_current.Entries, _dragFrom, to) && SaveCurrent("调整顺序"))
@@ -547,10 +524,6 @@ public partial class PlaylistWindow : Window
 
     // ================= 卷帘预览 =================
 
-    /// <summary>
-    /// 勾选变了就请主窗口把这几行画到卷帘上（空清单 = 全部行）。
-    /// 挑音轨要先看得见音符，不然不知道哪一轨是什么。主窗口只显示，不演奏、不许改谱。
-    /// </summary>
     private void PreviewChanged()
     {
         if (_current == null || _pickFor < 0 || _pickFor >= _current.Entries.Count)
@@ -600,10 +573,6 @@ public partial class PlaylistWindow : Window
 
     // ================= 预先选音轨 =================
 
-    /// <summary>
-    /// 点某一行的「音轨」按钮：就地展开这一行的候选清单，再点一次收起。
-    /// 候选按文件路径缓存，同一首展开第二次不再读文件。
-    /// </summary>
     private void ToggleTrackPicker(int index)
     {
         if (_current == null || index < 0 || index >= _current.Entries.Count) return;
@@ -703,10 +672,6 @@ public partial class PlaylistWindow : Window
         SyncEntryList();
     }
 
-    /// <summary>
-    /// 按当前歌单与搜索词重铺右侧列表。
-    /// 先清选中再清条目：选中项还在时清空，ListBox 会去读旧下标并抛越界。
-    /// </summary>
     private void SyncEntryList(int? selectAfter = null)
     {
         int keep = selectAfter ?? SelectedEntryIndex();

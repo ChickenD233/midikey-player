@@ -1,9 +1,5 @@
 namespace MidiKeyPlayer.Midi;
 
-/// <summary>
-/// 声部角色：这条轨在合奏里干什么活（鼓 / 贝斯 / 吉他 / 和声 / 人声…）。
-/// 界面左侧列表的「声部」列就用这套字，卷帘与列表的配色跟它无关（配色看声部序号）。
-/// </summary>
 public enum TrackRole
 {
     Unknown = 0,   // 文件里没写 GM 音色，也推不出来
@@ -26,9 +22,6 @@ public enum TrackRole
     Effects,
 }
 
-/// <summary>
-/// 声部标牌的取色分组：列表里能一眼分出「节奏 / 低音 / 和声 / 旋律」四类。
-/// </summary>
 public enum RoleTone
 {
     Neutral,   // 未知：不上色
@@ -39,19 +32,8 @@ public enum RoleTone
     Other,     // 铜管 / 管乐 / 效果
 }
 
-/// <summary>
-/// General MIDI 音色表与声部识别。
-///
-/// 识别的来源按可信度排：MIDI 文件里的轨名与 GM 音色号是一手证据，直接用；
-/// 两者都没有（网上不少 MIDI 只写「Track 1」）才按音域与节奏推一个「疑似」的结果。
-/// 提示文字会把「文件里写的」与「推的」分开写，不假装推断结果是文件里的信息。
-/// </summary>
 public static class GmInstrument
 {
-    /// <summary>
-    /// 128 个 GM 音色（0 起，0 = 大钢琴，127 = 鼓组）的中文名，按 GM 1 规范的分组顺序排列。
-    /// 名字取自 General MIDI 1 音色表（MIDI 厂商协会 1991 年规范）。
-    /// </summary>
     private static readonly string[] Names =
     {
         "大钢琴", "明亮钢琴", "电钢琴", "酒吧钢琴", "电钢琴1", "电钢琴2", "羽管键琴", "击弦古钢琴",
@@ -136,10 +118,6 @@ public static class GmInstrument
         _ => RoleTone.Neutral,
     };
 
-    /// <summary>
-    /// 没有 GM 音色号时的兜底推断，按音域与节奏猜一个。界面会把它标成「疑似」。
-    /// 这是猜测，不是文件里的信息；宁可给「伴奏」也不硬说成某件乐器。
-    /// </summary>
     public static TrackRole Infer(int channel, string? name, IReadOnlyList<RawNote> notes)
     {
         if (channel == 9) return TrackRole.Drums;
@@ -163,10 +141,6 @@ public static class GmInstrument
         return TrackRole.Accompaniment;                                    // 其余 → 伴奏铺底
     }
 
-    /// <summary>
-    /// 轨名是不是「没写什么」的通用名（Track 1 / 声道 3 / 空）。
-    /// 命中时列表改显示识别出的乐器名，比原样显示「Track 1」有用。
-    /// </summary>
     public static bool IsGenericTrackName(string? name)
     {
         string t = (name ?? "").Trim();

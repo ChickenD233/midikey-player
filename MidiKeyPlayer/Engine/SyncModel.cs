@@ -5,27 +5,8 @@ using System.Text.Json.Serialization;
 
 namespace MidiKeyPlayer.Engine;
 
-/// <summary>
-/// 【实验功能·远程同演】房间凭据：中转站地址、房间名、密码。
-///
-/// 房间名与密码都由用户自己填。房间名不进网络：本类把它算成一个房间键
-/// （PBKDF2，10 万次迭代），键放进连接地址，服务器只看到键。
-/// 服务器上的密码校验值也用这个键当盐，所以不存明文密码，也不存可反推的值。
-///
-/// 邀请串把三样打包成一行，用户只复制一次：mkp://中转站|房间名|密码。
-/// </summary>
 internal sealed class SyncRoomInfo
 {
-    /// <summary>
-    /// 默认中转站。用户界面上的「高级：中转站地址」留空时就用它。
-    ///
-    /// 这是本项目作者部署在 Cloudflare 上的公共中转站，所有用户共用它。
-    /// 内置它的意义：用户粘一条邀请串就能进房间，不用自己填地址。
-    ///
-    /// 想换成自己的：把这里改成你的 Worker 地址（形如
-    /// <c>你的名字.你的子域.workers.dev</c>），重新构建。部署说明见仓库的
-    /// <c>cloudflare/部署说明.md</c>。
-    /// </summary>
     internal const string DefaultRelayHost = "midikeyplayer-sync.dl18710255985.workers.dev";
 
     /// <summary>邀请串的协议前缀，用来认出自家的串。</summary>
@@ -46,10 +27,6 @@ internal sealed class SyncRoomInfo
     /// <summary>房间密码。用户自定义。</summary>
     public string Password { get; init; } = "";
 
-    /// <summary>
-    /// 用不用 TLS。正式部署的 Worker 一律走 wss://。
-    /// 只有本机联调（wrangler dev）是明文 ws://，所以回环地址自动退回明文。
-    /// </summary>
     public bool Secure => !IsLoopback(Host);
 
     private static bool IsLoopback(string host)
@@ -63,10 +40,6 @@ internal sealed class SyncRoomInfo
     /// <summary>房间键：房间名经 PBKDF2 派生，64 位小写十六进制。</summary>
     public string RoomKey => DeriveRoomKey(RoomName);
 
-    /// <summary>
-    /// 房间名 → 房间键。加盐迭代，别人拿到服务器的库也难反推房间名。
-    /// Worker 那边用同一个盐与同一个迭代次数，但它不校验这个值 —— 它只把它当密码的盐。
-    /// </summary>
     internal static string DeriveRoomKey(string roomName)
     {
         byte[] key = Rfc2898DeriveBytes.Pbkdf2(
@@ -148,10 +121,6 @@ internal sealed class SyncRoomInfo
         return true;
     }
 
-    /// <summary>
-    /// 把用户填的中转站地址归一化：去掉协议前缀、路径与结尾斜杠。
-    /// 用户可能粘 <c>https://x.workers.dev/</c> 或 <c>x.workers.dev</c>，两种都要认。
-    /// </summary>
     internal static string NormalizeHost(string? text)
     {
         string s = (text ?? "").Trim();
@@ -165,15 +134,6 @@ internal sealed class SyncRoomInfo
 
 // ================= 消息 =================
 
-/// <summary>
-/// 一条同演消息。上行下行共用一个形状，用 <see cref="T"/> 区分类型。
-///
-/// 只有八种类型，刻意压到最少：
-/// join / leave / ready / voice / xpose / start / pause / stop
-/// 再加上服务器发的 welcome / roster / error。
-///
-/// 没有心跳、没有轮询、没有周期上报：不用到的字段就空着。
-/// </summary>
 internal sealed class SyncMessage
 {
     /// <summary>类型。用短名，省字节。</summary>
@@ -205,11 +165,6 @@ internal sealed class SyncMessage
     /// <summary>开演延迟（毫秒）。语义：房主发出时刻起，过这么久全场一起开始。</summary>
     [JsonPropertyName("delayMs")] public int? DelayMs { get; set; }
 
-    /// <summary>
-    /// 房主发出这条命令时的**本机单调时刻**。
-    /// 收到方拿"本机收到时刻"减它，就得到"这条消息在路上走了多久"，再减掉它才是该等的时长。
-    /// 跨机器的单调时钟绝对值不可比，但同一条消息的发出与收到之差是可测的，所以只用差值。
-    /// </summary>
     [JsonPropertyName("sentAt")] public long? SentAt { get; set; }
 
     /// <summary>起始位置（秒）。</summary>
@@ -252,14 +207,6 @@ internal static class SyncKind
     internal const string Error = "error";
 }
 
-/// <summary>
-/// 【实验功能·远程同演】消息的 JSON 序列化上下文。
-///
-/// **必须用源生成器，不能用反射。** 发布时开裁剪，裁剪后的单文件里
-/// JsonSerializer 默认禁用基于反射的序列化，会直接抛
-/// "Reflection-based serialization has been disabled for this application"。
-/// 新增消息字段不用改这里；新增类型才要补一行 <c>[JsonSerializable]</c>。
-/// </summary>
 [JsonSourceGenerationOptions(
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     WriteIndented = false,

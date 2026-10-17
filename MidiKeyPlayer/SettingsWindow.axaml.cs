@@ -4,26 +4,6 @@ using MidiKeyPlayer.Engine;
 
 namespace MidiKeyPlayer;
 
-/// <summary>
-/// 设置窗口：四页，「常规」「键位」「赞助」「实验功能」。
-///
-/// - 常规页：设备接入、输入兼容、三个热键、导出按键表、主界面显示开关。
-///   这些控件声明在 MainWindow.axaml 的 AdvancedStash 里，打开设置时整块交给本窗口的
-///   AdvancedHost，关窗再还回主窗（见 <see cref="MainWindow.OpenSettings"/>）。
-///   这样控件的 x:Name 与事件处理器全留在 MainWindow.axaml.cs，引用一行不用改。
-///   播放前自检本身不在这一页：它常驻主界面状态卡（PreflightRow），这里只有显示开关。
-/// - 键位页：方案、按键绑定、功能键。这部分原来是一个独立的「键位设置」窗口，
-///   现在直接声明在本窗口的 XAML 里，逻辑在同类的 SettingsWindow.Keymap.cs。
-///   合过来以后键位录入仍然挂在窗口级的 KeyDown / KeyUp 与 PointerPressed 上，
-///   行为与原来单独开窗时一致。
-/// - 赞助页：爱发电排在最上面，下面列作者的 B 站、GitHub 与 QQ 群。这一页没有任何设置项，
-///   文案与地址全从 <see cref="AutoUpdate"/> 的常量来（见 <see cref="FillSponsorPage"/>）。
-///   「程序完全免费」这类声明不重复放在这里：它留在「常规」页的关于卡里。
-/// - 实验功能页：远程同演。逻辑在 SettingsWindow.Experimental.cs，
-///   同步本身在 <see cref="MidiKeyPlayer.Engine.SyncSession"/>。关窗会把会话收掉。
-///
-/// 窗口大小跟着页签走：常规页小、键位页与实验功能页大。设置即时生效，没有「应用」按钮。
-/// </summary>
 public partial class SettingsWindow : Window
 {
     private MainWindow? _mainWindow;

@@ -2,22 +2,6 @@ using System.Text.Json;
 
 namespace MidiKeyPlayer.Engine;
 
-/// <summary>
-/// 【实验功能·远程同演】一次同演会话。
-///
-/// 职责刻意压到最小，只有三件事：
-/// 1. 连到中转站，收发消息（真正的连接在 <see cref="SyncRelay"/> 里）。
-/// 2. 维护成员名单：谁在、弹什么声部、是否就绪。
-/// 3. 算"什么时候开始弹"：用本机单调时钟的锚点，不比较两台机器的墙钟。
-///
-/// **不做的**（这些是旧方案里为了"精确同步"加的，按用户要求全删了）：
-/// - 不测往返延迟。开演固定等 N 秒，延迟是常数，不需要测。
-/// - 没有心跳、没有周期上报、没有房间快照。
-/// - 不做漂移校正、不做微调、不自动跳转。
-/// - 不比较两台机器的时钟。
-///
-/// 用量因此极小：一场 5 人 1 小时约 50 条消息。
-/// </summary>
 internal sealed class SyncSession : IDisposable
 {
     // ================= 对外事件（后台线程触发） =================
@@ -181,8 +165,6 @@ internal sealed class SyncSession : IDisposable
                 break;
 
             case SyncKind.Xpose:
-                // 房主的统一移调。0 表示"没有统一"，各人回到自己的设置。
-                // 用 0 而不是 null 是为了让服务器端少一个分支：那条消息永远是一个整数。
                 _unifiedTranspose = (msg.Xpose ?? 0) == 0 ? null : msg.Xpose;
                 Log?.Invoke(_unifiedTranspose == null
                     ? "远程同演：房主取消了统一移调，各人回到自己的设置。"
@@ -208,13 +190,6 @@ internal sealed class SyncSession : IDisposable
         }
     }
 
-    /// <summary>
-    /// 收到开演：算出"从计划时刻到本机现在还剩多久"，加到本机单调时刻上。
-    ///
-    /// 关键一步是减掉**这条消息在路上花掉的时间**（本机收到时刻 减 房主的发出时刻）。
-    /// 不减的话，每个人会比房主晚整整一个传输时间才开演，而且各人延迟不同、各人晚的量也不同。
-    /// 减掉之后，所有人的目标时刻都是"房主发出时刻 + DelayMs"，与各自的网络快慢无关。
-    /// </summary>
     private void ApplyStart(SyncMessage msg)
     {
         int delayMs = msg.DelayMs ?? 3000;
@@ -233,19 +208,10 @@ internal sealed class SyncSession : IDisposable
         _transport = SyncTransport.Playing;
         RoomChanged?.Invoke();
 
-        // 跳转（DelayMs = 0）要立刻动作，不能等下一次界面刷新：
-        // 界面那个名单刷新计时器每 2 秒才跑一次，等它就可能拖到两秒才跳。
         if (delayMs <= 0) SeekRequested?.Invoke(position);
         else StartRequested?.Invoke(position);
     }
 
-    /// <summary>
-    /// 把 DelayMs 换算成本机还要等多久。
-    ///
-    /// DelayMs 的口径是"房主发出时刻 + DelayMs = 计划开演时刻"。
-    /// 本机已经过了 (收到时刻 - 房主发出时刻) 这么久，所以剩下的等待要减掉这一段。
-    /// 消息迟到超过 DelayMs 时返回 0：宁可立刻开始，也不要把开演推到更晚。
-    /// </summary>
     internal static int RemainingDelayCore(int delayMs, long sentTickMs, long nowTickMs)
     {
         if (sentTickMs <= 0) return Math.Max(0, delayMs);   // 没带戳，退回旧口径
@@ -298,12 +264,6 @@ internal sealed class SyncSession : IDisposable
         _relay?.Send(new SyncMessage { T = SyncKind.Xpose, Xpose = semitones });
     }
 
-    /// <summary>
-    /// 房主：开演。
-    ///
-    /// 消息里带房主自己的单调时刻，收到方减掉传输时间。房主自己也等满 delayMs 再开始，
-    /// 这样全场落到同一个时刻，而不是房主先弹、别人后弹。
-    /// </summary>
     internal void HostStart(double positionSec)
     {
         if (!_isHost) return;
@@ -382,12 +342,6 @@ internal sealed class SyncSession : IDisposable
         FireAfterDelay(delayMs, () => ResumeRequested?.Invoke());
     }
 
-    /// <summary>
-    /// 房主：跳转。位置由房主定，因为各人进度条位置不一定一样。
-    ///
-    /// DelayMs 为 0 且带 0 延迟的开演消息：收到方立刻设锚点、立刻跳，不再等倒数。
-    /// 拖进度条本来就是要立刻看到结果的，等 3 秒会让人以为没反应。
-    /// </summary>
     internal void HostSeek(double positionSec)
     {
         if (!_isHost) return;

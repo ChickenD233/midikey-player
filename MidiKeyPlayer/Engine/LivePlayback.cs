@@ -3,10 +3,6 @@ using MidiKeyPlayer.Midi;
 
 namespace MidiKeyPlayer.Engine;
 
-/// <summary>
-/// 一次映射结果：MIDI 音高 → 乐器动作。
-/// <paramref name="Key"/> 是方案里的键名（"Z" / "," / "PageUp" / "MouseLeft"）。
-/// </summary>
 public readonly record struct LiveMapping(
     bool Playable, string Key, bool Low, bool High, bool Sharp, bool Flat, string Reason)
 {
@@ -21,22 +17,6 @@ public readonly record struct LiveMapping(
     };
 }
 
-/// <summary>
-/// MIDI 设备实时转键盘：把设备送来的音符立刻变成目标程序能读到的按键。
-///
-/// 与 <see cref="PlaybackEngine"/> 的分工：
-/// - 文件播放：整首谱面提前算好事件表，按音乐时间派发。
-/// - 设备实时：来一个音发一个音，只留修饰键提前量。
-///
-/// 键位、音域与修饰键开关全部读 <see cref="KeymapProfile"/>：音乐键、八度键、升半音键都是方案里的键名。
-/// 规则固定为「有键就发、没键就不发」：没有对应键的音不发声，不改音高。
-/// 功能键总开关关掉时按「没有修饰键」处理。
-///
-/// 时序规则沿用 <see cref="InputTiming"/> 的物理毫秒：
-/// 修饰键比音键早 ModLeadMs；每次按下至少跨过一个帧点（否则目标程序按帧采样时读不到）；
-/// 同一根音键上前后两个音必须隔开 RetriggerMs。
-/// 乐器一次只发一个音，同一个键上已经在响的音会被后来的音换掉。
-/// </summary>
 public sealed class LivePlayback : IDisposable
 {
     private const int MaxQueue = 1024;          // 事件队列上限，防止异常情况下无限增长
@@ -72,10 +52,6 @@ public sealed class LivePlayback : IDisposable
         public bool Released;              // 是否已排定抬起
     }
 
-    /// <summary>
-    /// 输出口。默认直接调 <see cref="InputSender"/>；时序回归测试换成记录器，
-    /// 就能在没有目标程序、也不真的动键盘的情况下检查整条时间线。
-    /// </summary>
     public Action<string, bool> Sink { get; set; } = DefaultSink;
 
     private static void DefaultSink(string key, bool down)
@@ -110,10 +86,6 @@ public sealed class LivePlayback : IDisposable
 
     private KeymapProfile? _keymap;
 
-    /// <summary>
-    /// 本实例使用的键位方案。赋值时同步成全局活动方案
-    /// （<see cref="KeymapProfile.Current"/>），让文件播放与实时演奏用同一份键表。
-    /// </summary>
     public KeymapProfile Keymap
     {
         get => _keymap ?? KeymapProfile.Current;
@@ -149,12 +121,6 @@ public sealed class LivePlayback : IDisposable
     }
     private int _minVelocity = 1;
 
-    /// <summary>
-    /// 去抖窗口（毫秒）：同一个音高在这个窗口内的重复 NoteOn 按「设备多发」处理，直接丢掉。
-    /// 键盘接触抖动、同一个音走多个通道、驱动重发都落在这种重复里；不丢就会变成
-    /// 「按一下响好几下」（IN-09）。默认 30ms —— 人手不可能在 30ms 内重按同一个键，
-    /// 真实的重复（换指、连打）不会被误伤。0 = 关掉去抖。
-    /// </summary>
     public double DuplicateWindowMs
     {
         get => _duplicateWindowMs;
@@ -168,17 +134,9 @@ public sealed class LivePlayback : IDisposable
     /// <summary>自动贴合音域：按最近弹过的音调整基准八度，让跨八度的设备也能演奏全。</summary>
     public bool AutoFit { get; set; } = true;
 
-    /// <summary>
-    /// 音高 → 乐器动作。用全局活动方案（<see cref="KeymapProfile.Current"/>）。
-    /// </summary>
     public static LiveMapping Map(int pitch, int baseOctave)
         => Map(pitch, baseOctave, KeymapProfile.Current);
 
-    /// <summary>
-    /// 音高 → 乐器动作。音高先按 baseOctave 与方案基准八度的差整体移八度，
-    /// 再交给 <see cref="KeymapProfile.TryKeyOfPitch"/> 查表（含音域）。
-    /// 规则固定为「有键就发、没键就不发」：没有对应的键不发声，不改音高。
-    /// </summary>
     public static LiveMapping Map(int pitch, int baseOctave, KeymapProfile profile)
     {
         int shifted = pitch - 12 * (baseOctave - profile.BaseOctave);
@@ -196,10 +154,6 @@ public sealed class LivePlayback : IDisposable
             "键表里没有这个音（没有对应键的音直接跳过），可在方案里加一个键");
     }
 
-    /// <summary>
-    /// 可演奏音高范围（含）。与 <see cref="Map"/> 的判定一致：方案声明的 minNote/maxNote
-    /// 跟着基准八度整体移动。
-    /// </summary>
     public static (int Lo, int Hi) PlayableRange(int baseOctave)
         => PlayableRange(baseOctave, KeymapProfile.Current);
 
@@ -212,21 +166,10 @@ public sealed class LivePlayback : IDisposable
         return (lo + shift, hi + shift);
     }
 
-    /// <summary>
-    /// 方案里写的修饰键名，功能键总开关关掉或没绑时返回 null。
-    /// 调用方拿到 null 就等于「这个修饰键不存在」，不会往输出队列里排空键名。
-    /// 例外：键位自带 Shift 的方案（<see cref="KeymapProfile.HasSelfShiftKeys"/>）虽然功能键是关的，
-    /// 但半音键仍然要按（<see cref="KeymapProfile.SharpKeyToHold"/>）。
-    /// </summary>
     private static string? ModKeyOrNull(string? keyName, KeymapProfile profile)
         => (profile.ModifiersEnabled || profile.HasSelfShiftKeys) && !string.IsNullOrWhiteSpace(keyName)
             ? keyName : null;
 
-    /// <summary>
-    /// 从一组音高挑基准八度：先让"超出音域"的音最少，再让音域最贴合唱到的音
-    /// （超出的音离音域越远扣分越多，这样每个音都尽量落在音域里）。
-    /// 返回 (基准八度, 超出音域的音数)。
-    /// </summary>
     public static (int BaseOctave, int OutCount) FitBaseOctave(IReadOnlyList<int> pitches)
     {
         if (pitches.Count == 0) return (4, 0);
@@ -262,9 +205,6 @@ public sealed class LivePlayback : IDisposable
         return d * d;
     }
 
-    /// <summary>
-    /// 建立实例时接上设备断开事件：设备报错就停实时演奏并松键（IN-08）。
-    /// </summary>
     public LivePlayback()
     {
         MidiInputService.DeviceLost += OnDeviceLost;
@@ -331,9 +271,6 @@ public sealed class LivePlayback : IDisposable
         bool duplicate = false;
         lock (_gate)
         {
-            // IN-09：设备把同一个音在一次按下里发了多次（接触抖动、同一个音走多个通道、驱动重发）。
-            // 只认第一次 —— 乐器一次只发一个音，同一个键没抬起也不可能再触发一次；
-            // 照着发就会变成「按一下响好几下」。
             duplicate = IsDuplicateAttack(pitch, now);
             if (duplicate)
             {
@@ -388,15 +325,10 @@ public sealed class LivePlayback : IDisposable
                 if (need > minDown) minDown = need;
             }
 
-            // 修饰键切换：老状态立刻松开，新状态提前 modLead 按下。
-            // 功能键总开关（ModifiersEnabled）关掉时按「没有修饰键」处理：不按八度键，也不按升半音键。
             double modLead = Math.Max(Timing.ModLeadMs, Timing.FrameMs);
             string? wantMod = map.Low ? ModKeyOrNull(profile.OctaveDown, profile)
                             : map.High ? ModKeyOrNull(profile.OctaveUp, profile)
                             : null;
-            // 切换前先清掉队列里相关键尚未发出的旧事件：旧 KeyDown 可能排在将来，
-            // 若修饰键在它发出前又翻转一次，这次排的 KeyUp 会落空（键还没按下），
-            // 而陈旧的 KeyDown 随后照样发出 → 修饰键被物理卡死。
             if (_modKey != wantMod)
             {
                 if (_modKey is { Length: > 0 } old) { PurgePending(old); Enqueue(now, old, false); }
@@ -475,11 +407,6 @@ public sealed class LivePlayback : IDisposable
         if (!_running) InputSender.ReleaseEverything();
     }
 
-    /// <summary>
-    /// 设备断开 / 报错时由 <see cref="MidiInputService.DeviceLost"/> 回调触发：
-    /// 停止实时演奏并松开所有键，否则设备最后按住的键会卡在目标程序里（IN-08）。
-    /// 只停本引擎，界面开关与日志由界面层自己处理。
-    /// </summary>
     private void OnDeviceLost()
     {
         if (!_running) return;
@@ -487,10 +414,6 @@ public sealed class LivePlayback : IDisposable
         Stop();
     }
 
-    /// <summary>
-    /// 排定一个音的抬起：最早是 now，最晚要保证"按下至少跨过一个帧点"。
-    /// 同一根音键上前一个音还要多留 retriggerMs，否则目标程序会把两个音读成一个。
-    /// </summary>
     private void ReleaseNote(Sounding s, double now, bool retrigger)
     {
         double due = Math.Max(now, s.MinUpAt);
@@ -516,11 +439,6 @@ public sealed class LivePlayback : IDisposable
     /// <summary>清掉队列里某根键尚未发出的所有事件（修饰键切换时防陈旧 KeyDown 卡键）。持锁调用。</summary>
     private void PurgePending(string key) => _queue.RemoveAll(e => e.Key == key);
 
-    /// <summary>
-    /// 持锁调用：这次 NoteOn 是不是同一个音高的重复发送。
-    /// 只有被接受的那一次才记时刻，所以一串抖动会被整串丢掉，不会「滚」着把窗口一直往后推。
-    /// 窗口为 0（关掉去抖）时不记录，也不丢任何音。
-    /// </summary>
     private bool IsDuplicateAttack(int pitch, double now)
     {
         if (_duplicateWindowMs <= 0) return false;
@@ -545,9 +463,6 @@ public sealed class LivePlayback : IDisposable
             }
             else
             {
-                // A07：队列里全是抬起事件（都是必须发出去的 KeyUp），没有可丢的按下事件。
-                // 这时丢掉最老的一条 KeyUp 就会卡键 —— 那条 KeyUp 再也补不回来。
-                // 所以改为丢弃本次新事件；只有「按下」可以丢，「抬起」一律插进队列（队列因此不会超过上限）。
                 if (down)
                 {
                     DroppedDown++;
@@ -568,10 +483,6 @@ public sealed class LivePlayback : IDisposable
 
     // ================= 自动贴合音域 =================
 
-    /// <summary>
-    /// 记录一个原始音高（不含移调），样本够了就按它们调整基准八度。
-    /// 返回 true 表示基准八度变了。
-    /// </summary>
     private bool ObserveForAutoFit(int rawPitch)
     {
         _recent.Add(rawPitch);

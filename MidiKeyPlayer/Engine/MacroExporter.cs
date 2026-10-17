@@ -5,15 +5,6 @@ using MidiKeyPlayer.Midi;
 
 namespace MidiKeyPlayer.Engine;
 
-/// <summary>
-/// 把演奏事件表导出成外部工具能用的按键脚本。
-/// 与「实际演奏」共用同一套调度（<see cref="PlaybackEngine.BuildSchedulePreview"/>），导出结果与播放时发出的按键完全一致。
-/// 按键名按当前键位方案（<see cref="KeymapProfile.Current"/>）来，键表换了导出的键名跟着换。
-/// 传进来的音符已经映射过：没有对应键的音在 <see cref="NoteMapper"/> 里就被跳过了，
-/// 这里只按方案里的修饰键开关决定要不要写八度键与升半音键，不做任何改音高的处理。
-/// 支持 LogitechGHub（罗技 G HUB 的 Lua）与 KeystrokeCsv（通用 CSV 时刻/动作/按键）。
-/// 雷蛇 Synapse 宏是私有格式、无官方规范，硬编很容易导入失败，故不提供一键导入，建议用 CSV 或宏录制。
-/// </summary>
 public static class MacroExporter
 {
     /// <summary>导出格式。</summary>
@@ -25,10 +16,6 @@ public static class MacroExporter
         _ => ".csv"
     };
 
-    /// <summary>
-    /// 由映射后的音符生成按键脚本。notes 可含超音域音（会自动跳过）；
-    /// speed 用于把音乐时间换算成实际播放时刻；timing 决定修饰键提前量，需与实际演奏一致。
-    /// </summary>
     public static string Build(IReadOnlyList<MappedNote> notes, Format format,
                                double speed = 1.0, InputTiming? timing = null,
                                string songName = "")
@@ -39,15 +26,9 @@ public static class MacroExporter
             : BuildCsv(events);
     }
 
-    // ---------------------------------------------------------------- 公共：按键名映射
-
     /// <summary>字符形式的按键 → 真实键名（命名键的哨兵字符在这里还原）。</summary>
     private static string KeyNameOf(char c) => InputSender.KeyNameOf(c);
 
-    /// <summary>
-    /// 键名 → 罗技 G HUB Lua 的按键名。
-    /// G HUB 用 "a".."z"、"0".."9" 这类名字，标点与功能键用固定单词（comma、lshift…）。
-    /// </summary>
     private static string LuaKeyName(string name) => name switch
     {
         "," => "comma",
@@ -89,13 +70,6 @@ public static class MacroExporter
         _ => "中键"
     };
 
-    // ---------------------------------------------------------------- G HUB Lua
-
-    /// <summary>
-    /// 罗技 G HUB 的 Lua 脚本。
-    /// G HUB 官方脚本 API：PressKey / ReleaseKey / PressMouseButton / ReleaseMouseButton / Sleep。
-    /// 按键名用字符串（"z"…"comma"）；鼠标键用 1=左、2=右、3=中。
-    /// </summary>
     private static string BuildLua(IReadOnlyList<PlaybackEngine.ScheduledEvent> events,
                                    string songName, double speed)
     {
@@ -113,9 +87,6 @@ public static class MacroExporter
         sb.AppendLine();
         sb.AppendLine("local events = {");
 
-        // G HUB 的 Sleep 只取整数毫秒：直接写 0.1ms 精度的浮点会被逐个截断，
-        // 整首累积可达 1–2s 漂移。改为「误差进位」量化：
-        // 每段等待 = round(累计毫秒) − 上一段的取整值，总漂移恒小于 1ms。
         long lastMsInt = 0;
         foreach (var e in events)
         {
@@ -186,8 +157,6 @@ public static class MacroExporter
     private static string MouseOrKeyName(string name)
         => InputSender.TryMouseButton(name, out var button) ? MouseName(button) : name;
 
-    // ---------------------------------------------------------------- CSV
-
     private static string BuildCsv(IReadOnlyList<PlaybackEngine.ScheduledEvent> events)
     {
         var sb = new StringBuilder();
@@ -213,10 +182,6 @@ public static class MacroExporter
     }
 }
 
-/// <summary>
-/// 导出摘要。带 3 元与 4 元两种解构：老调用点 <c>var (音数, 事件数, 秒) = Summarize(...)</c> 照样编译，
-/// 新代码可以多取一个「跳过音数」（<see cref="Skipped"/>）。
-/// </summary>
 public readonly struct ExportSummary
 {
     public ExportSummary(int notes, int events, double seconds, int skipped)

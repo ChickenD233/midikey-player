@@ -1,15 +1,5 @@
 namespace MidiKeyPlayer.Engine;
 
-/// <summary>
-/// 输入时序预算（全部为**物理毫秒**，与播放速度无关）。
-/// 目标程序按键按帧采样（30fps=33ms/帧），修饰键与音键间隔小于一帧会被折进同一帧而漏音，
-/// 因此这些间隔必须按物理帧给足，不能被速度除小。
-///
-/// 引擎侧的口径（A01）：事件表内部存的是**音乐时间**（秒），所以
-/// PlaybackEngine.BuildSchedule 建表时把这里的物理毫秒乘上当前速度换成音乐时间
-/// （音乐秒 = 物理秒 × 速度）。派发时再按速度积分，实际发出的物理间隔就等于本文件的毫秒值，
-/// 10% 与 400% 两端都不变。**表里的 T 是音乐时间，本文件的数值是物理时间，两者不要混。**
-/// </summary>
 public sealed record InputTiming
 {
     /// <summary>目标程序采样帧长估计（16.7 = 60fps；33.3 = 30fps）。</summary>
@@ -71,13 +61,6 @@ public sealed record InputTiming
     public static string[] Names => new[] { "稳健（30fps / 卡顿）", "标准（60fps 推荐）", "极限（高帧率）" };
 }
 
-/// <summary>
-/// 输入时序诊断：统计"音键按下时修饰键已稳定多久"，用于在真机验证是否还有漏音；
-/// 修饰键提前量不足一帧、同刻、同键重触发过密即为漏音的现场证据。
-///
-/// 口径（A13）：事件表里的时刻是**音乐时间**，而这里报出的毫秒是**物理毫秒**。
-/// 所以时间差一律乘上播放速度换算回物理秒，再与物理阈值比较（速度 400% 时音乐差 ×4 = 物理差）。
-/// </summary>
 public sealed class InputTimingProbe
 {
     private readonly object _gate = new();
@@ -89,10 +72,6 @@ public sealed class InputTimingProbe
     private int _heldMods;
     private bool _sawLead;
 
-    /// <summary>
-    /// 本轮播放速度（1.0 = 100%）。引擎在开始播放时写入，用于音乐时间 ↔ 物理时间换算。
-    /// 只做诊断换算用，不加 volatile：C# 不允许 volatile double，读到旧值也不影响判定。
-    /// </summary>
     public double Speed = 1.0;
 
     /// <summary>本轮使用的输入档位，用于按档位显示阈值（A13）。</summary>
@@ -105,16 +84,8 @@ public sealed class InputTimingProbe
     public int MinHoldTooShort { get; private set; }    // 音键按住时长不足一帧
     public double MinModLeadMs { get; private set; } = double.MaxValue;
 
-    /// <summary>
-    /// 音键时值被压到"最短按住"下限的次数（两种原因合计）。
-    /// 原因见 <see cref="MinUpLimited"/> 与 <see cref="MinUpRelaxed"/>（B04）。
-    /// </summary>
     public int MinUpLimited { get; private set; }
 
-    /// <summary>
-    /// 被迫压缩：本音与前音重叠，时值本来就放不下最短按住，只能压到下限。
-    /// 这才是「谱面挤得比输入档位允许的还快」的信号，界面上的 <c>SqueezedNotes</c> 用它。
-    /// </summary>
     public int CompressedNotes { get; private set; }
 
     /// <summary>正常让位：前音重叠把时值缩短，但没有压到最短按住下限。属正常现象，不是异常。</summary>
@@ -131,8 +102,6 @@ public sealed class InputTimingProbe
     {
         lock (_gate)
         {
-            // 提前量基准只记「按下」：松开也更新的话，紧跟在修饰键松开后的音会算出 ≈0 的
-            // 提前量 → 误报 ModLeadTooShort。是否仍有修饰键按着由 _heldMods 把关。
             if (down) _lastModMusicT = musicT;
             _heldMods += down ? 1 : -1;
             if (_heldMods < 0) _heldMods = 0;

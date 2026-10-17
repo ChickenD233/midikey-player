@@ -7,15 +7,6 @@ using MidiKeyPlayer.Engine;
 
 namespace MidiKeyPlayer;
 
-/// <summary>
-/// 播放悬浮窗：置顶浮在目标程序画面上（默认屏幕右上角，可拖动，位置记忆）。
-/// 倒计时期间显示大号秒数；开始演奏后显示整首曲子的迷你卷帘 ——
-/// 音符按音高与时间排布，黄色播放头跟着进度走；暂停与循环遍数标在右下角。
-/// 主窗每 ~0.15s 推一次进度，两次推送之间由本窗按实测速率平滑外推（渲染层，30fps 封顶）。
-/// 主窗负责它的生命周期：开始播放时 SetNotes + ShowProgress，停止 / 播完 / 关窗时 Close。
-/// 卡片右上角的 ✕ 是悬浮窗自己的开关：点了等同设置里取消勾选（写进设置）。
-/// 不抢焦点（ShowActivated=false），不打扰目标程序。
-/// </summary>
 public partial class OverlayWindow : Window
 {
     /// <summary>拖动松手后触发：参数是新的窗口位置（供主窗写进设置）。</summary>
@@ -34,8 +25,6 @@ public partial class OverlayWindow : Window
     private bool _positioned;
     private double _pxPerSec = 1.0;   // SetNotes 时按窗口宽度算好，ShowProgress 滚动用
 
-    // 平滑滚动：主窗每 ~0.15s 才推一次进度（省 GPU），两次推送之间由渲染帧回调按
-    // 实测速率外推播放头位置，只改 RenderTransform，不触发布局。30fps 封顶。
     private double _lastElapsed;      // 最后一次推送的演奏进度（秒）
     private long _lastPushTicks;      // 最后一次推送的时间戳
     private double _pushRate = 1.0;   // 实测推进速率（播放速度 400% 时约 4）
@@ -56,10 +45,6 @@ public partial class OverlayWindow : Window
         base.OnClosed(e);
     }
 
-    /// <summary>
-    /// 显示倒计时剩几秒。<paramref name="nextLabel"/> 是连播时的下一首提示（空串表示不显示）：
-    /// 自动连播时用户不在键鼠前，这几秒是唯一能看清「接下来放什么」的机会。
-    /// </summary>
     public void ShowCountdown(int secondsLeft, string nextLabel = "")
     {
         UnhookRender();   // 倒计时没有卷帘，不用平滑外推
@@ -71,20 +56,12 @@ public partial class OverlayWindow : Window
         EnsureShown();
     }
 
-    /// <summary>
-    /// 连播状态那一行：列表里的第几首、下一首是什么。传空串就把整行收起来（不在连播时不占地方）。
-    /// 倒计时态用不上 —— 那一态由 <see cref="ShowCountdown"/> 的 nextLabel 负责。
-    /// </summary>
     public void SetQueueHint(string text)
     {
         TxtQueue.Text = text;
         TxtQueue.IsVisible = text.Length > 0;
     }
 
-    /// <summary>
-    /// 摆进整首曲子的音符（开始播放时调一次）。音符按 (音高, 时间) 画进卷帘内容层，
-    /// 横向比例固定为「8 秒可见」，播放时由 <see cref="ShowProgress"/> 平移内容层实现滚动。
-    /// </summary>
     public void SetNotes(IReadOnlyList<MappedNote> notes, double totalSec)
     {
         RollContent.Children.Clear();
@@ -130,8 +107,6 @@ public partial class OverlayWindow : Window
         Bar.Maximum = Math.Max(0.1, total);
         Bar.Value = Math.Clamp(elapsed, 0, Bar.Maximum);
 
-        // 记下发推进速率：两次推送的进度差 ÷ 墙钟差。播放速度不是 100% 时
-        // 进度推进与墙钟不是 1:1，用实测速率外推才跟得上；跳转/异常时回退 1。
         long now = Stopwatch.GetTimestamp();
         if (!_paused && !paused)
         {
@@ -145,9 +120,6 @@ public partial class OverlayWindow : Window
         _paused = paused;
         HookRender();
 
-        // 屏幕 x = 音符时间×比例 + 偏移；偏移 = 播放头位置 − 已演奏时间×比例。
-        // 开头处音符正好落在播放头上，左侧留白表示「还没开始」。
-        // 用 RenderTransform 平移内容层：不碰布局，几百个音符矩形不用重排。
         RollShift.X = RollCanvas.Width * PlayheadFrac - elapsed * _pxPerSec;
         TxtTime.Text = $"{elapsed:F1} / {total:F1} s";
 
@@ -158,11 +130,6 @@ public partial class OverlayWindow : Window
         EnsureShown();
     }
 
-    /// <summary>
-    /// 30fps 外推：两次主窗推送（间隔 ~0.15s）之间按实测速率推算播放进度，
-    /// 卷帘看起来就是连续滚动而不是每 0.15 秒跳一格。只改 RenderTransform（渲染层），
-    /// 不碰布局；暂停时原地不动。
-    /// </summary>
     private void SmoothTick(object? sender, EventArgs e)
     {
         if (_paused || !IsVisible || !PanelProgress.IsVisible) return;

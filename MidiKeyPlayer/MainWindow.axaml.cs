@@ -69,10 +69,6 @@ public partial class MainWindow : Window
     private bool _playlistSyncing;
     /// <summary>歌单曲目列表最多显示多少行，超过的合并成一条说明。</summary>
     private const int PlaylistMenuMax = 50;
-    /// <summary>
-    /// 连播前进的来源。true = 当前这首是从歌单卡点开的，F9 与播完前进都走歌单；
-    /// false = 走文件夹曲目。见 Q18：谁在放就走谁。
-    /// </summary>
     private bool _sourceIsPlaylist;
     /// <summary>连播连续失败了几首。放不出来的曲子跳过它，连败到上限就停（见 PlayAdvance）。</summary>
     private int _consecutiveFailures;
@@ -80,14 +76,8 @@ public partial class MainWindow : Window
     private int _playlistPos = -1;
     /// <summary>随机播放用的发生器。每次开始连播重新播种，免得每次都同一条随机串。</summary>
     private Random _shuffleRng = new();
-    /// <summary>
-    /// 连播下一首的歌名（不含扩展名的完整文件名）。只在自动前进那几秒里有值，
-    /// 用来在悬浮窗的倒计时里写「下一首：xxx」。用户手动播放时是空串。
-    /// </summary>
     private string _nextSongLabel = "";
 
-    /// <summary>正在自动前进。用来把「用户按停止」和「一首自然放完」分开，
-    /// 也避免在 LoadMidiFile 内部被当成用户换歌弹确认框。</summary>
     private bool _advancing;
 
     private static readonly int[] CountdownOptions = { 0, 3, 5, 10 };
@@ -110,10 +100,6 @@ public partial class MainWindow : Window
     private int _overlayLastLoop = -1;
     private MappingResult? _lastMapping;    // 最近一次映射结果（LblWarn 的「跳过明细」用）
 
-    /// <summary>
-    /// UI-01 / UI-02：有手动改动、而且这份改动还没导出过 MIDI。
-    /// 这是界面上「未导出」标记与两个确认框共用的唯一状态源。
-    /// </summary>
     private bool HasUnexportedEdits => _editing && !_editsExported;
 
     // —— 键位方案（控件在 KeymapWindow 里，这里只存当前方案与方案名） ——
@@ -150,7 +136,6 @@ public partial class MainWindow : Window
         // 输入方式：SendInput（默认）或罗技 G HUB 驱动（绕过 SendInput 屏蔽）
         BackendCombo.ItemsSource = new[] { "SendInput（Windows 自带）", "罗技 G HUB 驱动" };
 
-
         // —— 记住上次设置 ——
         _cfg = AppConfig.Load();
         CountdownCombo.SelectedIndex = Math.Clamp(_cfg.CountdownIndex, 0, 3);
@@ -176,19 +161,14 @@ public partial class MainWindow : Window
         ThemeCombo.SelectedIndex = ThemeSwitch.Clamp(_cfg.ThemeMode);
         TimingCombo.SelectedIndex = Math.Clamp(_cfg.TimingIndex, 0, 2);
         BackendCombo.SelectedIndex = Math.Clamp(_cfg.InputBackend, 0, 1);   // 触发 Backend_Changed → 应用后端
-        RefreshRecentUi();   // 「打开」下拉菜单按设置里的历史重建（含「最近打开」子菜单）
-        // 曲目卡常驻（issue #57）：上次列过的目录还在就自动扫描并显示，不用每次重开都重新选目录
+        RefreshRecentUi();
         RestoreFolderFromConfig();
         RefreshFolderUi();   // 上面没恢复出目录时：左栏的文件夹曲目卡保持隐藏
         RestorePlaylistFromConfig();   // 同上：没选过歌单时歌单卡保持隐藏
         ApplyPlayModeUi();             // 上次选的演奏模式写回按钮
 
-        // 键位方案（Engine\KeymapProfile）：全局活动方案，实时演奏与文件播放共用。
-        // 键位控件在独立的 KeymapWindow 里，主界面只显示方案名并提供一个入口按钮。
         _keymap = KeymapProfile.Current ?? KeymapProfile.Default;
         if (TxtKeymapName != null) TxtKeymapName.Text = _keymap.Name;
-        // 速度 / 移调 / 输入档位按方案名恢复：启动时按当前方案读一次，
-        // 没有记录就用默认值（100% / 0 / 标准）；全局值同步进去，老设置文件照旧兼容
         ApplyProfileSettings(_keymap.Name);
 
         // MIDI 设备接入（issue #4）
@@ -205,13 +185,7 @@ public partial class MainWindow : Window
         MidiInputService.Error += s => UiPost(() =>
         {
             InsertLog("[MIDI] " + s);
-            // RV-08：只有「实时演奏」开着时才松键并关掉开关。
-            // 实时演奏没开时（枚举设备失败、打开设备失败）报错，ReleaseAll 会在引擎线程未跑时
-            // 直接 ReleaseEverything，把文件播放正按着的音键（含用户物理按住的键）一起抬掉。
-            // 所以这条路径只写日志。
             if (ChkMidiLive.IsChecked != true) return;
-            // IN-08：设备断开或报错时，先把按住的键全部松开，再关掉实时演奏开关。
-            // 不松键的话，目标程序里那个音会一直按着。接口归 Engine\LivePlayback，这里只调用。
             _livePlay.ReleaseAll();
             ChkMidiLive.IsChecked = false;   // 走 MidiLive_Changed → StopMidiLive，顺带停掉设备监听
             InsertLog("[MIDI] 设备异常，已松开全部按键并关闭「MIDI 设备实时演奏」。修好后点「刷新」重新接入。");
@@ -249,7 +223,6 @@ public partial class MainWindow : Window
         Roll.SelectionChanged += UpdateEditUi;
         Roll.EditCommitted += OnRollEditCommitted;
         Roll.ViewChanged += OnRollViewChanged;
-        // ChkSnap 不再重复订阅：XAML 上已有 IsCheckedChanged="Snap_Changed"，做同一个赋值
         ChkFollow.IsCheckedChanged += (_, _) => Roll.SetFollow(ChkFollow.IsChecked == true);
         KeyDown += OnWindowKeyDown;
         Roll.SnapEnabled = ChkSnap.IsChecked == true;
@@ -257,10 +230,6 @@ public partial class MainWindow : Window
         if (RollHelp != null) UpdateHelpVisibility();
         SizeChanged += (_, _) => UpdateHelpVisibility();
 
-        // 跟随系统（设置里的「自动」档）时系统自己换深浅色：走 DynamicResource 的控件
-        // Avalonia 会重算，但代码赋色的地方不会 —— 声轨文字色（TrackRowVM.VoiceBrush）、
-        // 自检的 ✔ / ✘、卷帘的色板缓存都停在旧皮肤上，白底切黑底会留下一批浅色字。
-        // 皮肤一变就重涂一遍，与设置里手动换档位走的是同一条 ApplyThemeColors。
         ActualThemeVariantChanged += (_, _) =>
         {
             if (!_uiReady) return;   // 构造期资源还没就位，主题变体也在初始化
@@ -271,8 +240,6 @@ public partial class MainWindow : Window
         _previewDeb.Tick += (_, _) =>
         {
             _previewDeb.Stop();
-            // 去抖刷新的都是"音符没变、只是选项/速度/移调变了"的场景：
-            // keepView 保住卷帘视口与选择，别把正在编辑的用户弹回全曲。
             RefreshPreview(keepView: true);
         };
 
@@ -318,13 +285,6 @@ public partial class MainWindow : Window
         InstallPreviewProbe(this);  // 【开发用，可删】设了 MIDIKEY_PREVIEW_PROBE=1 才生效，见 DevPreviewProbe.cs
     }
 
-    // ================= 启动浮层（免费声明 + 验证题 + 快速上手，合成一层） =================
-
-    /// <summary>
-    /// 启动浮层：首次启动、免费声明文案换过、或还没答过验证题时弹一次。
-    /// 三层合成一层，只有一个「知道了」。「关于」卡里的「使用教程」也走这里。
-    /// 无人值守的探针不弹。
-    /// </summary>
     private void ShowStartupOnce()
     {
         if (_cfg == null || StartupOverlay == null) return;
@@ -412,7 +372,6 @@ public partial class MainWindow : Window
     private void HandleGlobalKey(int code)
     {
         if (code == 0) return;
-        // 五个热键统一走 ToggleControl / SeekRelative / SwitchSong：热键、按钮、托盘菜单共用同一条路。
         if (code == CodeOf(HotkeyControlCombo)) { ToggleControl(); return; }
         if (code == CodeOf(HotkeyRewindCombo)) { SeekRelative(-SeekStepSeconds); return; }
         if (code == CodeOf(HotkeyForwardCombo)) { SeekRelative(SeekStepSeconds); return; }
@@ -420,16 +379,6 @@ public partial class MainWindow : Window
         if (code == CodeOf(HotkeyNextCombo)) SwitchSong(+1);
     }
 
-    /// <summary>
-    /// 切歌：换到当前列表里的上一首 / 下一首（到底回绕）。
-    ///
-    /// 「当前列表」看这首是从哪张卡点开的（Q18）：歌单卡点的走歌单，文件夹曲目卡点的走文件夹。
-    /// 两张卡都在时不用问用户走哪一张 —— 他刚刚点哪张，就是哪张。
-    ///
-    /// 演奏中（含暂停中）切歌不走倒计时——用户已经守在目标程序里——直接接着弹新的一首；
-    /// 空闲时只载入，不自动开始。有未导出的卷帘改动时拒绝切歌（热键场景弹不出确认框，不能静默丢）；
-    /// 自动连播走的是另一条路（AdvanceTo），它按 Q4 的选择丢掉改动继续，并写一行日志。
-    /// </summary>
     private void SwitchSong(int delta)
     {
         bool usePlaylist = _sourceIsPlaylist && _playlist is { Count: > 0 };
@@ -470,8 +419,6 @@ public partial class MainWindow : Window
             if (usePlaylist)
             {
                 _playlistPos = next;
-                // 这里再取一次歌单：上面算 usePlaylist 与这里之间没有别的赋值，
-                // 但编译器认不出这层关系，用一个局部变量把空检查写明确。
                 var list = _playlist;
                 if (list != null && next < list.Count && LoadMidiFile(path))
                     SelectTrackForEntry(list.Entries[next]);
@@ -487,10 +434,6 @@ public partial class MainWindow : Window
         if (wasPlaying) RequestPlay(skipCountdown: true);
     }
 
-    /// <summary>
-    /// 当前播放位置的唯一来源。三个播放器状态各有一套时间，混用就会取到过期的 0：
-    /// 试听中取试听时钟，演奏中取引擎，都没有才取"起始位置"。
-    /// </summary>
     private double CurrentPosition()
     {
         if (_previewOn) return PreviewNow();
@@ -576,8 +519,6 @@ public partial class MainWindow : Window
         LblStatus.Text = paused ? "已暂停 —— 按 F6 或点「▶ 继续」" : "演奏中…";
         UpdateTransportUi();
 
-        // 暂停后关闭悬浮窗（默认开）：暂停即收起，继续即弹回，什么都不用去设置里改。
-        // 手动 F6 与焦点守卫自动暂停都走这里，所以两条路径行为一致。
         if (_cfg?.OverlayHideOnPause == true)
         {
             if (paused) HideOverlay();
@@ -587,11 +528,6 @@ public partial class MainWindow : Window
 
     // ================= 焦点守卫：按键只进游戏 =================
 
-    /// <summary>
-    /// 开始演奏时挂上焦点守卫（「焦点离开目标程序时自动暂停」勾选且记到了目标窗口才有）。
-    /// 守卫按进程判：目标程序的任何窗口都算「在游戏里」，本程序自己的窗口算中立（不暂停也不继续），
-    /// 其余一切前台 = 离开 → 自动暂停；焦点回到目标进程 → 自动继续（只继续守卫自己暂停的那次）。
-    /// </summary>
     private void StartFocusGuard()
     {
         _focusAutoPaused = false;
@@ -679,8 +615,6 @@ public partial class MainWindow : Window
         bool hasPlayable = hasTrack && BuildMapping().InRangeCount > 0;
         BtnPlay.IsEnabled = !_busy && hasPlayable;
 
-        // 按钮灰着却不给原因，是第一次用最大的断点。这里把「为什么还不能播」写成一行提示，
-        // 并挂成按钮的悬浮提示，用户把鼠标停在灰按钮上也能看到。
         string reason = hasTrack
             ? (hasPlayable ? "" : "这首歌没有可弹的音：换个键位方案，或调一下「移调」")
             : "先点「打开 MIDI 文件 / 文件夹」，再在左侧点一行作为主旋律";
@@ -741,12 +675,6 @@ public partial class MainWindow : Window
         TxtTranspose.Text = tr > 0 ? $"+{tr:0}" : $"{tr:0}";
     }
 
-    // ================= 速度 / 移调 / 输入档位「按键位方案分别记忆」 =================
-    //
-    // 用户要求：每个键位方案单独记住速度、移调、输入兼容档。存储由 AppConfig 负责
-    // （SettingsFor / RememberProfile），这里只做接线：换方案时「先存旧、再读新」。
-    // 全局字段仍然照写（SaveSettings），老设置文件照旧能读。
-
     /// <summary>把当前速度 / 移调 / 输入档位写回当前方案名下。</summary>
     private void RememberCurrentProfileSettings()
     {
@@ -757,10 +685,6 @@ public partial class MainWindow : Window
             Math.Clamp(TimingCombo.SelectedIndex, 0, 2));
     }
 
-    /// <summary>
-    /// 按方案名读出速度 / 移调 / 输入档位并应用到界面与内部字段。
-    /// 没有记录时 AppConfig 会按当前全局值建一条，首次启动的全局值就是默认值（100% / 0 / 标准）。
-    /// </summary>
     private void ApplyProfileSettings(string? profileName)
     {
         if (_cfg == null) return;
@@ -937,8 +861,6 @@ public partial class MainWindow : Window
         MappedNote? note = _previewNotes.LastOrDefault(n => n.Start <= t && t < n.End);
         if (note == null) { TxtSeekNote.Text = "—"; return; }
         string name = Music.SolfegeName(note.Pitch);
-        // InRange 同时覆盖两种情况：超出键位音域，或音域内没有对应的键（缺半音时按跳过处理）。
-        // 用户看到的说法要能区分「没键可弹」，不要再统一写成「超音域」。
         if (!note.InRange) { TxtSeekNote.Text = $"{name} 没有对应键"; return; }
         // 按键与修饰键一律按当前键位方案算，和实际演奏一致
         _keymap.TryKeyOfPitch(note.Pitch, out string key, out int octaveOffset, out bool sharp);
@@ -961,10 +883,6 @@ public partial class MainWindow : Window
         if (TxtEditMark != null) TxtEditMark.IsVisible = HasUnexportedEdits;
     }
 
-    /// <summary>
-    /// UI-01 / OL-02：载入新曲、退出程序这类会丢改动的动作，先问一次。
-    /// 没有未导出的改动就直接放行（不弹框）。返回 true = 可以继续。
-    /// </summary>
     private async Task<bool> ConfirmDiscardEditsAsync(string what)
     {
         if (!HasUnexportedEdits) return true;
@@ -1008,11 +926,6 @@ public partial class MainWindow : Window
         return await dlg.ShowDialog<bool>(this);
     }
 
-    /// <summary>
-    /// RV-09：换主旋律轨 / 改合奏勾选也会重建谱面并清空撤销栈，
-    /// 所以先走同一个确认框。没有未导出改动就直接放行（不弹框）。
-    /// 已经有确认框在显示时不重复弹，按「保持原状」处理（返回 false）。
-    /// </summary>
     private async Task<bool> ConfirmDiscardEditsForActionAsync(string what)
     {
         if (!HasUnexportedEdits) return true;
@@ -1051,11 +964,6 @@ public partial class MainWindow : Window
         UpdateEditMark();
     }
 
-    /// <summary>
-    /// 卷帘完成一次编辑手势，提交的是**整条新谱面**（而不是单个音的增量）。
-    /// 这样拖动一组音在撤销栈里只算一步；卷帘自己已经持有这份数据，
-    /// 所以这里不再把音符推回给它（推回去会重置视口与选择）。
-    /// </summary>
     private void OnRollEditCommitted(IReadOnlyList<RawNote> notes, string what)
     {
         BeginEditIfNeeded();
@@ -1138,12 +1046,6 @@ public partial class MainWindow : Window
         UpdateHelpVisibility();
     }
 
-    /// <summary>
-    /// 说明栏占 248px（UI-12 从 188 加宽，右列文字不再被裁）。
-    /// 窗口太窄时，右栏减去它就不够放卷帘工具栏，缩放按钮会被挤掉 ——
-    /// 所以按窗口宽度自动收起，拉宽后自动恢复。
-    /// 门槛仍取 1080：默认窗口宽 1120，抬高门槛会让默认尺寸下根本打不开说明栏。
-    /// </summary>
     private void UpdateHelpVisibility()
     {
         if (RollHelp == null) return;
@@ -1158,21 +1060,11 @@ public partial class MainWindow : Window
         }
     }
 
-    // ================= 内置试听 =================
-    //
-    // 试听是一个**独立按钮**，和演奏完全无关：不发按键、不走倒计时、不最小化窗口。
-    // 关键在于它是"事件调度"而不是"按固定间隔采样"：
-    // 播放前先把每个音的 note-on / note-off 时刻排成一张表（按真实秒），
-    // 定时器每次醒来把**所有到点的**事件一次发完。这样即使定时器被 UI 卡住、
-    // 或者某个音短于定时器间隔，也不会被漏掉 —— 采样式实现会成片吞音。
-
     private MidiPreview? _preview;
-    /// <summary>整曲试听调度器：独立线程 + timeBeginPeriod(1) + 短前瞻派发（见 Engine/MidiPreview.cs）。</summary>
     private MidiPreviewSequencer? _previewSeq;
     /// <summary>界面刷新定时器：低频（60ms），只把位置画到界面上。音频派发不在这里。</summary>
     private DispatcherTimer? _previewTimer;
-    private double _previewTotal;   // 试听总长（真实秒 = 谱面秒 / 速度）
-    /// <summary>本次试听采用的速度：真实秒 ↔ 谱面秒换算用（谱面秒 = 真实秒 × 它）。</summary>
+    private double _previewTotal;
     private double _previewSpeed = 1.0;
     private bool _previewOn;
     /// <summary>事件表条数。诊断用（探针要打印它）。</summary>
@@ -1185,10 +1077,6 @@ public partial class MainWindow : Window
         return seq != null && _previewOn ? seq.PositionSeconds : _previewSeconds;
     }
 
-    /// <summary>
-    /// 试听中跳转到某个秒数：交给调度线程处理。调度线程会**先清音**，
-    /// 再挪时间基准、移游标，并把"跳进去正在响的音"补上。
-    /// </summary>
     private void PreviewSeekTo(double seconds)
     {
         _previewSeq?.Seek(Math.Clamp(seconds, 0, _previewTotal));
@@ -1241,12 +1129,6 @@ public partial class MainWindow : Window
         _previewSeq.Load(spans, speed);
         _previewTotal = _previewSeq.TotalSeconds;
 
-        // 从当前定位位置开始试听（用户可能已经把指针拖到某处了）。
-        // 单位换算：_previewSeconds 是谱面秒（与 RefreshPreview 的进度条量程同轴，
-        // 试听中也被换算回谱面秒维护），而调度器的事件表是真实秒（谱面秒 / 速度），
-        // 起播位置必须先除速度 —— 否则 200% 速度下定位到谱面 80s 会被当成真实 80s
-        //（=谱面 160s，常被夹到末尾）。不读 SliderProgress.Value：上一场试听停掉后
-        // 进度条仍停留在真实秒量程，再除一次速度就错了。
         double startAt = Math.Clamp(_previewSeconds / speed, 0, _previewTotal);
         _previewOn = true;
         BtnPreview.Content = "⏹ 停止试听";
@@ -1258,8 +1140,6 @@ public partial class MainWindow : Window
         _previewTimer.Tick += (_, _) => PreviewUiTick();
         _previewTimer.Start();
 
-        // 试听也是"在播放"：让卷帘自动跟随播放头。少了这句，视口不滚动，
-        // 播放头很快就跑出画面，看起来就像"画面停在原地、声音已经走远"。
         if (Roll != null)
         {
             Roll.IsPlaying = true;
@@ -1270,10 +1150,6 @@ public partial class MainWindow : Window
         InsertLog($"试听开始：{notes.Count} 个音，约 {_previewTotal:F1}s（不发送按键）");
     }
 
-    /// <summary>
-    /// 界面刷新（60ms 一次）：只把调度器的当前位置画出来。
-    /// 音频派发在调度线程上，跟这里完全无关 —— 界面卡一下不会让声音卡。
-    /// </summary>
     private void PreviewUiTick()
     {
         if (!_previewOn) return;
@@ -1291,17 +1167,11 @@ public partial class MainWindow : Window
             UpdateSeekNote(shown);
         }
 
-        // 同步记住定位位置：shown 是真实秒，换回谱面秒（×速度）保持 _previewSeconds 的单位契约。
-        // 不更新的话，试听结束后 F5/F7 相对定位会从试听前的旧位置起跳。
         _previewSeconds = shown * _previewSpeed;
 
         if (_previewSeq is { IsFinished: true }) StopPreviewAudio();
     }
 
-    /// <summary>
-    /// 停止试听：停调度线程（它自己会清音），再补一次全清，保证不留残音。
-    /// 停止、跳转、换曲、关窗口都会走到这里。
-    /// </summary>
     private void StopPreviewAudio()
     {
         bool wasOn = _previewOn || (_previewSeq?.IsRunning ?? false);
@@ -1389,11 +1259,6 @@ public partial class MainWindow : Window
         return name + ".mid";
     }
 
-    // ================= 音频转 MIDI =================
-    // v1.1.8 移除：音频转 MIDI 与「转人声 / 伴奏双轨」两个入口，连同 Audio\ 整条链路一起删。
-    // 转写结果不干净（泛音、残响、鼓点都会变成音），改谱比找一份现成 MIDI 更费时间。
-    // 需要 MIDI 就上网找成品谱。
-
     /// <summary>没有可定位的谱面时，清空进度条、卷帘与音符显示。</summary>
     private void ResetSeekUi()
     {
@@ -1444,10 +1309,6 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>
-    /// 文件对话框的起始目录：上次打开的文件所在目录（「最近打开」的第一条）。
-    /// 找不到就返回 null，让系统用默认位置。
-    /// </summary>
     private async Task<Avalonia.Platform.Storage.IStorageFolder?> LastMidiFolderAsync()
     {
         try
@@ -1461,14 +1322,6 @@ public partial class MainWindow : Window
         catch { return null; }   // 起始目录只是方便，失败不挡打开
     }
 
-    // ================= 打开文件夹（左栏常驻的「文件夹曲目」卡） =================
-    //
-    // 用户选一个文件夹，这里列出**这个文件夹本身**里的子文件夹与 MIDI（不递归进子目录），
-    // 点一首直接载入、双击子文件夹进入。列表呈现在左栏的 FolderCard 里
-    // （打开卡与轨道列表之间），不再是菜单里的子菜单。
-    // 当前目录写进设置（AppConfig.FolderPath，见 ScanMidiFolder），重启后由 RestoreFolderFromConfig()
-    // 恢复这张卡；卡的显隐与内容由 RefreshFolderUi() 统一刷新。
-
     private readonly List<string> _folderFiles = new();   // 当前文件夹里的 MIDI（完整路径）
     private readonly List<string> _folderDirs = new();    // 当前文件夹里的子文件夹（完整路径），排在文件前面
     private string _folderPath = "";                      // 当前目录；每次扫描都写进 AppConfig.FolderPath
@@ -1477,20 +1330,8 @@ public partial class MainWindow : Window
     private string _folderQuery = "";                     // 搜索框里的词（空 = 不过滤）；只比显示名，不递归
     private static readonly string[] MidiExtensions = { ".mid", ".midi", ".kar", ".rmi" };
 
-    /// <summary>
-    /// 抑制标记：RefreshFolderUi() 程序化改 FolderList 的选中项时会触发 SelectionChanged，
-    /// 那一次不是用户点击，不该去载入文件。
-    /// </summary>
     private bool _folderSyncing;
 
-    /// <summary>
-    /// 启动时恢复左栏的曲目卡（issue #57）：设置里记着的目录还在，就重新扫描并显示这张卡，
-    /// 用户重开程序不用再选一次目录。目录已经不在（被删、改名、拔盘）就清掉设置里的记录、
-    /// 留空隐藏，下次启动不再试。
-    /// 写设置的三条路都经过 <see cref="ScanMidiFolder"/>：对话框选目录、载入文件后跟随所在目录、
-    /// 双击进子目录。所以这里只需要读。
-    /// 只在构造期调用一次。
-    /// </summary>
     private void RestoreFolderFromConfig()
     {
         string path = _cfg.FolderPath;
@@ -1536,17 +1377,9 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>
-    /// 扫描文件夹**本身**（不递归子目录）：同时收子文件夹与 .mid / .midi / .kar / .rmi，
-    /// 各自按名字排序后刷新左栏的曲目卡。子文件夹排在文件前面，双击进入。
-    /// 扫描结果留在 <see cref="_folderDirs"/> / <see cref="_folderFiles"/> 里：
-    /// 载入成功后不清空，方便同一批曲子连续换。
-    /// </summary>
     private void ScanMidiFolder(string path)
     {
         _folderPath = path;
-        // 曲目卡常驻（issue #57）：扫描到哪个目录就记哪个目录，重启后由 RestoreFolderFromConfig() 恢复。
-        // 走 SaveSettings 的去抖路径（_saveDeb，400ms）：连着换目录也只落盘一次。
         _cfg.FolderPath = path;
         ScheduleSave();
         _folderDirs.Clear();
@@ -1609,27 +1442,13 @@ public partial class MainWindow : Window
         return false;
     }
 
-    /// <summary>
-    /// 重建左栏「文件夹曲目」卡的内容与显隐。整块呈现都收在这里，调用点固定：
-    /// 扫描完成、载入一首之后、点「关闭」、以及窗口构造时隐藏。
-    ///
-    /// - 没选过文件夹：整块隐藏。
-    /// - 空目录：卡仍然可见，只显示一行灰字，方便用户直接换一个目录。
-    /// - 每一条都是 ListBoxItem：Tag = <see cref="FolderRow"/>，悬浮提示 = 完整路径。
-    ///   子文件夹排在 MIDI 文件前面。
-    /// - 合计超过 <see cref="FolderMenuMax"/> 行只列前 50 行，末尾补一条不可点的「还有 N 项未列出」。
-    /// - 当前已载入的那一首在列表里，直接选中它（换歌后也会跟着走），所以一定有高亮标记。
-    /// - 没有「上一级」按钮（issue #57 去掉）：进子目录靠双击那一行，回上层靠重新选目录。
-    ///
-    /// 注意：这里**只**按 <see cref="_folderPath"/> 是否为空决定显隐，
-    /// 载入歌曲之后 <see cref="_folderPath"/> 不会被清空，所以卡片不会消失。
-    /// </summary>
     private void RefreshFolderUi()
     {
         if (FolderCard == null || FolderList == null) return;   // 构造早期的防御：控件还没建好
 
         bool hasFolder = !string.IsNullOrEmpty(_folderPath);
         FolderCard.IsVisible = hasFolder;
+        UpdateLibrarySplitter();
         if (!hasFolder) return;
 
         // 标题只写文件夹名；根目录（C:\ 这类）取不到名字时退回完整路径，不显示空标题
@@ -1655,9 +1474,6 @@ public partial class MainWindow : Window
         _folderSyncing = true;   // 下面改选中项会触发 SelectionChanged，那一次不是用户点击
         try
         {
-            // 先摘掉选中项，再清空列表。
-            // 带着选中项清 Items，ListBox 的选择模型会拿旧下标去回查已经不在的条目，
-            // 抛 ArgumentOutOfRangeException（用户报的「选了一首之后别的点不动」）。
             FolderList.SelectedItem = null;
             FolderList.Items.Clear();
             for (int i = 0; i < shown; i++)
@@ -1703,16 +1519,8 @@ public partial class MainWindow : Window
     /// <summary>曲目卡里一行的身份：路径 + 是不是子文件夹（两类行的点击行为不同）。</summary>
     private sealed record FolderRow(string Path, bool IsDir);
 
-    /// <summary>
-    /// 曲目卡里「显示其余 N 项」那一行的标记。它没有 Tag = FolderRow，
-    /// 所以选中它不会去载入曲子，只在 <see cref="FolderList_SelectionChanged"/> 里把列表整份展开。
-    /// </summary>
     private sealed record FolderShowMore(int Hidden, int Total);
 
-    /// <summary>
-    /// 搜索框变了：重新过滤列表。搜索词只比显示名（文件名 / 子文件夹名），
-    /// 不递归进子文件夹，也不看路径 —— 否则父目录名会命中一整批无关的曲目。
-    /// </summary>
     private void FolderSearch_Changed(object? sender, TextChangedEventArgs e)
     {
         string text = TxtFolderSearch?.Text ?? "";
@@ -1726,10 +1534,6 @@ public partial class MainWindow : Window
     private static bool NameMatches(string name, string query)
         => name.Contains(query, StringComparison.CurrentCultureIgnoreCase);
 
-    /// <summary>
-    /// 「显示其余 N 项」那一行：可点、可键盘选中，第 2 行灰字写总数。
-    /// Tag 用 <see cref="FolderShowMore"/> 标记，避免被当成曲目处理。
-    /// </summary>
     private ListBoxItem BuildFolderShowMoreRow(int hidden, int total)
     {
         var stack = new StackPanel { Spacing = 0 };
@@ -1775,12 +1579,6 @@ public partial class MainWindow : Window
         return item;
     }
 
-    /// <summary>
-    /// 点曲目卡里的一行：走与「打开文件…」完全相同的链路
-    /// （<see cref="OpenFolderFileAsync"/> 里先确认未导出的手动改动，再 LoadMidiFile）。
-    /// 用 SelectionChanged 而不是 Click：键盘上下键也能换曲。
-    /// 子文件夹行单击**不**载入，要双击才进入（见 <see cref="FolderDirRow_DoubleTapped"/>）。
-    /// </summary>
     private void FolderList_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_folderSyncing) return;                                        // 程序化选中，不是用户点的
@@ -1795,11 +1593,6 @@ public partial class MainWindow : Window
         // 抑制标记复位之后仍可能到达的重复选中事件：已经是当前这首就返回，别重复载入
         if (row.Path == _parsed?.FilePath) return;
 
-        // 关键：不能在这个选择事件里立刻载入。载入会重建 FolderList 的条目，
-        // 而此刻 ListBox 自己的选择分发还没走完 —— 它随后还会按旧下标回查条目，
-        // 拿到的却是刚被清空的列表，于是抛 ArgumentOutOfRangeException。
-        // 异常被 LoadMidiFile 接住只写一行日志，界面上留下的是「曲目卡再也点不动」。
-        // 丢到下一轮 UI 队列：让这次选择事件先走完，再换歌、再重建列表。
         string pending = row.Path;
         Dispatcher.UIThread.Post(() => _ = OpenFolderFileAsync(pending));
     }
@@ -1834,10 +1627,6 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>
-    /// 曲目卡的「关闭」：清空列表并隐藏整块，同时清掉设置里记住的目录（重启后不会再出现）。
-    /// 磁盘上的文件不动。
-    /// </summary>
     private void FolderClose_Click(object? sender, RoutedEventArgs e)
     {
         _folderDirs.Clear();
@@ -1846,15 +1635,27 @@ public partial class MainWindow : Window
         _cfg.FolderPath = "";
         if (FolderList != null) FolderList.Items.Clear();
         if (FolderCard != null) FolderCard.IsVisible = false;
+        UpdateLibrarySplitter();
         SaveSettings();   // 立刻落盘：下次启动这张卡不再出现
         InsertLog("已收起左侧的文件夹曲目（下次启动不再显示）。");
     }
 
-    /// <summary>
-    /// 打开文件夹列表里的一个路径。链路与「打开文件…」完全相同：
-    /// 先确认未导出的手动改动，再 <see cref="LoadMidiFile"/>。
-    /// 文件已不在（改名或删除）就重扫一次，卡片跟着变成当前目录的内容。
-    /// </summary>
+    private void LibrarySplitter_DragDelta(object? sender, VectorEventArgs e)
+    {
+        if (FolderListHost == null || TrackCard == null) return;
+
+        double now = FolderListHost.Height;
+        if (double.IsNaN(now)) now = FolderListHost.Bounds.Height;
+        double room = FolderListHost.Bounds.Height + TrackCard.Bounds.Height - 180;
+        FolderListHost.Height = Math.Clamp(now + e.Vector.Y, 80, Math.Max(80, room));
+    }
+
+    private void UpdateLibrarySplitter()
+    {
+        if (LibrarySplitter != null && FolderCard != null)
+            LibrarySplitter.IsVisible = FolderCard.IsVisible;
+    }
+
     private async Task OpenFolderFileAsync(string path)
     {
         try
@@ -1879,15 +1680,6 @@ public partial class MainWindow : Window
     /// <summary>收起「打开」下拉菜单。点菜单项后先收菜单，对话框与确认框不会压在菜单上面。</summary>
     private void HideOpenMenu() => BtnOpen?.Flyout?.Hide();
 
-    // ================= 最近打开 =================
-    //
-    // 只记路径、只存进现有设置文件（AppConfig.RecentFiles）：不复制文件、不开后台线程、不改目录。
-
-    /// <summary>
-    /// 载入成功后记进「最近打开」：同路径只留一条、最新的排最前，最多
-    /// <see cref="AppConfig.MaxRecentFiles"/> 条（去重与截断都在 AppConfig 里）。
-    /// 打开按钮与开发快照（DevUISnapshot / DevPreviewProbe）两条链路都经过 LoadMidiFile，所以只在这里记一次。
-    /// </summary>
     private void RememberRecentFile(string path)
     {
         _cfg.RememberRecentFile(path);
@@ -1904,13 +1696,6 @@ public partial class MainWindow : Window
         RefreshRecentUi();
     }
 
-    /// <summary>
-    /// 重建「打开」下拉菜单。结构固定：
-    /// 打开文件夹… / 歌单… / 分隔线 / 最近打开 ▸（子菜单里 文件名… + 清空列表）。
-    /// 文件夹曲目不再进菜单，改由左栏的「文件夹曲目」卡呈现（见 <see cref="RefreshFolderUi"/>）。
-    /// 调用点与旧版一致：构造、载入成功、移除一条、清空列表。
-    /// 「歌单…」这一条常驻：新建歌单的按钮在歌单窗口里，入口不能等「选过歌单」才出现。
-    /// </summary>
     private void RefreshRecentUi()
     {
         if (BtnOpen?.Flyout is not MenuFlyout menu) return;
@@ -1968,10 +1753,6 @@ public partial class MainWindow : Window
         _ = OpenRecentFileAsync(path);
     }
 
-    /// <summary>
-    /// 打开一个历史路径。文件已不在就提示并移出列表；还在就走与「打开文件…」同一条链路，
-    /// 所以「有未导出的手动改动要先确认」的保护照旧生效。
-    /// </summary>
     private async Task OpenRecentFileAsync(string path)
     {
         try
@@ -1991,10 +1772,6 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>
-    /// 载入时的那行声部汇总，例：「轨1 鼓、轨2 贝斯、轨3 电吉他」。推断出来的后面加「?」。
-    /// 一条都没有就返回空串（不打印空行）。
-    /// </summary>
     internal static string DescribeRoles(IReadOnlyList<MidiCandidate> candidates)
     {
         var parts = new List<string>();
@@ -2018,11 +1795,6 @@ public partial class MainWindow : Window
         InsertLog("已清空「最近打开」列表。");
     }
 
-    /// <summary>
-    /// 载入一个 MIDI 文件并刷新界面。打开按钮与开发快照（DevUISnapshot）共用这一条链路，
-    /// 所以截图看到的就是用户点「打开 MIDI 文件」后的真实状态。
-    /// 返回 true = 载入成功；失败原因写进日志。
-    /// </summary>
     internal bool LoadMidiFile(string path)
     {
         if (string.IsNullOrWhiteSpace(path)) return false;
@@ -2047,8 +1819,6 @@ public partial class MainWindow : Window
             _selected = null;
             _previewSeconds = 0;      // 换歌必须回到 0，否则上一首的位置会夹到新曲末尾 → 一播放就结束
             Roll.FitAll();
-            // UI-01 / OL-02：唯一的丢弃点。两条换歌路径（打开文件、开发快照）都经过这里，
-            // 所以保护与日志都放在 LoadMidiFile 内部，不再直接调 ResetEdits()。
             DropEditsIfAny("打开了新文件");
             // 自动推荐轨已移除（猜得不准反而误导）：载入后不预选，请用户自己点一行
             InsertLog("点左侧一行作为主旋律轨（选中的行带 ● 标记）。");
@@ -2056,9 +1826,7 @@ public partial class MainWindow : Window
             // 这首歌在歌单里勾过音轨就按勾选来：文件夹曲目卡、最近打开、双击歌单，
             // 三条路载入同一首看到的勾选与画面必须一样
             ApplyPlaylistTracksFor(path);
-            RememberRecentFile(path);   // 载入成功才记：读不动的文件不进「最近打开」
-            // 曲目卡跟随当前文件所在目录：从别处打开一首歌后，卡片自动列那个目录，接着换曲不用再选文件夹。
-            // 目录没变就不重扫，避免每次换歌都重排列表。
+            RememberRecentFile(path);
             string dir = System.IO.Path.GetDirectoryName(path) ?? "";
             if (dir.Length > 0 && !string.Equals(dir, _folderPath, StringComparison.OrdinalIgnoreCase))
                 ScanMidiFolder(dir);
@@ -2102,8 +1870,6 @@ public partial class MainWindow : Window
     /// <summary>换歌前停掉旧曲（松开按键、释放引擎）。</summary>
     private void StopPlaybackForNewFile()
     {
-        // 还在倒计时（引擎尚未启动，_engine 为 null，_busy 为 true）：
-        // 必须停掉计时器，否则到点后 StartPlayback 打的是上一首的 _playNotes（OL-03）。
         if (_countdownTimer != null)
         {
             _countdownTimer.Stop();
@@ -2118,8 +1884,6 @@ public partial class MainWindow : Window
             InsertLog("已停止当前播放（换歌）。");
             return;
         }
-        // 只在试听（没在演奏）时换歌也要停：否则旧谱面的事件表会继续往合成器发，
-        // 界面上换了歌、耳朵里还是上一首，而且换下去的残音没人收。
         if (_previewOn || (_previewSeq?.IsRunning ?? false))
         {
             StopPreviewAudio();
@@ -2131,10 +1895,7 @@ public partial class MainWindow : Window
 
     private async void TrackList_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (_revertingTrack) return;   // RV-09：取消后回退选中行，忽略自触发的事件
-        // 自动连播换歌时也会程序化地换选中行（见 AutoSelectTrack / SelectTrackForEntry）。
-        // 那一次不能走这里：换轨会弹「丢弃改动」确认框，而连播时用户不在键鼠前，
-        // 那个框会一直挂着挡住连播。选行与刷谱面那两处已经自己做了。
+        if (_revertingTrack) return;
         if (_advancing) return;
         if (TrackList.SelectedItem is not TrackRowVM row) return;
         try
@@ -2168,20 +1929,8 @@ public partial class MainWindow : Window
 
     // ================= 映射与预览 =================
 
-    /// <summary>
-    /// 当前移调（半音）。远程同演时用会话锁定的值：
-    /// 移调是"按人锁"的，同一份谱子每个人弹的调可以不同，所以不能再用界面上那个滑块。
-    /// </summary>
     private int CurrentTranspose => _syncTranspose ?? (int)SliderTranspose.Value;
 
-    /// <summary>
-    /// 要演奏的行：勾了“合”就按勾选顺序合奏，否则用点选的那一行。
-    ///
-    /// 远程同演时先按声部掩码过滤（见 MainWindow.Sync.cs 的 <c>_syncVoiceMask</c>）：
-    /// 只留分给自己的声部。顺序**不变** —— 声部序号是按顺序编的，
-    /// 这里再排一次序就会让序号对不上，于是每个人弹的都不是自己那一份。
-    /// 掩码为空列表表示"在远程模式但没分到声部"：这时一行都不返回，这个人不弹。
-    /// </summary>
     private List<TrackRowVM> ActiveRows()
     {
         var mix = _mixOrder.Where(r => r.IsMix).ToList();
@@ -2197,20 +1946,6 @@ public partial class MainWindow : Window
         return mix;
     }
 
-    // ================= 声轨颜色一一对应 =================
-    //
-    // 颜色号 = 该轨在这次演奏里的声部序号：勾了「合」按勾选顺序 0 起，否则主旋律轨 = 0。
-    // 左侧列表的文字用它上色；同一个号在合奏合并时写进每个音符的 RawNote.Voice，
-    // 卷帘就按音符自带的号上色（PianoRoll.VoiceOfNote）——所以哪怕两条声轨共用同一个音高，
-    // 两边的颜色也各归各的，不看音高猜。
-    // 色值只来自 Styles\Theme.axaml 的 BrushVoice0..11；未参与合奏降不透明度，打击乐轨用灰。
-
-    /// <summary>
-    /// 本轨在这次演奏里的声部序号；-1 = 不参与。这个号就是写进音符 Voice 的号。
-    ///
-    /// 远程同演时用**过滤后的**下标：掩码剔掉了别人的声部，
-    /// 如果还按 _mixOrder 里的原始位置算，本人看到的序号会跟实际弹的声部错位。
-    /// </summary>
     private int VoiceIndexOf(TrackRowVM row)
     {
         if (!row.IsVoiceActive) return -1;
@@ -2234,8 +1969,6 @@ public partial class MainWindow : Window
         bool mixing = _mixOrder.Any(r => r.IsMix);
         if (_syncVoiceMask != null)
         {
-            // 远程同演：别人负责的声部显示成"没参与"，本人负责的按掩码顺序编号。
-            // 不这样处理的话，界面会显示所有轨都在弹，与耳朵听到的对不上。
             var rows = ActiveRows();
             foreach (var row in _tracks) row.IsVoiceActive = rows.Contains(row);
         }
@@ -2254,11 +1987,6 @@ public partial class MainWindow : Window
     /// <summary>这一首的候选行（不进主界面）。歌单窗口勾音轨时要按轨号取音符，不能靠 _tracks。</summary>
     private ParsedMidi? _previewParsed;
 
-    /// <summary>
-    /// 【歌单预览】把这一首的指定几行画到卷帘上，只显示、不演奏、不许编辑。
-    /// 歌单窗口勾音轨时调：勾一轨看一眼，才知道每一轨是什么，也就选得对。
-    /// <paramref name="picks"/> 为空 = 全部候选行。
-    /// </summary>
     internal void PreviewTracks(string path, IReadOnlyList<TrackRef> picks)
     {
         if (path.Length == 0) return;
@@ -2334,24 +2062,15 @@ public partial class MainWindow : Window
             }
             else
             {
-                // 未参与演奏（含打击乐轨）：不用调色板颜色（VoiceIndex 可能是 -1，取模会绕到 11 号色），
-                // 统一用弱化灰。UI-08：不再叠加 0.45 / 0.55 不透明度 —— 叠完合成色约 1.6:1，
-                // 远低于 WCAG AA 正文 4.5:1，弱化色本身已经提到 #6B7480 够区分了。
                 brush = ResourceBrush("BrushTextMuted");
             }
             row.VoiceBrush = brush;
 
-            // 声部标牌：色按角色分组（见 TrackRowVM.RoleTip 说明识别依据），
-            // 未识别不给色块；参与演奏时实色，没参与时整块变淡（变换器 ActiveOpacityConverter）。
             row.RoleBrush = RoleBrushOf(row.Candidate.Role);
             row.RoleActive = row.IsVoiceActive;
         }
     }
 
-    /// <summary>
-    /// 声部角色的标牌底色。只有 Unknown 返回 null（标牌不上色，文字用默认色）。
-    /// 取不到主题资源时返回 null：宁可无色，也不写字面色值。
-    /// </summary>
     private static IBrush? RoleBrushOf(TrackRole role)
     {
         string key = GmInstrument.ToneOf(role) switch
@@ -2367,16 +2086,8 @@ public partial class MainWindow : Window
         return ThemeSwitch.BrushOf(key);
     }
 
-    /// <summary>
-    /// 按资源名取主题画刷（Styles/Theme.axaml 的深浅两套都按主题变体查）。
-    /// 取不到就用中性灰兜底，绝不写字面色值。
-    /// </summary>
     private static IBrush ResourceBrush(string key) => ThemeSwitch.BrushOf(key) ?? FallbackMuted;
 
-    /// <summary>
-    /// 按资源名取字号（Theme.axaml 的字号刻度，唯一真源）。取不到才用 fallback。
-    /// 状态区的三档字号都从这里取，代码里不再写死 22 / 38。
-    /// </summary>
     private static double ResourceFontSize(string key, double fallback)
     {
         if (Application.Current?.TryFindResource(key, out var found) == true && found is double d)
@@ -2384,12 +2095,6 @@ public partial class MainWindow : Window
         return fallback;
     }
 
-    /// <summary>
-    /// 【兜底映射】音高 → 声部序号。只在音符自己没有归属（Voice &lt; 0，例如用户手加的音）时才用：
-    /// 主路径是音符自带的 <see cref="RawNote.Voice"/>（见 <see cref="PianoRoll.VoiceOfNote"/>）。
-    /// 同一音高归序号最小的声部（与合奏时「让位给编号小的声部」一致）。
-    /// 序号口径与 <see cref="VoiceIndexOf"/> 相同：0 起。
-    /// </summary>
     private Dictionary<int, int> BuildVoiceMap(IReadOnlyList<RawNote> kept)
     {
         var map = new Dictionary<int, int>();
@@ -2407,13 +2112,6 @@ public partial class MainWindow : Window
     private List<RawNote> GetActiveRawNotes() =>
         _editing ? _editor.Notes.ToList() : ComputeAutoNotes();
 
-    /// <summary>
-    /// 当前要演奏的音符（未移调）：把勾选的声部按优先级合并成一条谱面 —— 演奏 MIDI 里的全部音。
-    /// 「自动提取主旋律 / 人声旋律提取」已移除 —— 它们是黑盒猜测，猜错时用户无从下手；
-    /// 现在卷帘可以直接看、直接改，比猜得准。
-    /// 「保留和弦」开关与单音线提取档都已移除，行为固定为原来的勾选态（全部音都演奏）。
-    /// 固定顺序：原始音 → 合并 → 移调 → NoteMapper.Map。
-    /// </summary>
     private List<RawNote> ComputeAutoNotes()
     {
         var rows = ActiveRows();
@@ -2424,8 +2122,6 @@ public partial class MainWindow : Window
         }
 
         var voices = new List<(int Rank, RawNote Note)>();
-        // Rank 就是声部序号（0 起），必须与左侧列表的 VoiceIndexOf 同口径：
-        // 音符写进 Voice 后，卷帘的颜色号就等于这里给的行号。
         for (int k = 0; k < rows.Count; k++)
             foreach (var n in rows[k].Candidate.Notes) voices.Add((k, n));  // 0 最优先
         var merged = NoteMapper.MergeVoicesByPriority(voices);
@@ -2451,9 +2147,6 @@ public partial class MainWindow : Window
 
     private MappingResult BuildMapping() =>
         GetActiveRawNotes().Count == 0 ? new MappingResult() : MapAt(CurrentTranspose);
-
-    /// <summary>一键移调：找让空拍（超音域）最少的移调量。</summary>
-    // ================= 导出按键表 / 宏 =================
 
     private void ExportGhub_Click(object? sender, RoutedEventArgs e)
         => ExportSchedule(MacroExporter.Format.LogitechGHub);
@@ -2543,11 +2236,6 @@ public partial class MainWindow : Window
         RefreshPreview();
     }
 
-    /// <summary>
-    /// 「自然音最多」：给只有自然音的乐器（口琴、某些游戏乐器）找最省半音键的移调。
-    /// 与「一键移调」并存：那个只最小化超音域的漏音，这个优先让发声落在自然音上。
-    /// 排序：自然音最多 → 超音域最少 → |移调| 最小。
-    /// </summary>
     private void BtnNaturalTranspose_Click(object? sender, RoutedEventArgs e)
     {
         if (_busy) return;
@@ -2650,10 +2338,6 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>
-    /// 勾选集合变化后的统一收尾：补正 _mixOrder、重排优先级编号、刷新声轨颜色与谱面。
-    /// 勾选框事件与开发快照（DevUISnapshot 的 MIX=all）都走这里，行为完全一致。
-    /// </summary>
     internal void SyncMixOrder()
     {
         // 兜底同步 IsMix 状态
@@ -2733,10 +2417,6 @@ public partial class MainWindow : Window
         InsertLog("已重新检测管理员权限与输入法。");
     }
 
-    /// <summary>
-    /// 以管理员身份重启本程序（按需提权：仅目标程序以管理员运行时才需要）。
-    /// 用 runas 起新进程后退出当前进程；UAC 取消则原地不动。
-    /// </summary>
     private void BtnElevate_Click(object? sender, RoutedEventArgs e)
     {
         try
@@ -2757,9 +2437,6 @@ public partial class MainWindow : Window
         }
     }
 
-    // 语义色一律从主题资源取（Styles/Theme.axaml 是唯一真源，深浅两套都在那里）。
-    // 写成属性而不是字段：换皮肤之后下一次赋值就拿到新皮肤的颜色。
-    // 兜底是固定灰 #6B7480：它自己不能再走 ResourceBrush，否则取不到时无限递归。
     private static readonly Avalonia.Media.IBrush FallbackMuted =
         new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#6B7480"));
 
@@ -2926,10 +2603,6 @@ public partial class MainWindow : Window
         InsertLog($"v{_updateTag} 更新包已就绪，重启程序后生效。");
     }
 
-    /// <summary>
-    /// 更新状态文字：写进顶部提示条；强制更新浮层开着时同时写进浮层，
-    /// 否则用户被浮层盖住，看不到下载进度与失败原因。
-    /// </summary>
     private void SetUpdateText(string text)
     {
         TxtUpdate.Text = text;
@@ -3006,10 +2679,6 @@ public partial class MainWindow : Window
         }
     }
 
-    // 内置合规文本（更新说明 / 第三方声明 / 许可证）仍然嵌在 exe 里，但 v1.2.0 起不再给按钮：
-    // 常规页的「关于」卡只留版本号、检查更新与使用教程。需要看合规文本就解包 exe 或看仓库。
-    // DocWindow 仍然保留：它还给「被跳过的音」当只读查看窗（见 ShowSkippedNotes）。
-
     // ================= 免费声明 / 作者链接 / 强制更新 =================
 
     private bool _forcedUpdateOn;      // 强制更新浮层正在显示：所有「开始播放」的入口都挡住
@@ -3026,10 +2695,6 @@ public partial class MainWindow : Window
         if (TxtForcedNotice != null) TxtForcedNotice.Text = AutoUpdate.FreeNotice;
     }
 
-    /// <summary>
-    /// 验证题：第一次使用时问一次作者的 B 站 ID。答对写进设置，以后不再问。
-    /// 它只是一道题，不是进门的锁：启动浮层上的「知道了」随时能关掉。
-    /// </summary>
     private void QuizConfirm_Click(object? sender, RoutedEventArgs e) => SubmitQuizAnswer();
 
     /// <summary>验证题输入框：直接回车等于点「确认」。</summary>
@@ -3102,10 +2767,6 @@ public partial class MainWindow : Window
     /// <summary>复制 QQ 群号：新版本发布与问题排查都在群里。</summary>
     private async void CopyQq_Click(object? sender, RoutedEventArgs e) => await CopyQqToClipboard(this);
 
-    /// <summary>
-    /// 设置窗口「赞助」页里的复制群号按钮：复用同一份实现，窗口拿不到主窗的私有处理器。
-    /// 剪贴板从传进来的窗口取（设置窗口开着时主窗可能不在前台），返回值是真实结果。
-    /// </summary>
     internal Task<bool> CopyQqForSettingsAsync(TopLevel owner) => CopyQqToClipboard(owner);
 
     private async Task<bool> CopyQqToClipboard(Visual from)
@@ -3131,10 +2792,6 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>
-    /// 复制一段任意文本到剪贴板。赞助页复制群号与「实验功能」页复制邀请串都走这里：
-    /// 剪贴板拿不到、写失败这些情况只在这一处处理，调用方只看返回值。
-    /// </summary>
     internal async Task<bool> CopyTextToClipboard(TopLevel from, string text)
     {
         try
@@ -3155,10 +2812,6 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>
-    /// 强制更新浮层：当前版本低于强制更新线（<see cref="AutoUpdate.RequiredVersion"/>）时盖住整个窗口，
-    /// 并自动开始下载更新包。没有「稍后」「跳过」：只有更新、手动下载、退出三条路。
-    /// </summary>
     private void ShowForcedUpdate(string latestTag, string releaseUrl, string assetUrl)
     {
         _forcedUpdateOn = true;
@@ -3263,10 +2916,6 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>
-    /// 「暂停后关闭悬浮窗」开关。勾上时：暂停就把浮窗收掉（不再挡画面），继续演奏时自动弹回来。
-    /// 改完立刻按新规则对齐一次，不用等下一次暂停。
-    /// </summary>
     private void OverlayHideOnPause_Changed(object? sender, RoutedEventArgs e)
     {
         if (_cfg != null) _cfg.OverlayHideOnPause = ChkOverlayHideOnPause.IsChecked == true;
@@ -3277,11 +2926,6 @@ public partial class MainWindow : Window
         else ShowOverlayProgress(eng);
     }
 
-    /// <summary>
-    /// 悬浮窗现在该不该显示。三条一起看：
-    /// 设置里的总开关、用户点过 ✕（本次播放静音）、以及「暂停后关闭悬浮窗」。
-    /// 所有显示路径都过这一道，避免别的刷新路径把刚收起来的浮窗又弹出来。
-    /// </summary>
     private bool ShouldShowOverlay(bool paused)
         => ChkOverlay.IsChecked == true
            && !_overlayMuted
@@ -3299,8 +2943,6 @@ public partial class MainWindow : Window
             _cfg.OverlayY = y;
             ScheduleSave();
         };
-        // 浮窗上的 ✕：只让**本次播放**不再弹它，设置里的开关一动不动 ——
-        // 用户点 ✕ 是想让开画面，不想为了再看一次进度跑一趟设置。下次播放自动恢复。
         w.CloseRequested += () => { _overlayMuted = true; HideOverlay(); };
         w.Closed += (_, _) => { if (ReferenceEquals(_overlay, w)) _overlay = null; };
         _overlay = w;
@@ -3326,10 +2968,6 @@ public partial class MainWindow : Window
         w.RestorePosition(_cfg?.OverlayX ?? -1, _cfg?.OverlayY ?? -1);
     }
 
-    /// <summary>
-    /// 悬浮窗里那一行连播状态：当前第几首、下一首是什么、列表还剩几首。
-    /// 没有列表（单曲播放）时返回空串，整行收起来。
-    /// </summary>
     private string QueueHintText()
     {
         bool usePlaylist = _sourceIsPlaylist && _playlist is { Count: > 0 };
@@ -3358,12 +2996,6 @@ public partial class MainWindow : Window
         _overlayLastElapsed = -1;   // 节流基线一起清，下一轮播放从第一次推送开始
     }
 
-    /// <summary>
-    /// 悬浮窗节流：进度变化 ≥0.15s、或暂停 / 循环状态变了才推，否则这趟什么都不做。
-    /// 大型游戏占满 GPU/CPU 时，悬浮窗的文字刷新频次从 12.5 次/秒降到约 7 次/秒，
-    /// 暂停时直接零刷新，不与游戏抢帧。
-    /// 卷帘的平滑滚动不受影响：两次推送之间由悬浮窗自己按实测速率外推（见 OverlayWindow.SmoothTick）。
-    /// </summary>
     private void PushOverlayThrottled(PlaybackEngine eng)
     {
         double elapsed = eng.ElapsedSeconds;
@@ -3392,11 +3024,6 @@ public partial class MainWindow : Window
                   $"重触发 {t.RetriggerMs:F0}ms）");
     }
 
-    /// <summary>
-    /// 输入方式：SendInput（默认）或罗技 G HUB 驱动。
-    /// 改动即时生效；切驱动失败时保持 SendInput 并在日志里给出原因。
-    /// 启动时由「恢复设置」触发本事件完成应用，所以这里不挡 _uiReady。
-    /// </summary>
     private void Backend_Changed(object? sender, SelectionChangedEventArgs e)
     {
         if (_cfg != null) _cfg.InputBackend = Math.Clamp(BackendCombo.SelectedIndex, 0, 1);
@@ -3440,15 +3067,8 @@ public partial class MainWindow : Window
 
     // ================= 皮肤（浅色 / 深色 / 自动） =================
 
-    /// <summary>
-    /// 皮肤档位：自动（跟随系统）/ 浅色（白）/ 深色（黑）。
-    /// 改完立即生效：界面颜色走 DynamicResource，代码里自己赋色的那几处由
-    /// <see cref="ApplyThemeColors"/> 重取一遍。
-    /// </summary>
     private void Theme_Changed(object? sender, SelectionChangedEventArgs e)
     {
-        // 构造期给下拉框设初值也会触发这里：那时 _cfg 还没读、其它控件也没摆好。
-        // 启动时的皮肤由 App.OnFrameworkInitializationCompleted 先设，这里只处理用户改档位。
         if (!_uiReady) return;
 
         int mode = ThemeSwitch.Clamp(ThemeCombo.SelectedIndex);
@@ -3463,8 +3083,6 @@ public partial class MainWindow : Window
         ScheduleSave();
     }
 
-    /// <summary>【开发用】按档位切皮肤，走设置里那个下拉框的同一条链路（快照用）。
-    /// 只切不落盘：探针跑完就退出，不能把开发机的设置改成别的档位。</summary>
     internal void SetThemeForDev(int mode)
     {
         _devThemeOverride = true;
@@ -3472,10 +3090,6 @@ public partial class MainWindow : Window
         finally { _devThemeOverride = false; }
     }
 
-    /// <summary>
-    /// 换皮肤之后，把「代码里写死过颜色」的地方重取一遍。
-    /// 走资源绑定的控件不用管，Avalonia 自己会按新主题重算。
-    /// </summary>
     private void ApplyThemeColors()
     {
         if (Roll != null) Roll.InvalidateVisual();   // 卷帘是自绘的，颜色由它自己按主题取
@@ -3486,23 +3100,6 @@ public partial class MainWindow : Window
         // 提示行只有「有话说」和「全部有键」两种颜色，按换皮肤前的状态重涂一次
         LblWarn.Foreground = _warnIsOk ? OkBrush : WarningBrush;
     }
-
-    // ================= 键位设置（独立窗口） =================
-    //
-    // 整套键位控件都在 KeymapWindow 里。这里只负责：开窗、把改动写回设置与卷帘。
-    // 存储仍是那一个真源：KeymapProfile.Current（方案 JSON）+ AppConfig.KeymapName。
-
-    /// <summary>打开「键位设置」窗口（模态）。关闭后刷新卷帘颜色、按键表与状态行。</summary>
-    // ================= 设置窗口 =================
-    //
-    // 设置窗口三页：常规（设备、兼容、热键、导出、主界面显示开关）、键位（方案、按键绑定、功能键）
-    // 与赞助（爱发电置顶 + 作者 B 站 / GitHub）。
-    //
-    // 常规页的控件声明在 MainWindow.axaml 的 AdvancedStash 里（不可见、零尺寸），
-    // 打开设置时整块交给窗口的常规页，关窗再搬回来。好处是这些控件的 x:Name 与事件处理器
-    // 都留在本文件，引用一行不用改，也不存在两份状态。
-    // 键位页的控件与逻辑直接住在 SettingsWindow 里（见 SettingsWindow.Keymap.cs），
-    // 原来那个独立的「键位设置」窗口已经并进来。
 
     private SettingsWindow? _settingsWindow;
 
@@ -3518,8 +3115,6 @@ public partial class MainWindow : Window
             return;
         }
 
-        // 先从藏身处摘下来再交给设置窗口：控件还挂在 AdvancedStash 上时直接当 Content 会报
-        // 「已经有一个可视化父级」，窗口在首次布局时崩掉。
         AdvancedStash.Child = null;
 
         var win = new SettingsWindow(_keymap, OnKeymapPath, RememberCurrentProfileSettings,
@@ -3543,10 +3138,6 @@ public partial class MainWindow : Window
     /// <summary>【开发用】走与按钮同一条链路打开设置窗口（快照用）。</summary>
     internal void OpenSettingsForDev() => OpenSettings();
 
-    /// <summary>
-    /// 【开发用】拍歌单窗口快照：真开一次歌单窗口（走用户点「管理…」的同一条链路），
-    /// 并让它选中一份歌单。<paramref name="playlistName"/> 为空就选第一份。
-    /// </summary>
     internal PlaylistWindow? OpenPlaylistForDev(string playlistName)
     {
         if (playlistName.Length > 0)
@@ -3556,8 +3147,6 @@ public partial class MainWindow : Window
         }
         PlaylistOpen_Click(null, new RoutedEventArgs());
 
-        // 【开发用】展开第 N 行的音轨清单再拍，拍得到行内选音轨那一态；
-        // 给了候选号就连带选一发，顺带验证「选完真的写进歌单文件」。
         string openRow = Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_PLAYLIST_OPEN") ?? "";
         string pickCand = Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_PLAYLIST_PICK") ?? "";
         if (_playlistWindow != null && int.TryParse(openRow, out int row))
@@ -3589,10 +3178,6 @@ public partial class MainWindow : Window
     /// <summary>【开发用】当前的设置窗口。没开就是 null。</summary>
     internal SettingsWindow? SettingsWindowForDev => _settingsWindow;
 
-    /// <summary>
-    /// 【开发用】按「歌单名|序号」载入歌单里的一首（走用户点歌单那一行同一条链路），
-    /// 返回一行诊断：勾了几行、实际演奏几行、卷帘上几个音。用来验证歌单勾选真的落到卷帘上。
-    /// </summary>
     internal string LoadPlaylistEntryForDev(string spec)
     {
         // 末尾可以再带一个 |preview：拍「勾音轨时的卷帘预览」那一态，拍完不收
@@ -3666,8 +3251,6 @@ public partial class MainWindow : Window
     /// <summary>把当前方案同步到主界面：方案名小字、实时演奏、卷帘颜色与谱面。</summary>
     private void SyncKeymapUi()
     {
-        // 先用真源校正本地字段：键位窗口换方案时已经写进 KeymapProfile.Current，
-        // 原来直接拿本地 _keymap 写回，等于把刚换的新方案顶掉（换方案后音域提示就停在旧方案上）。
         _keymap = KeymapProfile.Current ?? _keymap;
         if (TxtKeymapName != null) TxtKeymapName.Text = _keymap.Name;
         KeymapProfile.Current = _keymap;
@@ -3772,10 +3355,6 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>
-    /// 有设备才显示「设备 / 刷新 / 状态」这一组控件，没有设备就只留一行说明。
-    /// 选项行只在勾了实时演奏时才出现，避免默认状态下多出两行用不到的东西。
-    /// </summary>
     private void UpdateMidiPanels()
     {
         bool hasDevice = MidiInputService.ListDevices().Count > 0;
@@ -3891,15 +3470,6 @@ public partial class MainWindow : Window
         BtnExport.IsEnabled = hasRows;
     }
 
-    /// <summary>刷新旋律预览与提示文案（载入文件、切换声轨、改选项后调用）。</summary>
-    /// <param name="pushToRoll">
-    /// true = 把谱面推回卷帘（换歌/换轨/改选项，会重置它的视口与选择）；
-    /// false = 卷帘自己刚提交的编辑，数据已在它手里，不要再推回去。
-    /// </param>
-    /// <param name="keepView">
-    /// 推回谱面时是否保留卷帘当前的缩放与位置。撤销/重做必须为 true ——
-    /// 否则用户放大到某一段改谱，一按 Ctrl+Z 就被弹回全曲，没法连续编辑。
-    /// </param>
     private void RefreshPreview(bool pushToRoll = true, bool keepView = false)
     {
         UpdateActionButtons();
@@ -3922,10 +3492,6 @@ public partial class MainWindow : Window
             _previewNotes = new List<MappedNote>();
             _previewSeconds = 0;
 
-            // 只有"根本没载入文件"才清空卷帘。
-            // 已载入但一个声部都没勾选时不能清：演奏引擎在开始播放时就把音符复制走了，
-            // 清空会让左键栏掉回兜底音域（正好是 C4–C5），并让正在响的音符全部消失 ——
-            // 表现就是"能出声但看不到音符"。保留卷帘内容，让画面对得上耳朵。
             if (_parsed == null) ResetSeekUi();
             else InsertLog("当前没有任何声部被勾选，卷帘保留上一次的内容。勾选一行即可恢复。");
 
@@ -3947,12 +3513,6 @@ public partial class MainWindow : Window
         _previewSeconds = Math.Clamp(_previewSeconds, 0, totalSec);
         // 卷帘轴上留 2% 余量，末尾才好双击加音
         _noteCount = raw.Count;
-        // 绿=有对应的键、灰=没有对应的键（或超出能弹范围），由这份音高集合决定。
-        // 【音高空间必须换算】卷帘里的音符是**未移调**的原谱：Roll.SetNotes 收的就是上面的 raw，
-        // 编辑、声轨配色也都在原谱空间（_editor.Notes / SetVoiceColors 同理）。
-        // 而 m.Notes 的 Pitch 是加过 CurrentTranspose 的发声音高，两边不换算就会错位：
-        // 移调 ≠ 0 时，本来有键、试听也有声的音会被画成灰色（灰条与「能不能弹」不符）。
-        // 两条分支都必须更新它：编辑路径不经过 SetNotes，否则改完音高颜色会按旧集合算。
         int rollTranspose = CurrentTranspose;
         var inRangePitches = NoteMapper.Playable(m.Notes)
                                     .Select(n => n.Pitch - rollTranspose)
@@ -4028,12 +3588,8 @@ public partial class MainWindow : Window
             InsertLog("播放结束。");
             InsertLog(eng.Probe.Summary());
         }
-        // 收尾必须在前进之前做完：ResetUi 里才把 _busy 清零并收掉旧悬浮窗。
-        // 顺序反过来，RequestPlay 会被 _busy 静默吃掉，而且旧的悬浮窗还盖在新一轮倒计时上。
         ResetUi();
 
-        // 自然播完才前进。用户按停止走的是 StopPlaybackNow，引擎不发 Finished，
-        // 那条路根本到不了这里 —— 所以「按停止要停下连播」不用额外判断。
         if (eng != null) AdvanceAfterFinish();
     }
 
@@ -4042,13 +3598,24 @@ public partial class MainWindow : Window
     /// <summary>当前演奏模式。存在设置里（AppConfig.PlayModeIndex），按钮上显示的也是它。</summary>
     private PlayMode CurrentPlayMode => PlayModeNames.Clamp(_cfg.PlayModeIndex);
 
-    private void PlayMode_Click(object? sender, RoutedEventArgs e)
+    /// <summary>模式列表里点了一项，按 Tag 里的模式号切换。</summary>
+    private void PlayModePick_Click(object? sender, RoutedEventArgs e)
     {
-        _cfg.PlayModeIndex = (int)PlayModeNames.Next(CurrentPlayMode);
+        if (sender is not MenuItem item || item.Tag is not string tag) return;
+        if (!int.TryParse(tag, out int index)) return;
+        SetPlayMode(PlayModeNames.Clamp(index));
+    }
+
+    private void SetPlayMode(PlayMode mode)
+    {
+        if (mode == CurrentPlayMode) return;
+
+        _cfg.PlayModeIndex = (int)mode;
         SaveSettings();
         ApplyPlayModeUi();
-        InsertLog($"演奏模式：{PlayModeNames.All[(int)CurrentPlayMode]}。" + CurrentPlayMode switch
+        InsertLog($"演奏模式：{PlayModeNames.All[(int)mode]}。" + mode switch
         {
+            PlayMode.Off => "放完这一首就停。",
             PlayMode.Sequential => "一首放完接着放下一首，到列表末尾就停。",
             PlayMode.ListLoop => "一首放完接着放下一首，到列表末尾回到第一首，一直放。",
             PlayMode.Shuffle => "一首放完随机挑列表里的另一首。",
@@ -4056,20 +3623,23 @@ public partial class MainWindow : Window
         });
     }
 
-    /// <summary>把当前模式写到按钮上。忙时禁用，但不能改文案 —— 改文案会让用户以为模式变了。</summary>
+    /// <summary>把当前模式写到按钮与模式列表的勾选状态上。</summary>
     private void ApplyPlayModeUi()
     {
         if (BtnPlayMode != null) BtnPlayMode.Content = PlayModeNames.ButtonText(CurrentPlayMode);
+
+        var items = new[] { ModeItemSequential, ModeItemListLoop, ModeItemShuffle, ModeItemRepeatOne, ModeItemOff };
+        foreach (var item in items)
+        {
+            if (item == null) continue;
+            item.IsChecked = int.TryParse(item.Tag as string, out int i) && i == (int)CurrentPlayMode;
+        }
     }
 
-    /// <summary>
-    /// 一首放完之后往哪走。四种模式的判断全在 <see cref="PlayAdvance"/> 里（纯逻辑，自检测它）。
-    /// 这里只负责：问它、照它做、把结果写进日志。
-    /// </summary>
     private void AdvanceAfterFinish()
     {
-        // 单曲循环由引擎顶着，正常到不了这里；真到了也不能前进，那会破坏「重播这一首」。
-        if (CurrentPlayMode == PlayMode.RepeatOne) return;
+        // 关闭模式不接下一首；单曲循环由引擎自己重播。两者都不走连播。
+        if (CurrentPlayMode is PlayMode.Off or PlayMode.RepeatOne) return;
 
         // 没打开任何列表就没什么可前进的，停在原地。
         bool usePlaylist = _sourceIsPlaylist && _playlist is { Count: > 0 };
@@ -4091,10 +3661,6 @@ public partial class MainWindow : Window
         AdvanceTo(usePlaylist, decision.Index);
     }
 
-    /// <summary>
-    /// 走到列表里的第 <paramref name="index"/> 首并接着弹。
-    /// 文件不在、载入失败、开弹失败都算一次失败，记账之后跳到下一首（连败到上限就停）。
-    /// </summary>
     private void AdvanceTo(bool usePlaylist, int index)
     {
         int count = usePlaylist ? _playlist?.Count ?? 0 : _folderFiles.Count;
@@ -4144,8 +3710,6 @@ public partial class MainWindow : Window
             return;
         }
 
-        // 倒计时走设置里那一档（Q7）：用户选了 3 秒，每首之间就都留 3 秒；
-        // 悬浮窗在倒计时里写出下一首的歌名，来不及反应就按 F6 取消。
         InsertLog($"连播 {index + 1}/{count}：{what}");
         _nextSongLabel = System.IO.Path.GetFileNameWithoutExtension(what);
         UiPost(RefreshPlaylistCard);
@@ -4154,13 +3718,6 @@ public partial class MainWindow : Window
         RequestPlay(onFail: why => AdvanceSkippingFailures(usePlaylist, count, here, why));
     }
 
-    /// <summary>
-    /// 一首放不出来时，从当前这一首往后找一个能放的。找不到返回 false。
-    ///
-    /// 注意这里**不递归**：切歌与开始播放都走 Dispatcher.Post 排到下一轮消息循环。
-    /// 直接递归会踩两个坑 —— NoteAdvanceFailure 是同步调回来的，而 RequestPlay 里那个
-    /// 倒计时定时器还没被下一次调用清掉，于是两个定时器同时跑，倒计时一到两首歌都会开弹。
-    /// </summary>
     private bool AdvanceSkippingFailures(bool usePlaylist, int count, int current, string why)
     {
         _consecutiveFailures++;
@@ -4209,11 +3766,6 @@ public partial class MainWindow : Window
             string.Equals(e.Path, cur, StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>
-    /// 换歌之后自动选一行来弹。原来自动推荐轨被移除了（「猜得不准反而误导」），
-    /// 但连播必须有一行才能开弹，否则 RequestPlay 会静默返回。规则见 <see cref="PlaylistModel.Pick"/>：
-    /// 上一首演奏行的声部身份优先，其次第一条非打击乐行，最后第一条。
-    /// </summary>
     private void AutoSelectTrack()
     {
         if (_parsed == null || _tracks.Count == 0) return;
@@ -4232,11 +3784,6 @@ public partial class MainWindow : Window
         InsertLog($"自动选了主旋律轨：{pick.Reason}。想换就点左侧那一行。");
     }
 
-    /// <summary>
-    /// 歌单条目预先勾好了音轨。存的是「轨道号 + 声道」，钉死的，不随识别结果漂移。
-    /// 一条都没勾（老歌单、或刚加进来还没勾过）= 这一首全部音轨都弹。
-    /// 勾上的行按清单勾选「合」，卷帘与演奏都只看这几行。
-    /// </summary>
     private void SelectTrackForEntry(PlaylistEntry entry)
     {
         if (_parsed == null || _tracks.Count == 0) return;
@@ -4274,12 +3821,6 @@ public partial class MainWindow : Window
             : $"按歌单勾的 {wanted.Count} 行来弹；另有 {missing.Count} 行不在这份文件里。");
     }
 
-    /// <summary>
-    /// 这首歌在当前歌单里勾过音轨吗？勾过就按勾选来（勾选的行显示在卷帘上）。
-    /// 载入结束后无论从哪条路进来都调一次 —— 文件夹曲目卡、最近打开、双击歌单，
-    /// 载入同一首得到的勾选与画面必须一样。没在歌单里、或没勾过，就什么都不做。
-    /// </summary>
-    /// <returns>true = 按歌单勾选设好了；false = 没动。</returns>
     private bool ApplyPlaylistTracksFor(string path)
     {
         if (path.Length == 0) return false;
@@ -4296,10 +3837,6 @@ public partial class MainWindow : Window
         return true;
     }
 
-    /// <summary>
-    /// 勾选 / 取消勾选「合」列，并同步主旋律行与谱面。
-    /// <paramref name="picks"/> 为 null = 全选。
-    /// </summary>
     private void SelectRowsForPlaylist(List<TrackRowVM> rows, List<TrackRef>? picks)
     {
         foreach (var r in _tracks) r.IsMix = false;
@@ -4319,10 +3856,6 @@ public partial class MainWindow : Window
         RefreshPreview();
     }
 
-    /// <summary>
-    /// 上一首真正演奏过的那一行的声部身份。连播换歌时按它找「同一轨」。
-    /// 手动点过别的行，这里跟着变；没演奏过就是 null。
-    /// </summary>
     private TrackRole? _lastPlayedRole
     {
         get
@@ -4402,10 +3935,6 @@ public partial class MainWindow : Window
         RefreshPlaylistCard();
     }
 
-    /// <summary>
-    /// 把某份歌单记成当前歌单，并刷左栏那张卡。歌单窗口里选一份、新建一份都走这里。
-    /// 只写内存与设置，不写歌单文件。
-    /// </summary>
     private void SetActivePlaylist(string name)
     {
         if (string.Equals(_cfg.ActivePlaylist, name, StringComparison.Ordinal)) return;
@@ -4436,8 +3965,6 @@ public partial class MainWindow : Window
         if (it.Tag is not int idx || _playlist == null) return;
         if (idx < 0 || idx >= _playlist.Count) return;
 
-        // 不能在这个选择事件里立刻载入：载入会重铺这个列表，重铺时 ListBox 会去读旧下标并抛异常
-        // （文件夹曲目卡踩过同一个坑，见 FolderList_SelectionChanged 的注释）。
         string path = _playlist.Entries[idx].Path;
         bool wasPlaying = _engine is { IsRunning: true };
         Dispatcher.UIThread.Post(() => LoadPlaylistEntry(path, playNow: wasPlaying));
@@ -4471,11 +3998,6 @@ public partial class MainWindow : Window
         if (playNow && loaded) RequestPlay(skipCountdown: true);
     }
 
-    /// <summary>
-    /// 重铺左栏的歌单卡。卡片始终可见，没有当前歌单时卡里直接写下一步做什么 ——
-    /// 「管理…」按钮在这张卡上，整张卡藏起来就没人找得到歌单窗口。
-    /// 先清选中再清条目：选中项还在时清空，ListBox 会去读旧下标并抛越界。
-    /// </summary>
     private void RefreshPlaylistCard()
     {
         if (PlaylistCard == null || PlaylistList == null) return;   // 构造早期的防御：控件还没建好
@@ -4581,15 +4103,8 @@ public partial class MainWindow : Window
         RequestPlay();
     }
 
-    /// <param name="skipCountdown">跳过倒计时直接开弹（切歌与远程同演用）。</param>
-    /// <param name="onFail">
-    /// 开弹失败时叫回来，参数是原因。自动连播靠它决定「跳过这一首」还是「停下」（Q8）。
-    /// 普通播放传 null：失败只写日志，不额外做事。
-    /// </param>
     private void RequestPlay(bool skipCountdown = false, Action<string>? onFail = null)
     {
-        // 三个提前 return 都要叫回 onFail：自动连播时静默失败会让整个列表一路空转到末尾，
-        // 用户看到的只是「停在某一首不动」，查不出原因。
         if (_busy || ActiveRows().Count == 0)
         {
             onFail?.Invoke(ActiveRows().Count == 0 ? "没有选中任何一行" : "上一次播放还没收尾");
@@ -4605,8 +4120,6 @@ public partial class MainWindow : Window
             return;
         }
 
-        // 选了罗技驱动但还没初始化成功（比如启动时 G HUB 没就绪）：开播前补一次，
-        // 失败就不开弹（静默发不出键比直接报错更难排查）
         if (!Input.InputSender.EnsureBackend(out string backendErr, out string? backendWarn))
         {
             InsertLog(backendErr.Replace("\n", ""));
@@ -4637,8 +4150,6 @@ public partial class MainWindow : Window
         {
             _countdownLeft = cd;
             UpdateCountdownText();
-            // 悬浮窗同步倒计时（开关关掉时内部直接返回）。连播时带上「下一首：歌名」——
-            // 自动连播时用户不在键鼠前，这几秒是唯一能看清接下来放什么的机会（Q7）。
             string nextLabel = _nextSongLabel.Length > 0 ? $"下一首：{_nextSongLabel}" : "";
             ShowOverlayCountdown(cd, nextLabel);
             InsertLog($"{cd} 秒后开始——请切到目标窗口并装备乐器…");
@@ -4684,8 +4195,6 @@ public partial class MainWindow : Window
         SetCountdownChrome(true);
     }
 
-    /// <summary>倒计时期间窗口底色轻微变暖做提醒，结束时恢复原色。
-    /// 两种底色都在 Theme.axaml 里（唯一真源），这里不写裸色值。</summary>
     private void SetCountdownChrome(bool on)
     {
         string key = on ? "BrushCountdownChrome" : "BrushCanvas";
@@ -4706,8 +4215,6 @@ public partial class MainWindow : Window
         engine.Finished += () => UiPost(OnEngineFinished);
 
         double speed = SliderSpeed.Value / 100.0;
-        // 「单曲循环」这一种交给引擎的 _loop：引擎自己重播，不发 Finished 事件，连播就不动。
-        // 其余三种模式下引擎只放一遍，放完由 OnEngineFinished 决定往哪走。
         bool loop = CurrentPlayMode == PlayMode.RepeatOne;
         _nextSongLabel = "";   // 这一首已经开弹了，倒计时那句「下一首」用完就清
 
@@ -4718,17 +4225,10 @@ public partial class MainWindow : Window
         double startFrac = SliderProgress.Maximum > 0
             ? Math.Clamp(SliderProgress.Value / SliderProgress.Maximum, 0, 1) : 0;
 
-        // A03：目标窗口只在开始演奏这一下记一次。
-        // 倒计时已经把时间留给用户切窗口，此刻的前台窗口就是目标程序；
-        // 之后不再轮询 —— 否则用户中途 Alt+Tab 出去，停止时会把焦点抢到那个无关窗口。
         _gameHwnd = IntPtr.Zero;
         IntPtr fgAtStart = Input.InputSender.ForegroundWindow;
         if (fgAtStart != IntPtr.Zero && fgAtStart != SelfHwnd) _gameHwnd = fgAtStart;
 
-        // A06：演奏路径与试听路径共用同一条卷帘时间轴。引擎的 ElapsedSeconds 是**音乐时间**
-        // （Worker 按「物理流逝 × 速度」积分而来，PlaybackEngine:87/:431），自带速度换算，
-        // 所以这里必须把播放头比例复位成 1；不复位就会沿用它上次试听留下的比例。
-        // （播放头跟随开关 Roll.IsPlaying 由 UpdateTransportUi 统一设置，这里不重复。）
         if (Roll != null) Roll.SetPlayheadScale(1.0);
 
         engine.Timing = InputTiming.FromIndex(TimingCombo.SelectedIndex);
@@ -4771,9 +4271,6 @@ public partial class MainWindow : Window
         {
             var eng = _engine;
             if (eng == null || !eng.IsRunning) return;
-
-            // A03：这里原先把“任何非本程序的前台窗口”每 80ms 记进 _gameHwnd，
-            // 用户 Alt+Tab 出去后目标窗口就被覆盖掉了。目标窗口改为在 StartPlayback 开头记一次。
 
             if (!_seeking)   // 拖动进度条或卷帘时不要覆盖用户位置
             {
@@ -4850,8 +4347,7 @@ public partial class MainWindow : Window
         LblStatus.FontSize = ResourceFontSize("FontDisplay", 22);
         SetCountdownChrome(false);
         SetIdleHint();
-        HideOverlay();   // 停止 / 播完 / 倒计时取消都经过这里：悬浮窗一起收
-        // A03：回到空闲就把记住的目标窗口丢掉，避免下一次停止把焦点还给一个早就关掉的窗口。
+        HideOverlay();
         _gameHwnd = IntPtr.Zero;
     }
 
@@ -4983,8 +4479,6 @@ public partial class MainWindow : Window
 
     private void OnClosing(object? sender, WindowClosingEventArgs e)
     {
-        // UI-02：有未导出的手动改动时先确认，别让点 × 静默丢掉改动。
-        // 托盘「退出」是用户明确的放弃动作（QuitApp 已经置好 _quitNow），不再询问。
         if (HasUnexportedEdits && !_quitNow && !_exitConfirming)
         {
             e.Cancel = true;
@@ -4998,12 +4492,6 @@ public partial class MainWindow : Window
         DevCleanUpForExit();
     }
 
-    /// <summary>
-    /// 退出前的统一清理：停止计时器与播放、停试听与 MIDI 实时演奏、停全局热键与 MIDI 输入、
-    /// 释放按键、移除托盘图标。A19：正常关窗与开发快照的 Environment.Exit 共用这一处，
-    /// 免得再有哪条退出路径跳过清理（原来 5 处 Environment.Exit(0) 全部绕过）。
-    /// 只允许在 UI 线程调用。
-    /// </summary>
     internal void DevCleanUpForExit()
     {
         _updateCts?.Cancel();   // 退出时取消进行中的更新包下载
@@ -5044,8 +4532,6 @@ public partial class MainWindow : Window
             IntPtr game = _gameHwnd;
             if (game != IntPtr.Zero && game != SelfHwnd)
             {
-                // A03：这里原先还有一次 Thread.Sleep(60) 卡住 UI 线程，等焦点切过去再补发。
-                // 已去掉：切焦点本来就要几帧，等待交给已有的失焦守卫逻辑，界面不该停 60ms。
                 Input.InputSender.BringToForeground(game);
                 Input.InputSender.ReleaseEverything();
             }

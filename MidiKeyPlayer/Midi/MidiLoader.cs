@@ -217,10 +217,6 @@ public static class MidiLoader
         return System.Text.Encoding.Latin1.GetString(raw);
     }
 
-    /// <summary>
-    /// 每个声道的 GM 音色号（声道 → 0..127）。同一轨里同一声道改过音色就取最后一次：
-    /// 列表要给用户看的是这条轨最终听起来的音色。
-    /// </summary>
     private static Dictionary<int, int> ReadPrograms(TrackChunk chunk)
     {
         var map = new Dictionary<int, int>();
@@ -232,10 +228,6 @@ public static class MidiLoader
         return map;
     }
 
-    /// <summary>
-    /// 列表里显示的名字：文件写了说得清的轨名就用它，否则用识别出的乐器名，
-    /// 再退一步才是「声道 N」。这样「Track 1」这类空名字后面能看出这条轨是什么。
-    /// </summary>
     private static string BuildCandidateName(string trackName, int channel, int program, TrackRole role)
     {
         string trimmed = (trackName ?? "").Trim();
@@ -266,9 +258,6 @@ public static class MidiLoader
         return -1;
     }
 
-    /// <summary>
-    /// 截断修复：裁掉"最后一个完整 MTrk 轨道"之后的残缺字节，并把文件头轨道数改成实际个数，修不了返回 null。
-    /// </summary>
     private static byte[]? TryTrimToCompleteChunks(byte[] data)
     {
         try

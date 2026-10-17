@@ -4,12 +4,6 @@ using MidiKeyPlayer.Persist;
 
 namespace MidiKeyPlayer.Engine;
 
-/// <summary>
-/// 歌单的读写。每份歌单一个 JSON 文件，放在
-/// <c>%LOCALAPPDATA%\MidiKeyPlayer\playlists\&lt;歌单名&gt;.json</c>。
-/// 与键位方案的 <c>schemes\</c> 目录同一套做法：文件名清洗、原子写入。
-/// 一份歌单一个文件，写坏了只坏它自己，也不必每次保存都重写全部歌单。
-/// </summary>
 public static class PlaylistStore
 {
     /// <summary>【开发用】把歌单目录临时指到别处，默认 null = 真实目录。只在自检里赋值。</summary>
@@ -28,10 +22,6 @@ public static class PlaylistStore
 
     private static readonly char[] InvalidChars = Path.GetInvalidFileNameChars();
 
-    /// <summary>
-    /// 歌单名 → 文件名（不含扩展名）。非法字符换成下划线，洗不出名字就给兜底名。
-    /// 界面显示歌单名本身，文件名只落地用。
-    /// </summary>
     public static string SanitizeFileName(string? name)
     {
         string raw = (name ?? "").Trim();
@@ -49,10 +39,6 @@ public static class PlaylistStore
     public static string FilePathFor(string? name) =>
         Path.Combine(DirPath, SanitizeFileName(name) + ".json");
 
-    /// <summary>
-    /// 读全部歌单，按名字排序。目录不在、某个文件读不动，都只记一行日志再跳过 ——
-    /// 一份坏歌单不该让程序起不来。
-    /// </summary>
     public static List<Playlist> LoadAll()
     {
         var list = new List<Playlist>();
@@ -156,12 +142,6 @@ public static class PlaylistStore
     }
 }
 
-/// <summary>
-/// 歌单的 JSON 上下文。与设置一样走源生成：发布开了裁剪，反射式序列化随时可能被裁掉。
-/// camelCase + 大小写不敏感，和键位方案文件一致。
-/// 值里带 Skip：文件里多出字段就跳过。老版本写出来的歌单带过一个 label 字段，
-/// 读到它不能整份作废。
-/// </summary>
 [JsonSourceGenerationOptions(
     WriteIndented = true,
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,

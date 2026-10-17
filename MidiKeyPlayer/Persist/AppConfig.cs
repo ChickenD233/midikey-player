@@ -18,7 +18,6 @@ public sealed class ProfileSettings
 /// <summary>用户设置：退出后记住，下次启动自动恢复。</summary>
 public sealed class AppConfig
 {
-    // 速度 / 移调的合法区间：界面滑块（10%–400%、±24）、引擎与实时演奏都用这一套口径（FN-02 / VR-10）。
     public const int MinSpeedPercent = 10;
     public const int MaxSpeedPercent = 400;
     public const int MaxTransposeSemitones = 24;
@@ -44,10 +43,7 @@ public sealed class AppConfig
     public int ForwardHotkeyIndex { get; set; } = 7; // 前进热键（默认 F7）
     public int PrevSongHotkeyIndex { get; set; } = 8;   // 上一首热键（默认 F8，文件夹曲目）
     public int NextSongHotkeyIndex { get; set; } = 9;   // 下一首热键（默认 F9，文件夹曲目）
-    public bool TrimLead { get; set; } = true;        // 去除开头空拍（首音平移到 0 秒）
-    // 超出能弹范围的音折八度落回范围，而不是直接丢掉（默认关）。
-    // 默认关是刻意的：折八度会让旋律在某些音上跳八度，听感会变，不该替用户决定。
-    // 音域特别窄的乐器（例如只有 8 个音的手碟）打开它才有意义。
+    public bool TrimLead { get; set; } = true;
     public bool FoldOctave { get; set; } = false;
     public bool FirstRunDone { get; set; } = false;   // 首次“快速上手”是否已看过
     public bool AutoMinimizeOnPlay { get; set; } = true;  // 播放开始后自动最小化窗口
@@ -58,28 +54,20 @@ public sealed class AppConfig
     public int InputBackend { get; set; } = 0;        // 输入方式：0 SendInput（默认）/ 1 罗技 G HUB 驱动
     public string SkippedUpdateTag { get; set; } = "";   // 用户选择“跳过”的版本号（空=不跳过）
     public bool DisclaimerAccepted { get; set; } = false;  // 免责声明确认过一次后不再显示
-    public string LastRunVersion { get; set; } = "";    // 上次运行的版本号（自动更新成功确认用）
-    // 已经看过哪一版的免费声明（AutoUpdate.NoticeVersion）：与当前文案版本不同才再弹一次。
+    public string LastRunVersion { get; set; } = "";
     public string NoticeShownVersion { get; set; } = "";
     // 第一次使用时那道「作者的 B 站 ID」验证题是否已经答对。答对一次就永远不再弹。
     public bool AuthorQuizPassed { get; set; } = false;
 
     // —— 播放悬浮窗（倒计时 / 进度 / 当前音，置顶显示在目标程序上）——
-    public bool OverlayEnabled { get; set; } = true;    // 悬浮窗开关（默认开）
-    // 暂停时把悬浮窗收起来（默认开）：暂停多半是要看别的东西，浮窗挡着画面；
-    // 继续演奏时自动弹回来，不用去设置里重开。老设置文件没有这一项，读进来是 true。
+    public bool OverlayEnabled { get; set; } = true;
     public bool OverlayHideOnPause { get; set; } = true;
     public int OverlayX { get; set; } = -1;             // 悬浮窗位置（-1 = 默认屏幕右上角）
     public int OverlayY { get; set; } = -1;
 
     // —— 键位方案 ——
-    public string KeymapName { get; set; } = KeymapProfile.DefaultName;  // 当前键位方案名
-    // 原来的 ChordMode（保留和弦）字段已删除：该功能移除后行为固定为「演奏 MIDI 里的全部音」。
-    // 老设置文件里的 "ChordMode" 是未知成员，源生成默认 UnmappedMemberHandling.Skip，读盘时直接忽略。
+    public string KeymapName { get; set; } = KeymapProfile.DefaultName;
 
-    // —— 演奏模式与歌单（v1.1.21）——
-    // 四种模式：0 顺序播放 / 1 列表循环 / 2 随机播放 / 3 单曲循环。
-    // 存盘的理由：它的地位和速度、移调、倒计时一样，都是「上次怎么弹的」。
     public int PlayModeIndex { get; set; } = 0;
     // 上次选中的歌单名（空 = 没选过）。左栏那张曲目卡与 F9 切歌都按它找列表。
     public string ActivePlaylist { get; set; } = "";
@@ -94,14 +82,9 @@ public sealed class AppConfig
     public int MidiMinVelocity { get; set; } = 1;        // 力度下限（1 = 不过滤）
     public bool MidiAutoFit { get; set; } = true;        // 自动贴合音域
 
-    // —— 实验功能：远程同演（设置窗口第四页）——
-    // 只记住"下次还好用"的东西：名字、成员号、中转站地址、上次的房间名与倒数档位。
-    // **密码不记**：那是一次会话的凭证，每次手输。
     public string SyncPeerName { get; set; } = "";       // 上次用的成员名（空 = 没填过）
     // 成员号：重连后还是同一个人，所以必须记住。空 = 第一次用，界面上生成一个。
     public string SyncPeerId { get; set; } = "";
-    // 中转站地址，例如 midikeyplayer-sync.你的名字.workers.dev。
-    // 留空时用 SyncRoomInfo.DefaultRelayHost（发布版会把默认地址写在那里）。
     public string SyncBroker { get; set; } = "";
     // 上次建的房间名（空 = 没建过）。密码不记，所以这里只图省一次输入。
     public string SyncRoomName { get; set; } = "";
@@ -116,10 +99,6 @@ public sealed class AppConfig
 
     private List<string> _recentFiles = new();
 
-    /// <summary>
-    /// 「最近打开」的 MIDI 文件路径：最新的排最前，最多 <see cref="MaxRecentFiles"/> 条。
-    /// 只记路径，不复制文件。老设置文件没有这个字段时是空列表。
-    /// </summary>
     public List<string> RecentFiles
     {
         get => _recentFiles;
@@ -129,11 +108,6 @@ public sealed class AppConfig
     // —— MIDI 文件「文件夹曲目」目录（左栏常驻卡，issue #57）——
     private string _folderPath = "";
 
-    /// <summary>
-    /// 上次列出曲目的文件夹：左栏「文件夹曲目」卡就列这个目录里的 MIDI。
-    /// 空 = 没选过（或用户点过「关闭」），启动时卡片隐藏。
-    /// 老设置文件没有这个字段时是空串。目录已经不在时由界面清空，见 MainWindow.RestoreFolderFromConfig。
-    /// </summary>
     public string FolderPath
     {
         get => _folderPath;
@@ -155,10 +129,6 @@ public sealed class AppConfig
 
     // ================= 按方案记忆 =================
 
-    /// <summary>
-    /// 取某个方案单独记住的设置；没有就用当前的全局值当初始值建一条。
-    /// name 为空时按默认方案名算。
-    /// </summary>
     public ProfileSettings SettingsFor(string? name)
     {
         PerProfile ??= new Dictionary<string, ProfileSettings>();
@@ -216,16 +186,12 @@ public sealed class AppConfig
             _recentFiles.RemoveRange(MaxRecentFiles, _recentFiles.Count - MaxRecentFiles);
     }
 
-    /// <summary>
-    /// 把读盘得到的值夹回合法区间：老设置文件里可能存着 500% 或 ±30。
-    /// 写盘走 <see cref="Speed"/> / <see cref="Transpose"/> 的属性 setter，与这里同一套口径（FN-02 / VR-10）。
-    /// </summary>
     public void Normalize()
     {
         Speed = Speed;
         Transpose = Transpose;
-        // 脏设置文件里的模式号不能一路传到按钮上：界面只有四态，越界当作顺序播放。
-        PlayModeIndex = PlayModeIndex is >= 0 and <= 3 ? PlayModeIndex : 0;
+        // 脏设置文件里的模式号不能一路传到按钮上：越界当作顺序播放。
+        PlayModeIndex = PlayModeIndex is >= 0 and <= 4 ? PlayModeIndex : 0;
         ActivePlaylist ??= "";
         TrimRecentFiles();   // 最近打开：老设置文件里可能超过 10 条，也可能带空串
         if (PerProfile == null) return;
@@ -305,8 +271,6 @@ public sealed class AppConfig
         {
             Directory.CreateDirectory(DirPath);
             string json = JsonSerializer.Serialize(this, ConfigJson.Default.AppConfig);
-            // 原子写入：先写临时文件再替换。直接覆盖写时若中途崩溃，settings.json 会被截断，
-            // 下次启动读到半个 JSON，Load 的 catch 会静默回退默认值（速度、热键、方案记忆全丢）。
             string tmp = FilePath + ".tmp";
             File.WriteAllText(tmp, json);
             File.Move(tmp, FilePath, overwrite: true);
@@ -315,25 +279,10 @@ public sealed class AppConfig
     }
 }
 
-/// <summary>
-/// 源生成的 JSON 上下文。设置读写必须走它，不能用 JsonSerializer 的反射重载。
-///
-/// 当前发布**开裁剪**（csproj 里 PublishTrimmed=true，反射相关程序集用
-/// TrimmerRootAssembly 钉住）。设置这条链上则已经彻底不用反射：源生成在编译期产出读写代码。
-///
-/// 这条链原来踩过坑，所以固定成源生成：反射式序列化依赖的元数据一旦被裁掉，
-/// 运行时抛异常。而 Save / Load 原先都静默吞掉异常 —— 结果是设置从未写盘，
-/// 表现为「每次启动都弹快速上手」，而且速度、移调、热键全都不记忆。
-/// 现在即便将来重新开裁剪，设置也不会跟着坏。
-///
-/// 键位方案（<see cref="KeymapProfile"/>）也一起登记，方案文件与设置走同一套源生成代码。
-/// </summary>
 [JsonSourceGenerationOptions(WriteIndented = true)]
 [JsonSerializable(typeof(AppConfig))]
 [JsonSerializable(typeof(ProfileSettings))]
 [JsonSerializable(typeof(KeymapProfile))]
-// 「最近打开」的路径列表。它挂在 AppConfig 上，本来也会被连带生成；这里显式登记一次，
-// 免得哪天元数据缺失时 Save() 只写一条日志，表现为「列表记不住」这种静默失效。
 [JsonSerializable(typeof(List<string>))]
 internal sealed partial class ConfigJson : JsonSerializerContext
 {

@@ -1,7 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-  <!-- ==================== 卡片：圆角 + 轻投影靠阴影分块（原版白底 1px 边没层次） ==================== -->
   <Style Selector="Border.card">
     <Setter Property="Background" Value="{DynamicResource BrushSurface}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BrushBorder}" />
@@ -10,9 +9,6 @@
     <Setter Property="Padding" Value="{DynamicResource CardPadding}" />
     <Setter Property="BoxShadow" Value="0 1 2 0 #0F0F1729" />
   </Style>
-
-  <!-- ==================== 按钮 ====================
-       Avalonia 11 把按钮底色画在 PART_ContentPresenter 上：四个状态都要覆盖，否则悬停跳回 Fluent 灰。 -->
 
   <Style Selector="Button.accent">
     <Setter Property="Foreground" Value="{DynamicResource BrushOnAccent}" />
@@ -55,8 +51,6 @@
     <Setter Property="Background" Value="{DynamicResource BrushAccentSoft}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BrushAccent}" />
   </Style>
-  <!-- 禁用态：底色与文字都走主题 token。底色原来是写死的浅灰 #F3F5F8，
-       深色皮肤下就成了「浅底 + Fluent 的浅色禁用字」，按钮看着像空白。 -->
   <Style Selector="Button.secondary:disabled /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource BrushDisabledFace}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BrushBorder}" />

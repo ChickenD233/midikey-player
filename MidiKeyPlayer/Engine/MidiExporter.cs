@@ -18,10 +18,6 @@ public static class MidiExporter
         WriteMulti(path, new[] { (trackName, notes) });
     }
 
-    /// <summary>
-    /// 写多音轨 MIDI（格式 1）。每条轨一个名字（写进 SequenceTrackName，播放器与编辑器都能读到），
-    /// 用于「人声 / 伴奏」这类分离结果 —— 载入后左侧列表会按轨名显示两行。
-    /// </summary>
     public static void WriteMulti(string path, IReadOnlyList<(string Name, IReadOnlyList<RawNote> Notes)> tracks)
     {
         var chunks = new List<TrackChunk>();
@@ -69,10 +65,6 @@ public static class MidiExporter
             chunks.Add(empty);
         }
 
-        // 必须显式指定每四分音符 tick 数：MidiFile 的默认分割不是 480，
-        // 不指定会让读回的时间整体差一个固定倍数。
-        // 文本编码也要显式给 UTF-8：默认写不出去非 ASCII 的轨名（「人声」会变成 ??），
-        // 而本程序读回时优先按 UTF-8 解。
         var file = new MidiFile(chunks)
         {
             TimeDivision = new TicksPerQuarterNoteTimeDivision(Ppq),

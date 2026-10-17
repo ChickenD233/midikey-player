@@ -4,10 +4,6 @@ using MidiKeyPlayer.Persist;
 
 namespace MidiKeyPlayer.Midi;
 
-/// <summary>
-/// MIDI 输入设备接入（issue #4）：枚举系统里的 MIDI 输入设备，监听它们的音符事件。
-/// 用后台线程启动设备，避免界面卡住。事件在设备自己的线程上触发，界面需自行 marshal。
-/// </summary>
 public static class MidiInputService
 {
     private static readonly object Gate = new();
@@ -18,20 +14,12 @@ public static class MidiInputService
     public static event Action<int, int, bool>? NoteEvent;
     /// <summary>设备被拔掉、启动失败等异常的说明。</summary>
     public static event Action<string>? Error;
-    /// <summary>
-    /// 设备中途断开或报错（不是启动失败）：引擎收到后要松开所有键并停实时演奏（IN-08）。
-    /// 在设备线程上触发，订阅方必须自己保证线程安全。
-    /// </summary>
     public static event Action? DeviceLost;
 
     public static bool IsWindows => OperatingSystem.IsWindows();
     public static string CurrentDeviceName => _deviceName;
     public static bool IsListening => _device != null;
 
-    /// <summary>
-    /// 打开设备并开始监听。返回 false 表示打开失败（原因通过 <see cref="Error"/> 给出）。
-    /// 设备不存在、被占用、驱动异常都会走到这里，不抛异常给调用方。
-    /// </summary>
     public static bool Start(string deviceName)
     {
         Stop();
@@ -64,8 +52,6 @@ public static class MidiInputService
         catch (Exception ex)
         {
             Error?.Invoke($"打开 MIDI 设备「{deviceName}」失败：{ex.Message}");
-            // A09：走到这里时可能已经订阅了事件、甚至已经开了监听。不清理就泄漏设备与订阅，
-            // 下次 Start 会重复挂一份回调。统一走 Stop 的清理路径。
             CleanUpAfterFailedStart(device);
             return false;
         }
@@ -103,11 +89,6 @@ public static class MidiInputService
         }
     }
 
-    /// <summary>
-    /// 启动失败后的清理：退订事件、停监听、释放设备（A09）。
-    /// 启动失败路径可能已经订阅了事件甚至开了监听，不清理就会泄漏设备与订阅。
-    /// 复用 <see cref="Stop"/> 没取到锁时的同一套动作。
-    /// </summary>
     private static void CleanUpAfterFailedStart(InputDevice? device)
     {
         if (device == null) return;
@@ -140,8 +121,6 @@ public static class MidiInputService
                 }
                 finally
                 {
-                    // GetAll 返回的设备是 IDisposable：只枚举名字也必须释放，否则每次刷新都漏一个
-                    // 设备句柄，有些驱动之后会拒绝再打开（报"设备忙"）。防御风格同 Stop（A09）。
                     try { d.Dispose(); }
                     catch (Exception ex)
                     {
@@ -157,10 +136,6 @@ public static class MidiInputService
         return list;
     }
 
-    /// <summary>
-    /// 要在后台线程上调用 <see cref="Start"/>：枚举与打开设备可能耗时几百毫秒，
-    /// 放在界面线程上会让窗口短暂卡住。
-    /// </summary>
     public static Task<bool> StartAsync(string deviceName) => Task.Run(() => Start(deviceName));
 
     private static void OnEventReceived(object? sender, MidiEventReceivedEventArgs e)
@@ -179,8 +154,6 @@ public static class MidiInputService
     private static void OnDeviceError(object? sender, ErrorOccurredEventArgs e)
     {
         Error?.Invoke($"MIDI 设备异常：{e.Exception?.Message ?? "未知错误"}");
-        // 只在报错的设备就是当前监听设备时算"断开"：IsListening 只看「有没有设备在听」，
-        // 旧设备清理失败后残留的回调可能在新设备演奏时到达，不能误伤正在演奏的设备。
         lock (Gate) { if (sender == null || !ReferenceEquals(sender, _device)) return; }
         DeviceLost?.Invoke();
     }

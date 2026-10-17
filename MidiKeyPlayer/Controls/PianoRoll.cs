@@ -8,24 +8,6 @@ using MidiKeyPlayer.Midi;
 
 namespace MidiKeyPlayer;
 
-/// <summary>
-/// 可编辑的 MIDI 卷帘。上方时间标尺、左侧琴键栏、中间为音符网格。
-///
-/// 交互（对齐 signal / LMMS / Ardour 的通行做法）：
-///   标尺            点或拖 = 定位
-///   琴键栏          点 = 选中该音高的全部音符（按住拖动可连选多个音高）
-///   拖音符中部      移动（多选时整组一起移动时间与音高）
-///   拖音符任一端    改长度（左端改头、右端改尾，音高锁定）
-///   空白处拖拽      框选；空白处单击 = 定位并清空选择
-///   双击空白        加音；按住继续拖可一次把长度定好
-///   右键            删音（右键拖动可连擦）
-///   Delete          删除所选；Ctrl+A 全选；Esc 清空；方向键微调
-///   滚轮            以光标为锚点缩放；Shift+滚轮平移；中键拖动平移
-///   拖动时按 Shift  临时关闭吸附
-///
-/// 坐标换算一律走 XOf / TimeAt / YCenterOf / PitchAt（含标尺与琴键栏的沟槽偏移），
-/// 渲染与命中共用同一套，避免"看到的位置"和"点中的位置"错位。
-/// </summary>
 public sealed class PianoRoll : Control
 {
     // ---- 沟槽：标尺在上、琴键栏在左。换算里必须同时含这两个偏移，两个方向要对称 ----
@@ -42,10 +24,6 @@ public sealed class PianoRoll : Control
 
     private List<RawNote> _notes = new();
     private HashSet<int> _inRange = new();
-    /// <summary>
-    /// 音高 → 声轨颜色号，只作兜底：音符自带 <see cref="RawNote.Voice"/> 时优先用它。
-    /// 缺省（用户手加的音）算 0 号。
-    /// </summary>
     private Dictionary<int, int> _voiceOfPitch = new();
     private double _total;
     private double _position;
@@ -79,8 +57,6 @@ public sealed class PianoRoll : Control
     private Point _lastPt;
     private Rect _marquee;
 
-    // 拖动基准：手势开始时记录一次，**之后只读**；每次指针移动都从这份基准重新算结果，
-    // 绝不把上一帧的结果再叠加一次位移 —— 否则每帧都多走一段，音符会飞出去（实测"乱飘"）。
     private readonly List<(RawNote Note, int Pitch, double Start, double End)> _dragBase = new();
     // 本次移动算出来的临时位置，只用于绘制与提交
     private readonly List<(RawNote Note, int Pitch, double Start, double End)> _dragNow = new();
@@ -88,20 +64,11 @@ public sealed class PianoRoll : Control
     private int _anchorPitch;
     /// <summary>拖动中已经试听过的音高，防止同一音高反复发声。</summary>
     private int _lastAuditioned = int.MinValue;
-    /// <summary>
-    /// 本次右键连擦已经擦掉的音符。必须记音符对象而不是下标：删掉一个音之后，
-    /// 后继音符会平移进同一个下标槽位，按下标去重会把它们误判成"已擦"而跳过（UI-05）。
-    /// </summary>
     private readonly HashSet<RawNote> _eraseDone = new(ReferenceEqualityComparer.Instance);
     private readonly HashSet<int> _pitchSelDone = new();
 
     // ================= 自绘配色（浅色 / 深色两套，跟随皮肤） =================
 
-    /// <summary>
-    /// 卷帘自己画的颜色。色值真源是 Styles/Theme.axaml 的 BrushRoll* / BrushKey* / BrushBorder，
-    /// 这里按主题变体各缓存一份：换皮肤时按键取新的一份，不用重建控件，也不会每帧查资源。
-    /// 资源取不到（设计器里没挂主题）才用同一批色值的字面量兜底。
-    /// </summary>
     private sealed class Skin
     {
         public IBrush Bg = null!, Skip = null!, Head = null!, ReadoutBg = null!, Text = null!, Muted = null!;
@@ -176,8 +143,6 @@ public sealed class PianoRoll : Control
     private static IPen RollPen(string key, ThemeVariant variant, string fallback, double thickness)
         => new Pen(RollBrush(key, variant, fallback), thickness);
 
-    // 下面这些名字原来是 static readonly 字段。改成属性之后所有使用点一行都不用改，
-    // 但每次取值都按当前皮肤拿颜色 —— 换皮肤时只要 InvalidateVisual 一次就重画成新配色。
     private static IBrush Bg => CurrentSkin().Bg;
     private static IPen BorderPen => CurrentSkin().BorderPen;
     private static IPen GridPen => CurrentSkin().GridPen;
@@ -187,13 +152,6 @@ public sealed class PianoRoll : Control
     /// <summary>声轨调色板色数（与 Theme.axaml 的 BrushVoice0..11 对齐）。</summary>
     public const int VoiceCount = 12;
 
-    /// <summary>
-    /// 声轨调色板。色值真源是 Styles\Theme.axaml 的 BrushVoice0..11（深浅各一套），
-    /// 从当前皮肤的资源里读；读不到（设计器里没挂主题）才用文档里的同一批色值兜底。
-    ///
-    /// 缓存必须带上是哪一套皮肤：色值是随皮肤变的，只按「取过没有」缓存，
-    /// 换皮肤后这里会一直发旧皮肤的颜色（白底上发深底那批亮色 = 黄字白底看不见）。
-    /// </summary>
     private static IBrush[]? _palette;
     private static ThemeVariant? _paletteVariant;
 
@@ -234,12 +192,6 @@ public sealed class PianoRoll : Control
     private int VoiceIndexOf(int pitch) =>
         _voiceOfPitch.TryGetValue(pitch, out int v) ? v : 0;
 
-    /// <summary>
-    /// 【唯一上色口径】一个音画什么颜色号：优先用它自带的声轨归属
-    /// （<see cref="RawNote.Voice"/> ≥ 0，由合奏合并时写死）；只有没有归属的音
-    /// （用户手加的音、旧数据）才退回按音高查映射表。
-    /// 渲染与诊断报告都调它，报告里的颜色就是画面上的颜色。
-    /// </summary>
     public int VoiceOfNote(RawNote note) =>
         note.Voice >= 0 ? note.Voice : VoiceIndexOf(note.Pitch);
 
@@ -274,11 +226,6 @@ public sealed class PianoRoll : Control
     private static readonly Cursor SizeWECursor = new(StandardCursorType.SizeWestEast);
     private static readonly Cursor SizeAllCursor = new(StandardCursorType.SizeAll);
 
-    /// <summary>
-    /// 文字对象缓存。标尺每小节一个、琴键栏每个 C 一个、读数每帧一个，FormattedText
-    /// 的构造（含字形排布）不便宜，键（文本 + 字号 + 画刷）相同就直接复用。
-    /// 文本随缩放连续变化，所以设一个上限，超过就整表清掉（UI-19）。
-    /// </summary>
     private static readonly Dictionary<(string Text, double Size, IBrush Brush), FormattedText> TextCache = new();
 
     private static FormattedText TextOf(string text, double size, IBrush brush)
@@ -350,21 +297,12 @@ public sealed class PianoRoll : Control
         RaiseViewChanged();
     }
 
-    /// <summary>
-    /// 只看的模式：歌单窗口勾音轨时，卷帘临时显示那一轨的音符给用户挑。
-    /// 挑音轨是「先看再决定」，所以这一态不许改谱 —— 双击加音、右键删音、拖动、键盘编辑全部关掉。
-    /// 缩放、滚动、定位播放头仍然可用。
-    /// </summary>
     public bool PreviewOnly { get; private set; }
 
     /// <summary>进「只看」模式之前的那份谱面与视口，退出时原样放回来。</summary>
     private (List<RawNote> Notes, HashSet<int> InRange, double Total,
              Dictionary<int, int> VoiceOfPitch, double From, double To)? _previewSaved;
 
-    /// <summary>
-    /// 进入「只看」模式。把当前谱面（含视口与配色）存下来，退出时由
-    /// <see cref="RestoreAfterPreview"/> 放回去。
-    /// </summary>
     public void BeginPreview()
     {
         if (PreviewOnly) return;
@@ -400,12 +338,6 @@ public sealed class PianoRoll : Control
         else InvalidateVisual();
     }
 
-    /// <summary>
-    /// 设置「音高 → 声轨颜色号」兜底表，供没有自带 <see cref="RawNote.Voice"/> 的音（用户手加的）
-    /// 上色。同一音高只保留一个颜色号：序号小（优先级高）的声轨胜出，
-    /// 与合奏时"冲突让位给编号小的声部"一致。缺省音高算 0 号。
-    /// 有归属的音不查这张表，见 <see cref="VoiceOfNote"/>。
-    /// </summary>
     public void SetVoiceColors(IReadOnlyDictionary<int, int>? pitchToVoice)
     {
         _voiceOfPitch = new Dictionary<int, int>();
@@ -423,11 +355,6 @@ public sealed class PianoRoll : Control
         InvalidateVisual();
     }
 
-    /// <summary>
-    /// 只更新「哪些音高可演奏」的集合（由此决定画声轨色还是灰）。缺省音高算 0 号。
-    /// 编辑改动音高后必须调用：SetNotes 只在换谱时走，改一个音的音高不会经过它，
-    /// 否则颜色会按旧集合算 —— 明明在音域内的新音高会被画成灰色。
-    /// </summary>
     public void SetInRangePitches(IEnumerable<int> pitches)
     {
         _inRange = new HashSet<int>(pitches ?? Array.Empty<int>());
@@ -454,9 +381,6 @@ public sealed class PianoRoll : Control
 
     public void SetPosition(double seconds)
     {
-        // 传进来的秒数是"谱面时间"；乘上播放头比例换算成卷帘的时间轴。
-        // 试听时卷帘时间轴比谱面末音长一点（留了右键余量），比例就是两者之比；
-        // 不算这一步，播放头会以 2% 左右的偏差慢慢落后于音符（越放越明显）。
         double v = Math.Clamp(seconds * _playheadScale, 0, _total);
         if (Math.Abs(v - _position) > 0.0005)
         {
@@ -466,10 +390,6 @@ public sealed class PianoRoll : Control
         ApplyFollow();
     }
 
-    /// <summary>
-    /// 设置"谱面时间 → 卷帘时间轴"的比例。默认 1（卷帘与谱面同一时间轴）。
-    /// 试听时传入 末音秒数 / 卷帘总长，让播放头与音符严格对齐。
-    /// </summary>
     public void SetPlayheadScale(double scale)
     {
         double v = scale > 0.05 && scale < 20 ? scale : 1.0;
@@ -588,19 +508,12 @@ public sealed class PianoRoll : Control
     private double TimeAt(double x) =>
         _viewFrom + Math.Clamp((x - KeyW) / PlotW, 0, 1) * ViewSpan;
 
-    /// <summary>
-    /// 纵向显示哪些音高。至少铺开一个八度：音域窄时行高才够点得中，
-    /// 琴键栏也才像一排键。
-    /// </summary>
     public static (int Lo, int Hi) ComputePitchRange(IReadOnlyList<RawNote> notes)
     {
         if (notes.Count == 0) return (FallbackLo, FallbackHi);
         int lo = int.MaxValue, hi = int.MinValue;
         foreach (var n in notes) { if (n.Pitch < lo) lo = n.Pitch; if (n.Pitch > hi) hi = n.Pitch; }
 
-        // 最小可见音域 = 4 个八度。乐器本身能演奏 3 个八度，如果画面只按谱面实际音高裁到
-        // 一两个八度，用户就看不到可演奏范围内的其它音高，也就没法把音符拖过去改。
-        // 先按实际音高居中，再向两边扩到 MinSpan。
         int span = MinSpan;
         int center = (lo + hi) / 2;
         lo = center - span / 2;
@@ -612,10 +525,6 @@ public sealed class PianoRoll : Control
         return (lo, hi);
     }
 
-    /// <summary>
-    /// 当前要画的音高范围。音符为空时不要退回固定的 C4–C5 —— 那会显示一个假的音域，
-    /// 看起来像"音域突然只剩一个八度"。改为沿用上一次的范围。
-    /// </summary>
     private (int Lo, int Hi) PitchRange()
     {
         if (_notes.Count == 0) return (_lastLo, _lastHi);
@@ -646,10 +555,6 @@ public sealed class PianoRoll : Control
         return RectOf(pitch, start, end, r, RowH(r));
     }
 
-    /// <summary>
-    /// 命中 / 框选 / 描边等逐音符循环里用的版本：音域与行高由调用方在循环外算一次。
-    /// 不传缓存值时每次调用都要重扫全表求音域，循环里就是 O(N²)。
-    /// </summary>
     private Rect RectOf(int pitch, double start, double end, (int Lo, int Hi) r, double rowH)
     {
         double barH = Math.Max(3, rowH * 0.72);
@@ -692,16 +597,8 @@ public sealed class PianoRoll : Control
         return bestDy <= limit ? best : -1;
     }
 
-    /// <summary>
-    /// 改长度的抓取带宽度。固定 6px 时，任何窄于 6px 的音符都会整条落在抓取带里，
-    /// 于是永远进不了"移动"分支 —— 短音符根本拖不动。按宽度比例收窄可避免。
-    /// </summary>
     private static double GrabBand(double noteWidth) => Math.Min(EdgeGrabPx, Math.Max(2.0, noteWidth * 0.3));
 
-    /// <summary>
-    /// 命中的音符该抓哪一端。窄音符（最小宽 2.5）上左右两条抓取带会重叠，
-    /// 原来"先判左端、重叠就走改尾"的顺序让左端几乎点不中；重叠时按离哪端更近来判（UI-17）。
-    /// </summary>
     private static DragMode EdgeAt(Rect rect, double x)
     {
         double band = GrabBand(rect.Width);
@@ -783,10 +680,6 @@ public sealed class PianoRoll : Control
         DrawReadout(ctx);
     }
 
-    /// <summary>
-    /// 「去除开头空拍」把整条旋律往前挪了，时间轴因此不是原始时间轴。
-    /// 在左下角把剪掉多少标出来，否则用户无从知道这件事发生过。
-    /// </summary>
     private void DrawTrimNote(DrawingContext ctx)
     {
         if (_trimmedLead <= 0.05) return;
@@ -1064,9 +957,6 @@ public sealed class PianoRoll : Control
             InvalidateVisual();
             RaiseSelectionChanged();
             NoteAuditioned?.Invoke(n.Pitch);
-            // 新音立刻提交：只等松手提交的话，按下与松开之间没有指针移动（原地双击）时
-            // 这个音只留在卷帘内部，试听、导出与撤销都看不到它（UI-04）。
-            // 原地双击只有这一步；继续拖动定长时松手再按最终长度提交（见 ResizeChanged）。
             Commit("加音");
             e.Handled = true;
             return;
@@ -1179,17 +1069,10 @@ public sealed class PianoRoll : Control
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
-        // 先收尾再还捕获：Capture(null) 会同步触发 OnPointerCaptureLost，
-        // 顺序反了 SeekCommitted 会拿到 _lastPt 而不是松手落点（收尾也是幂等的，反过来只多跑一次空收尾）
         EndDrag(e.GetPosition(this));
         e.Pointer.Capture(null);
     }
 
-    /// <summary>
-    /// 捕获被抢走（拖出窗口、Alt+Tab）时收尾：与松手走同一段逻辑。
-    /// 缺了它，尺子定位手势会卡在 ScrubRuler，MainWindow 的 _seeking 一直为 true，进度显示冻住。
-    /// 没有有效落点，用最后一次已知指针位置（SeekCommitted 照常发，MainWindow 靠它解除 _seeking）。
-    /// </summary>
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
     {
         base.OnPointerCaptureLost(e);
@@ -1322,8 +1205,6 @@ public sealed class PianoRoll : Control
         double d = TimeAt(p.X) - _anchorSec;
         int dp = PitchAt(p.Y, PitchRange()) - _anchorPitch;
 
-        // 吸附"音符边"而不是光标：让基准音的头或尾落在格子上，取需要修正更小的那个。
-        // 按住 Shift 时临时关闭吸附（与类注释一致，UI-15）。
         var prim = _dragBase[0];
         if (!ShiftHeld(mods) && SnapEnabled && SnapSeconds > 0)
         {
@@ -1464,8 +1345,6 @@ public sealed class PianoRoll : Control
         {
             if (!selRefs.Contains(n)) { rebuilt.Add((n, false)); continue; }
             int p = Math.Clamp(n.Pitch + dp, 0, 127);
-            // 起始时间已经在 0 又往左挪时这个音整体不位移：否则 Start 被夹在 0，End 仍减一个 dt，
-            // 音符会被一步一步截短（UI-07）
             double d = dt < 0 && n.Start <= 0 ? 0 : dt;
             double st = Math.Max(0, n.Start + d);
             double en = Math.Max(st + MinNoteSeconds, n.End + d);

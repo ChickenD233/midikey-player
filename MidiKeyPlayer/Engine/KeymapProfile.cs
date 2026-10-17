@@ -4,25 +4,12 @@ using MidiKeyPlayer.Persist;
 
 namespace MidiKeyPlayer.Engine;
 
-/// <summary>
-/// 【兼容保留，界面不再提供】超界处理：丢音 / 就近折八度。JSON 里写 <c>drop</c> / <c>fold</c>。
-/// 新版本固定按 <see cref="Drop"/> 处理：超出可弹范围的音一律不弹。读到老文件的 <c>fold</c> 只写一条日志。
-/// </summary>
 [JsonConverter(typeof(OutOfRangeModeConverter))]
 public enum OutOfRangeMode { Drop, Fold }
 
-/// <summary>
-/// 【兼容保留，界面不再提供】老的缺音处理档位：跳过 / 用高半音代替 / 用低半音代替。
-/// 行为已经固定成「跳过」：键表里没有这个音就不发声，不再按策略改音高。
-/// 这一项也不再写回 JSON（见 <see cref="KeymapProfile.MissingNote"/>）。
-/// </summary>
 [JsonConverter(typeof(MissingNoteModeConverter))]
 public enum MissingNoteMode { Skip, Up, Down }
 
-/// <summary>
-/// 一个主键：物理键名 + 相对 <see cref="KeymapProfile.BaseNote"/> 的半音偏移 + 属于第几行。
-/// JSON 里写成三元素数组 <c>["Z",0,0]</c>，由 <see cref="KeyBindingConverter"/> 负责。
-/// </summary>
 [JsonConverter(typeof(KeyBindingConverter))]
 public sealed class KeyBinding
 {
@@ -32,25 +19,8 @@ public sealed class KeyBinding
     /// <summary>相对 <see cref="KeymapProfile.BaseNote"/> 的半音偏移。</summary>
     public int Offset { get; set; }
 
-    /// <summary>
-    /// 这个键属于方案的第几行（从 0 数起，一行里的键必须写同一个值）。
-    /// 界面按它一行一行整齐显示：21 键自然音与 21 键半音的下排 Z..M 是 0、中排 A..J 是 1、上排 Q..U 是 2；
-    /// 第五人格键位（三排各 12 个半音）的低音排是 0、中音排是 1、高音排是 2。
-    /// 老文件没有这个字段，读进来是 0；一套方案里所有键都是 0 时，界面退回「按物理键盘的排分组」。
-    /// 不能用「物理键盘的排」推方案的行：第五人格键位的低音排用了逗号、句点、分号、斜杠、减号、左方括号，
-    /// 这些键散在四个物理排上。
-    /// </summary>
     public int Row { get; set; }
 
-    /// <summary>
-    /// true → 按这个主键之前先按住 Shift，出来的字符是这个键的「上位字符」：
-    /// <c>1</c> → <c>!</c>、<c>q</c> → <c>Q</c>、<c>,</c> → <c>&lt;</c>（显示名见 <see cref="KeymapProfile.ShiftedNameOf"/>）。
-    ///
-    /// 给「一个半音一个键」的方案用：目标程序认的是 Shift 出来的字符（键盘上没有独立的黑键），
-    /// 所以黑键写成「下面那个白键 + Shift」，<see cref="Offset"/> 直接写黑键自己的半音偏移。
-    /// 这类键位不靠功能键区的「升半音键」，功能键总开关可以是关的。
-    /// 老方案文件没有这个字段，读进来是 false。
-    /// </summary>
     public bool Shift { get; set; }
 
     public override string ToString()
@@ -64,21 +34,8 @@ public sealed class KeymapFormatException : Exception
     public KeymapFormatException(string message, Exception inner) : base(message, inner) { }
 }
 
-/// <summary>
-/// 键位方案：把「键名 → 半音偏移」与修饰键全部交给配置。
-///
-/// 活动方案是 <see cref="Current"/>（全局一份）。文件在 %LOCALAPPDATA%\MidiKeyPlayer\keymap.json。
-/// 序列化走源生成上下文 <see cref="KeymapJson"/>：发布开裁剪（PublishTrimmed），
-/// 反射式序列化依赖的元数据可能被裁掉；源生成在编译期产出读写代码，不受裁剪影响。
-/// </summary>
 public sealed class KeymapProfile
 {
-    /// <summary>
-    /// 默认方案名。内置几套都用直白名字（自然音 / 半音 / 第五人格键位 / 8 键半音 / 洛克王国手碟 / Roblox 钢琴键位 / FF14 钢琴键位 / 心动小镇），
-    /// 不再由几何量拼出来 ——「36 键 4 排 3 个八度」这类名字会把用户绕晕，实际只有三排。
-    /// 默认方案（v1.0.17 起）：Z X C V B N M , 一排 do..高音 do，
-    /// 鼠标左键降八度、右键升八度、中键升半音，能弹 48..85。
-    /// </summary>
     public const string DefaultName = "8 键半音";
 
     /// <summary>当前格式版本。读到更大的版本号就是不认识的格式。</summary>
@@ -94,26 +51,10 @@ public sealed class KeymapProfile
     public string? OctaveDown { get; set; } = "MouseLeft";
     public string? Sharp { get; set; } = "MouseMiddle";
 
-    /// <summary>
-    /// 降半音键（JSON 里写 <c>flat</c>）。按住它再按音键，发出的音低半音 ——
-    /// 与升半音键对称：升半音用「下方邻键 + 升半音」，降半音用「上方邻键 + 降半音」。
-    /// 同一个黑键两条路都能到时，固定优先升半音键（规则见 <see cref="TryKeyOfPitch(int, out string, out int, out bool, out bool, out int)"/>）；
-    /// 降半音键因此主要用在两处：方案没绑升半音键时补半音、把音域向下多扩一个半音。
-    /// 老方案文件没有这个字段，读进来是 null（按没绑处理）。
-    /// </summary>
     public string? Flat { get; set; }
 
-    /// <summary>
-    /// 是否启用功能键（八度键与升半音键）。界面上的勾选框「启用功能键」。
-    /// 不勾时：功能键区块的输入禁用，引擎按「没有修饰键」处理 ——
-    /// 超出键位范围的音直接不发声，不做八度折叠。默认启用。
-    /// </summary>
     public bool ModifiersEnabled { get; set; } = true;
 
-    /// <summary>
-    /// 【兼容保留，界面不再提供】老文件里写过音域下限。新版本的音域一律由键位推导
-    /// （见 <see cref="ResolveMinNote"/>），这里读到什么值都不参与判断，只在写盘时原样保留。
-    /// </summary>
     public int? MinNote { get; set; }
 
     /// <summary>【兼容字段】老文件里写过音域上限。含义同 <see cref="MinNote"/>。</summary>
@@ -122,11 +63,6 @@ public sealed class KeymapProfile
     /// <summary>【兼容字段】超出可弹范围的音固定不弹，这个字段不再影响行为。</summary>
     public OutOfRangeMode OutOfRange { get; set; } = OutOfRangeMode.Drop;
 
-    /// <summary>
-    /// 【兼容字段，界面不再提供】老的「半音怎么处理？」三档。行为已固定为「跳过」：
-    /// 键表里没有这个音就不发声。这里永远读到 <see cref="MissingNoteMode.Skip"/>，
-    /// 读盘时把老文件里的选择压成 Skip，并且不再写回 JSON（<see cref="JsonIgnoreAttribute"/>）。
-    /// </summary>
     [JsonIgnore]
     public MissingNoteMode MissingNote
     {
@@ -136,11 +72,6 @@ public sealed class KeymapProfile
 
     // ================= 位置与活动方案 =================
 
-    /// <summary>
-    /// 【开发用】把方案目录临时指到别处。自检要验证「旧副本迁移会不会真的重写文件」，
-    /// 指到临时目录才不至于动到用户真实的 %LOCALAPPDATA%\MidiKeyPlayer。
-    /// 默认 null = 真实目录。正式流程只在自检里赋值，跑完立刻还原。
-    /// </summary>
     internal static string? DirPathForDev { get; set; }
 
     private static string DirPath =>
@@ -151,10 +82,6 @@ public sealed class KeymapProfile
 
     private static KeymapProfile? _current;
 
-    /// <summary>
-    /// 全局活动方案。赋 null 等于恢复默认，永远不会把 null 放出去。
-    /// 首次访问时读盘（keymap.json → 设置里的方案名 → 默认方案）。
-    /// </summary>
     public static KeymapProfile Current
     {
         get => _current ??= Load();
@@ -165,32 +92,16 @@ public sealed class KeymapProfile
 
     private static IReadOnlyList<KeymapProfile>? _presets;
 
-    /// <summary>
-    /// 内置预设。第一项就是默认方案。名字现在是写死的中文（见 <see cref="BuildPresets"/>），
-    /// <see cref="SchemeNameOf"/> 只留着算几何量，不再用来命名。只读用；要改先 <see cref="Clone"/>。
-    /// </summary>
     public static IReadOnlyList<KeymapProfile> Presets => _presets ??= BuildPresets();
 
     /// <summary>默认方案（第 1 套，v1.0.17 起是「8 键半音」）。每次取都是新副本，改它不影响内置预设。</summary>
     public static KeymapProfile Default => BuildChromatic8();
 
-    /// <summary>
-    /// 21 键自然音（v1.0.17 之前的默认方案）：三行七列，一行一个八度。
-    /// 下排 Z X C V B N M = 中音 do..si；中排 A S D F G H J = 高八度；上排 Q W E R T Y U = 再高一个八度。
-    /// 60..95。预设不带修饰键：功能键总开关关掉。
-    /// </summary>
-    /// <summary>21 键自然音的构建入口（v1.0.17 前的默认方案，现在只是预设之一）。</summary>
     private static KeymapProfile BuildDefault() => BuildNatural21();
 
-    /// <summary>
-    /// 21 键自然音：三行七列，每行一个八度，从左到右 do re mi fa sol la si。
-    /// 偏移 0/2/4/5/7/9/11 一行，行距 +12。能弹 60..95。
-    /// </summary>
     private static KeymapProfile BuildNatural21()
     {
         var keys = new List<KeyBinding>();
-        // 三行的物理排：下排 ZXCV 排、中排 ASDF 排、上排 QWERTY 排。相对基准 60 的行距 = 0 / +12 / +24。
-        // Row 也按这个顺序：0 = 下排（中音）、1 = 中排、2 = 上排。界面把 Row 大的显示在上面。
         string[][] rows = { new[] { "Z", "X", "C", "V", "B", "N", "M" },
                             new[] { "A", "S", "D", "F", "G", "H", "J" },
                             new[] { "Q", "W", "E", "R", "T", "Y", "U" } };
@@ -212,15 +123,6 @@ public sealed class KeymapProfile
         };
     }
 
-    /// <summary>
-    /// 21 键半音：三行七列**自然音**，三行分别是低音 / 中音 / 高音三个八度，配半音键补齐半音。
-    /// 下排 Z X C V B N M = 低音 do..si（48 起，偏移 −12 −10 −8 −7 −5 −3 −1）；
-    /// 中排 A S D F G H J = 中音 do..si（60 起，偏移 0 2 4 5 7 9 11）；
-    /// 上排 Q W E R T Y U = 高音 do..si（72 起，偏移 12 14 16 17 19 21 23）。
-    /// 功能键打开：按住 Shift 升半音、按住 Ctrl 降低半音（v1.0.14 的「异环键位」已并入本套，
-    /// 键位一字未动，见 <see cref="LegacyPresetAlias"/>）。八度键留空。
-    /// 能弹 47..84（低音 do 再低半音 到 高音 si 升半音）。
-    /// </summary>
     private static KeymapProfile BuildChromatic21()
     {
         var keys = new List<KeyBinding>();
@@ -249,18 +151,6 @@ public sealed class KeymapProfile
         };
     }
 
-    /// <summary>
-    /// 第 3 套（第五人格键位）：三排各 12 个半音，一排一个八度。键位与旧名「36 键半音三排」完全相同。
-    ///
-    /// 低音排（基准 60 − 12 = 48 起）：
-    ///   DO=, #DO=L RE=. #RE=; MI=/ FA=I #FA=9 SO=O #SO=0 RA=P #RA=- XI=[
-    /// 中音排（60 起）：
-    ///   DO=Z #DO=S RE=X #RE=D MI=C FA=V #FA=G SO=B #SO=H RA=N #RA=J XI=M
-    /// 高音排（72 起）：
-    ///   DO=Q #DO=2 RE=W #RE=3 MI=E FA=R #FA=5 SO=T #SO=6 RA=Y #RA=7 XI=U
-    ///
-    /// 能弹 48..83。预设不带修饰键。
-    /// </summary>
     private static KeymapProfile BuildChromatic36()
     {
         // 每排 12 个键，从 DO 到 XI 依次加一个半音。行距 = 12。
@@ -287,11 +177,6 @@ public sealed class KeymapProfile
         };
     }
 
-    /// <summary>
-    /// 第 4 套（8 键半音）：一排 8 个键 <c>Z X C V B N M ,</c> 是 do..高音 do（自然音），
-    /// 鼠标三键补齐：左键降八度、右键升八度、中键升半音。能弹 48..85。
-    /// 键位与旧版删掉的「8 键单排（含高八度 do，默认）」完全相同（见 <see cref="LegacyPresetAlias"/>）。
-    /// </summary>
     private static KeymapProfile BuildChromatic8()
     {
         var keys = new List<KeyBinding>();
@@ -315,13 +200,6 @@ public sealed class KeymapProfile
         };
     }
 
-    /// <summary>
-    /// 第 5 套（洛克王国手碟）：手碟键位，只有自然音，不带功能键。
-    ///   T Y U = 高音 do re mi（偏移 +12 +14 +16，第 3 行）
-    ///   F G H J K = 中音 mi fa sol la si（偏移 +4 +5 +7 +9 +11，第 2 行）
-    ///   B = 低音 la（偏移 −3，第 1 行）
-    /// 行号与物理键盘的排一致：QWERTY 排在上、ASDF 排居中、ZXCV 排在下。能弹 57..76。
-    /// </summary>
     private static KeymapProfile BuildHandpan()
     {
         var keys = new List<KeyBinding>();
@@ -348,19 +226,6 @@ public sealed class KeymapProfile
         };
     }
 
-    /// <summary>
-    /// 第 6 套（Roblox 钢琴键位）：Roblox 虚拟钢琴那套 61 键，**一个半音一条键位**。
-    /// 黑键写成「下面那个白键 + Shift」（<see cref="KeyBinding.Shift"/>），界面上显示成 ! @ $ % ^ * ( 与 Q W E …
-    /// 这套不用功能键区：<see cref="ModifiersEnabled"/> = false，升半音键留空。
-    ///
-    ///   数字排：1=C2  !=C#2  2=D2  @=D#2  3=E2  4=F2  $=F#2  5=G2  %=G#2  6=A2  ^=A#2  7=B2  8=C3  *=C#3  9=D3  (=D#3  0=E3
-    ///   QWERTY：q=F3  Q=F#3  w=G3  W=G#3  e=A3  E=A#3  r=B3  t=C4  T=C#4  y=D4  Y=D#4  u=E4  i=F4  I=F#4  o=G4  O=G#4  p=A4  P=A#4
-    ///   ASDF 排：a=B4  s=C5  S=C#5  d=D5  D=D#5  f=E5  g=F5  G=F#5  h=G5  H=G#5  j=A5  J=A#5  k=B5  l=C6  L=C#6
-    ///   ZXCV 排：z=D6  Z=D#6  x=E6  c=F6  C=F#6  v=G6  V=G#6  b=A6  B=A#6  n=B6  m=C7
-    ///
-    /// E、B 与最高的 C7 上面没有黑键，所以是 36 个白键 + 25 个黑键 = 61 条。
-    /// 能弹 36..96（C2..C7）。基准音是中音 C4 = 60。
-    /// </summary>
     private static KeymapProfile BuildRobloxPiano()
     {
         var keys = new List<KeyBinding>();
@@ -402,20 +267,6 @@ public sealed class KeymapProfile
         };
     }
 
-    /// <summary>
-    /// 第 7 套（FF14 钢琴键位）：FF14 演奏模式的键位，**一个半音一条键位**，共 37 条，不用功能键。
-    /// 白键散在 ZXCV / ASDF / QWERTY 三排上，黑键散在数字排与 QWERTY 排的右半边，都按游戏里的位置写死。
-    ///
-    ///   低八度（偏移 0..11）：  Z=do 1=#do X=re 2=#re C=mi V=fa 3=#fa B=sol 4=#sol N=la 5=#la M=si
-    ///   中八度（偏移 12..23）： A=do 6=#do S=re 7=#re D=mi F=fa 8=#fa G=sol 9=#sol H=la 0=#la J=si
-    ///   高八度（偏移 24..35）： K=do Y=#do L=re U=#re Q=mi W=fa I=#fa E=sol O=#sol R=la P=#la T=si
-    ///   最高一个音（偏移 36）： <c>,</c> = do
-    ///
-    /// 行号按**八度**分，不按物理排：一行正好 12 个半音，界面排出来就是三行十二列再挂一个音，
-    /// 与钢琴从左到右排一样。按物理排分不行 —— 高八度的 Q W E R T 跟着黑键 Y U I O P 走，
-    /// 按物理排分组会把高八度打乱成 Y U Q W I E O R P T。
-    /// 基准音是中音 C4 = 60，能弹 60..96（C4..C7）。
-    /// </summary>
     private static KeymapProfile BuildFf14Piano()
     {
         var keys = new List<KeyBinding>();
@@ -447,24 +298,6 @@ public sealed class KeymapProfile
         };
     }
 
-    /// <summary>
-    /// 第 8 套（心动小镇）：三排各一个八度，**一个半音一条键位**，共 37 条，不用功能键。
-    /// 一排 7 个白键（最高那排多一个高音 do），5 个黑键散在数字排与符号键上，都按游戏里的位置写死。
-    ///
-    ///   低音排（偏移 −12..−1）：  , = do   L = #do   . = re   ; = #re   / = mi   O = fa
-    ///                              0 = #fa  P = sol   - = #sol  [ = la   = = #la   ] = si
-    ///   中音排（偏移 0..11）：    Z = do   S = #do   X = re   D = #re   C = mi   V = fa
-    ///                              G = #fa  B = sol   H = #sol  N = la   J = #la   M = si
-    ///   高音排（偏移 12..24）：   Q = do   2 = #do   W = re   3 = #re   E = mi   R = fa
-    ///                              5 = #fa  T = sol   6 = #sol  Y = la   7 = #la   U = si
-    ///                              I = 高音 do
-    ///
-    /// 行号按**八度**分，不按物理键盘的排：一行正好一个八度，界面排出来就是三行
-    /// （低音 12 条、中音 12 条、高音 13 条），与钢琴从左到右排一样。
-    /// 按物理排分组不行 —— 低音排的键散在四个物理排上（, . / 在 ZXCV 排、L ; 在 ASDF 排、
-    /// O P [ ] 在 QWERTY 排、0 - = 在数字排）。
-    /// 基准音是中音 C4 = 60，能弹 48..84（C3..C6）。
-    /// </summary>
     private static KeymapProfile BuildXindong()
     {
         var keys = new List<KeyBinding>();
@@ -496,11 +329,6 @@ public sealed class KeymapProfile
         };
     }
 
-    /// <summary>
-    /// v1.1.17 / v1.1.18 的「心动小镇」键位：**历史留档，不要改**。
-    /// 它只用来认出「用户目录里那一版留下的旧副本」（见 <see cref="IsUntouchedLegacyCopy"/>）。
-    /// 那一版把低音 do 写成 .、把 , 当成黑键，高音黑键写成 1 2 4 5 6。
-    /// </summary>
     internal static KeymapProfile BuildXindongV1117()
     {
         var keys = new List<KeyBinding>();
@@ -532,20 +360,11 @@ public sealed class KeymapProfile
         };
     }
 
-    /// <summary>
-    /// 内置方案的历史版本：方案名 → 那一版的原样（键位 + 说明）。
-    /// 只加不改：每一版内置键位改过之后，把改之前的样子留在这里一份。
-    /// </summary>
     private static readonly Dictionary<string, KeymapProfile> LegacyBuiltInRevisions = new(StringComparer.Ordinal)
     {
         ["心动小镇"] = BuildXindongV1117(),   // v1.1.17 / v1.1.18 的样子
     };
 
-    /// <summary>
-    /// 这份方案是不是某个内置历史版本**原样**留下的（用户一个字符都没动过）。
-    /// 键位与说明都要一模一样：
-    /// 键位一样而说明是新的，说明这份副本是 v1.1.19 之后存的、键位是用户自己改回去的，不能动。
-    /// </summary>
     public static bool IsUntouchedLegacyCopy(string? name, KeymapProfile? profile)
     {
         if (string.IsNullOrWhiteSpace(name) || profile == null) return false;
@@ -569,11 +388,6 @@ public sealed class KeymapProfile
     /// <summary>这个音高上面有没有黑键：C D F G A 有，E 与 B 没有。参数是 MIDI 音高（非负）。</summary>
     private static bool HasSharpAbove(int pitch) => pitch % 12 is 0 or 2 or 5 or 7 or 9;
 
-    /// <summary>
-    /// 方案名：「N 键 M 排 K 个八度」。
-    /// N = 键位数；M = 这些键在物理键盘上占几排；K = 能弹音域的八度数（向上取整）。
-    /// K 由「键位 × 八度键」能到达的音高张角算出，升半音键只在音域内补半音，不扩展边界。
-    /// </summary>
     public static string SchemeNameOf(KeymapProfile profile)
     {
         int keys = profile.Keys.Count(k => k != null && !string.IsNullOrWhiteSpace(k.Key));
@@ -606,10 +420,6 @@ public sealed class KeymapProfile
         return -1;
     }
 
-    /// <summary>
-    /// 能弹音域的八度数：最短键位到最长键位之间，加上八度键能挪动的量，再向上取整。
-    /// 一个音都认不出时算 1 个八度。功能键关掉时八度键不参与。
-    /// </summary>
     private static int OctaveCountOf(KeymapProfile profile)
     {
         int min = int.MaxValue, max = int.MinValue;
@@ -628,11 +438,6 @@ public sealed class KeymapProfile
         return Math.Max(1, (int)Math.Ceiling((hi - lo) / 12.0));
     }
 
-    /// <summary>
-    /// 内置预设，名字直接写死成直白的中文（不再由 <see cref="SchemeNameOf"/> 拼几何量）。
-    /// 第 1 套的名字必须等于 <see cref="DefaultName"/>（默认方案，v1.0.17 起是「8 键半音」），不等就写日志。
-    /// 第 3 套的用户可见名字由用户指定，键位与旧的「36 键半音三排」相同（见 <see cref="LegacyPresetAlias"/>）。
-    /// </summary>
     private static IReadOnlyList<KeymapProfile> BuildPresets()
     {
         var list = new List<KeymapProfile>
@@ -673,10 +478,6 @@ public sealed class KeymapProfile
 
     // ================= 老方案名（升级用） =================
 
-    /// <summary>
-    /// 改过名的预设：老名字 → 现在的名字。老用户设置里存的还是老名字。
-    /// 只列「老名字对应的键位今天还在」的那些；键位已经删掉的老名字走 <see cref="RemovedPresetNames"/>。
-    /// </summary>
     private static readonly Dictionary<string, string> LegacyPresetAlias = new(StringComparer.Ordinal)
     {
         // 上一版由 SchemeNameOf 算出来的名字 → 现在的直白名字（键位没变，只是换了称呼）
@@ -686,21 +487,11 @@ public sealed class KeymapProfile
         ["36 键 3 排 3 个八度"] = "第五人格键位",
         // 第 3 套改名：老名字 → 现在的名字。键位一字未动
         ["36 键半音三排"] = "第五人格键位",
-        // 8 键单排这一套删掉过一版，v1.0.7 又加回来了（名字改成「8 键半音」）。键位一字未动，
-        // 所以老名字指回新预设，老用户的设置能直接恢复，不用手工再选一次。
         ["8 键单排（含高八度 do，默认）"] = "8 键半音",
         ["8 键 1 排 3 个八度"] = "8 键半音",
-        // v1.0.14 的「异环键位」在 v1.0.15 并入「21 键半音」（键位相同，只是多了 Ctrl 降半音）。
-        // 已选过它的老用户直接落到合并后的方案，不用手工再选一次。
         ["异环键位"] = "21 键半音",
     };
 
-    /// <summary>
-    /// 已经删掉的预设：读到这些名字就回退到默认方案。
-    /// 现在保留 21 键自然音 / 21 键半音 / 第五人格键位 / 8 键半音 / 洛克王国手碟 / Roblox 钢琴键位 / FF14 钢琴键位 / 心动小镇八套，其余历史名字全部列在这里。
-    /// 改过名但键位还在的（例如「36 键半音三排」「8 键单排（含高八度 do，默认）」）走
-    /// <see cref="LegacyPresetAlias"/>，不要写在这里。
-    /// </summary>
     private static readonly HashSet<string> RemovedPresetNames = new(StringComparer.Ordinal)
     {
         // 旧的自然音方案（7 键 / 15 键 / 23 键）
@@ -727,10 +518,6 @@ public sealed class KeymapProfile
     public static bool IsRemovedPresetName(string? name)
         => !string.IsNullOrWhiteSpace(name) && RemovedPresetNames.Contains(name!);
 
-    /// <summary>
-    /// 读到一个方案名之后做一次升级：改过名的预设就地改名（键位不动）；删掉的预设回退到默认方案。
-    /// 返回要用的方案，log 里是中文说明（空串 = 不用记）。
-    /// </summary>
     private static KeymapProfile UpgradeLegacyName(KeymapProfile profile, out string log)
     {
         log = "";
@@ -755,10 +542,6 @@ public sealed class KeymapProfile
 
     // ================= 方案库（内置 + 用户自己存的文件） =================
 
-    /// <summary>
-    /// 用户方案文件所在目录：%LOCALAPPDATA%\MidiKeyPlayer\schemes\。
-    /// 一个方案一个文件，文件名（去掉扩展名）= 方案名。
-    /// </summary>
     public static string SchemesDir =>
         Path.Combine(DirPath, "schemes");
 
@@ -791,10 +574,6 @@ public sealed class KeymapProfile
         return list;
     }
 
-    /// <summary>
-    /// 全部可用方案名：内置预设在前（按 Presets 的顺序），用户方案文件在后（按名字排序）。
-    /// 名字相同的只留一次。下拉框直接用这个列表。
-    /// </summary>
     public static IReadOnlyList<string> ListSchemeNames()
     {
         var names = new List<string>();
@@ -810,10 +589,6 @@ public sealed class KeymapProfile
         return names;
     }
 
-    /// <summary>
-    /// 这个名字是不是内置预设名。内置方案不能被改名、不能被删除，名字也不能被新方案占用。
-    /// 但它的**键位改动**可以存到 schemes 目录里，见 <see cref="LoadByName"/>。
-    /// </summary>
     public static bool IsBuiltInSchemeName(string? name) => PresetByName(name) != null;
 
     /// <summary>这个名字已经被某个方案占用（内置或用户文件）。</summary>
@@ -831,19 +606,12 @@ public sealed class KeymapProfile
         }
     }
 
-    /// <summary>
-    /// 按名字载入一个方案。**用户目录优先**：先读 schemes\&lt;名字&gt;.json，
-    /// 读到了就用它（内置名字也一样，用户改过的键位存在这里）；文件不在才退回内置预设。
-    /// 两边都没有返回 null，并写出可读原因。绝不抛异常。
-    /// </summary>
     public static KeymapProfile? LoadByName(string? name)
     {
         if (string.IsNullOrWhiteSpace(name)) return null;
 
         if (TryLoadSchemeFile(name, out var user))
         {
-            // 旧副本迁移：这份副本一字不差地还是某个历史版本的内置键位（用户没动过），
-            // 就换成当前内置键位，并把副本重写掉 —— 不然后面每次启动都读到旧的。
             if (user != null && FreshBuiltInForStaleCopy(user) is KeymapProfile fresh)
             {
                 LogFile.Append($"[键位] 方案「{name}」的用户副本还是旧版内置键位，已换成当前内置键位。");
@@ -860,10 +628,6 @@ public sealed class KeymapProfile
         return null;
     }
 
-    /// <summary>
-    /// 只读用户目录里的同名方案文件。读到就返回 true（profile 是它）。
-    /// 文件不在返回 false（这不是错误，调用方接着找内置预设）；文件坏了写一条日志再返回 false。
-    /// </summary>
     public static bool TryLoadSchemeFile(string? name, out KeymapProfile? profile)
     {
         profile = null;
@@ -888,21 +652,12 @@ public sealed class KeymapProfile
         }
     }
 
-    /// <summary>
-    /// 旧版内置键位留下的副本 → 当前内置键位。不是旧副本就返回 null（调用方照常用手上那份）。
-    /// 判断见 <see cref="IsUntouchedLegacyCopy"/>：只认某个历史版本的完整样子（键位与说明都一样），
-    /// 用户自己改过的键位一个都不匹配，原样保留。
-    /// </summary>
     private static KeymapProfile? FreshBuiltInForStaleCopy(KeymapProfile copy)
     {
         if (!IsUntouchedLegacyCopy(copy.Name, copy)) return null;
         return PresetByName(copy.Name)?.Clone();
     }
 
-    /// <summary>
-    /// 把一份方案写进 schemes\&lt;方案名&gt;.json（旧副本迁移之后覆盖旧的用）。
-    /// 目录与文件名的规则都在引擎这边，界面那边只调用。写不动只写日志，不抛异常。
-    /// </summary>
     public static void TryWriteSchemeFile(KeymapProfile profile)
     {
         try
@@ -918,12 +673,6 @@ public sealed class KeymapProfile
 
     // ================= 读盘 / 写盘 =================
 
-    /// <summary>
-    /// 读活动方案。顺序：keymap.json → 设置里记的方案名（`LoadByName`：先读用户目录的同名方案，
-    /// 读不到才用内置预设）→ 默认方案。
-    /// 读到改名前的预设名就地改名；读到已经删掉的预设名回退到默认方案，两种情况都写日志。
-    /// 任何失败都只写日志，返回默认方案的副本，绝不抛异常。
-    /// </summary>
     public static KeymapProfile Load()
     {
         try
@@ -992,11 +741,6 @@ public sealed class KeymapProfile
         }
     }
 
-    /// <summary>
-    /// 原子写入：先写临时文件再替换（与 AppConfig.Save 同一套模式）。
-    /// 直接覆盖写时若中途崩溃，keymap.json 会被截断，Load 的 catch 静默回退内置默认方案，
-    /// 用户自定义的键位就全丢了。
-    /// </summary>
     private static void WriteAllTextAtomic(string path, string text)
     {
         string tmp = path + ".tmp";
@@ -1022,9 +766,6 @@ public sealed class KeymapProfile
         }
     }
 
-    /// <summary>
-    /// 从文件导入。成功时给出新方案；失败时 error 里是中文原因，调用方的原有设置不动。
-    /// </summary>
     public static bool TryImportFile(string path, out KeymapProfile profile, out string error)
     {
         profile = BuildDefault();
@@ -1045,10 +786,6 @@ public sealed class KeymapProfile
     /// <summary>序列化成一个 JSON 文本。</summary>
     public string ToJson() => JsonSerializer.Serialize(this, KeymapJson.Default.KeymapProfile);
 
-    /// <summary>
-    /// 解析一份方案 JSON。格式不认识就抛 <see cref="KeymapFormatException"/>（消息是中文）。
-    /// 界面导入要接住它，并保留原有设置。老文件的 <c>missingNote</c> 读到就丢，行为固定跳过。
-    /// </summary>
     public static KeymapProfile FromJson(string json)
     {
         if (string.IsNullOrWhiteSpace(json))
@@ -1130,14 +867,6 @@ public sealed class KeymapProfile
         }
     }
 
-    // ================= 音域（由键位推导） =================
-    //
-    // 能弹的音高集合 = 所有键位在基准音与修饰键作用下实际能到达的音高：
-    //   音高 = BaseNote + 键偏移 + 12 × 八度档（有升/降八度键才有这一档）
-    //   升半音键再 +1。
-    // 集合的上下限就是音域，界面不再填 minNote / maxNote。
-    // 功能键总开关（ModifiersEnabled）关掉时，八度档只有 0，也没有升半音键。
-
     /// <summary>基准音所在的八度编号（C4 = 4）。</summary>
     public int BaseOctave => BaseNote / 12 - 1;
 
@@ -1147,18 +876,8 @@ public sealed class KeymapProfile
     public bool CanUseSharp => ModifiersEnabled && !string.IsNullOrWhiteSpace(Sharp);
     public bool CanUseFlat => ModifiersEnabled && !string.IsNullOrWhiteSpace(Flat);
 
-    /// <summary>
-    /// 方案里有没有「自带 Shift」的主键（<see cref="KeyBinding.Shift"/>）。
-    /// 有就说明这套方案把黑键写成了一个半音一条的独立键位，不靠功能键区的升半音键。
-    /// </summary>
     public bool HasSelfShiftKeys => Keys.Any(k => k != null && k.Shift);
 
-    /// <summary>
-    /// 演奏时要按住的半音键名。两个来源，顺序固定：
-    /// 先看方案绑的 <see cref="Sharp"/>；没绑但键位自带 Shift（<see cref="HasSelfShiftKeys"/>）时用 <c>Shift</c>。
-    /// 都没有返回 null = 这套方案不按任何半音修饰键。
-    /// 功能键总开关不参与判断：自带 Shift 的键位本来就不依赖功能键。
-    /// </summary>
     public string? SharpKeyToHold
         => !string.IsNullOrWhiteSpace(Sharp) ? Sharp : (HasSelfShiftKeys ? "Shift" : null);
 
@@ -1211,10 +930,6 @@ public sealed class KeymapProfile
         return any;
     }
 
-    /// <summary>
-    /// 实际能弹出的音高（升序、去重）：每个键位配上可用的八度档与升半音键。
-    /// 界面用这份列表铺音高下拉与「还有几个音没绑键」的统计。
-    /// </summary>
     public IReadOnlyList<int> ReachablePitches()
     {
         var set = new SortedSet<int>();
@@ -1273,16 +988,6 @@ public sealed class KeymapProfile
         return false;
     }
 
-    /// <summary>
-    /// 把一个音高（方案基准八度下的绝对 MIDI 音高）映射到「按键 + 八度档 + 升半音」。
-    ///
-    /// 规则只有一条：**有键就发、没键就不发**。
-    /// 范围外的音固定不弹（返回 false）；范围里的音精确命中键表才返回 true，
-    /// 没有对应的键就直接不弹，不按任何策略改音高。
-    ///
-    /// 目标音相同的候选之间优先顺序固定：不用升半音键 → 键偏移小 → 八度档绝对值小 → 键表里靠前。
-    /// 功能键总开关关掉时，八度档只有 0，也不会有升半音键。
-    /// </summary>
     public bool TryKeyOfPitch(int pitch, out string key, out int octaveOffset, out bool sharp)
         => TryKeyOfPitch(pitch, out key, out octaveOffset, out sharp, out _, out _);
 
@@ -1291,12 +996,6 @@ public sealed class KeymapProfile
                               out int soundingPitch)
         => TryKeyOfPitch(pitch, out key, out octaveOffset, out sharp, out _, out soundingPitch);
 
-    /// <summary>
-    /// 完整版：另给出 <paramref name="flat"/>（要不要按住降半音键，与 <paramref name="sharp"/> 互斥）。
-    /// 候选优先顺序固定：不用半音键 → 用升半音键 → 用降半音键 → 键偏移小 → 八度档绝对值小 → 键表里靠前。
-    /// 也就是说同一个黑键「下方白键 + 升半音」与「上方白键 + 降半音」都能到时，固定用升半音；
-    /// 降半音键负责的是：方案没绑升半音键时补半音，以及最低键下面那一个半音（升半音够不到）。
-    /// </summary>
     public bool TryKeyOfPitch(int pitch, out string key, out int octaveOffset,
                               out bool sharp, out bool flat, out int soundingPitch)
     {
@@ -1406,13 +1105,6 @@ public sealed class KeymapProfile
         return copy;
     }
 
-    // ================= 键名表 =================
-    //
-    // 键名到字符是「多对一」：单字符键（字母、数字、标点）用自身；
-    // 命名键（PageUp、MouseLeft、F1、NumPad3…）用私用区哨兵字符，一个键名一个码位。
-    // 这样播放引擎仍可以用 char 传递按键（PlaybackEngine 的 PhysicalEvent.Code），
-    // 而 InputSender / MacroExporter 能把哨兵还原成真正的键名。
-
     private const char NamedKeyBase = '\uE000';
 
     /// <summary>命名键（非单字符）。下标 + <see cref="NamedKeyBase"/> 就是它的哨兵字符。</summary>
@@ -1453,10 +1145,6 @@ public sealed class KeymapProfile
     /// <summary>可单独作为键名的标点（与界面能录入的键一致）。</summary>
     private const string SingleCharKeys = ",.;/'\\[]-=`";
 
-    /// <summary>
-    /// 可单独作为键名的全部字符，共 47 个：26 个字母 + 10 个数字 + 11 个标点（<see cref="SingleCharKeys"/>）。
-    /// 界面的「+ 加一行」按这个池子挑空闲键；池子用尽时界面不再写空键名，而是提示并中止。
-    /// </summary>
     public const string SingleCharPool = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" + SingleCharKeys;
 
     /// <summary>归一化键名：大小写、别名。认不出返回空串。</summary>
@@ -1492,10 +1180,6 @@ public sealed class KeymapProfile
         [';'] = ':', ['\''] = '"', [','] = '<', ['.'] = '>', ['/'] = '?', ['`'] = '~',
     };
 
-    /// <summary>
-    /// 自带 Shift 的主键显示成什么：<c>1</c> → <c>!</c>、<c>q</c> → <c>Q</c>、<c>,</c> → <c>&lt;</c>。
-    /// 认不出的键名（PageUp 这类）退回 <c>Shift+键名</c>。
-    /// </summary>
     public static string ShiftedNameOf(string? keyName)
     {
         string name = CanonicalKeyName(keyName);
@@ -1507,18 +1191,11 @@ public sealed class KeymapProfile
         return $"Shift+{name}";
     }
 
-    /// <summary>
-    /// 一条键位在界面上显示的键名：自带 Shift 的显示上位字符（<c>!</c>、<c>Q</c>），
-    /// 其余还是键名本身。界面的键帽、导出说明、日志都用它，口径一致。
-    /// </summary>
     public static string DisplayNameOf(KeyBinding? binding)
         => binding == null || string.IsNullOrWhiteSpace(binding.Key)
             ? ""
             : (binding.Shift ? ShiftedNameOf(binding.Key) : CanonicalKeyName(binding.Key));
 
-    /// <summary>
-    /// 键名 → 单字符。单字符键返回自身；命名键返回哨兵字符；认不出返回 '\0'。
-    /// </summary>
     public static char KeyCharOf(string? keyName)
     {
         string name = CanonicalKeyName(keyName);
@@ -1537,12 +1214,6 @@ public sealed class KeymapProfile
     }
 }
 
-/// <summary>
-/// 方案 JSON 的源生成上下文。读写走它，不用 JsonSerializer 的反射重载：
-/// 当前发布没开裁剪，但源生成更快，也不会因为将来重新开裁剪而失效。
-/// 字段名按设计文档的字段表写成 camelCase（version / name / baseNote / keys / octaveUp …）；
-/// 读的时候大小写不敏感，手写 "BaseNote" 也能读进来。
-/// </summary>
 [JsonSourceGenerationOptions(
     WriteIndented = true,
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
@@ -1552,10 +1223,6 @@ internal sealed partial class KeymapJson : JsonSerializerContext
 {
 }
 
-/// <summary>
-/// <c>outOfRange</c> 写成小写字符串 <c>drop</c> / <c>fold</c>（设计文档的字段表），
-/// 读的时候大小写不敏感，也接受 0/1 两个旧数字写法。
-/// </summary>
 internal sealed class OutOfRangeModeConverter : JsonConverter<OutOfRangeMode>
 {
     public override OutOfRangeMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
@@ -1581,14 +1248,6 @@ internal sealed class OutOfRangeModeConverter : JsonConverter<OutOfRangeMode>
         => writer.WriteStringValue(value == OutOfRangeMode.Fold ? "fold" : "drop");
 }
 
-/// <summary>
-/// 【兼容保留，界面不再提供】老文件里的 <c>missingNote</c>：<c>skip</c> / <c>up</c> / <c>down</c>，
-/// 还认得更老的 <c>snap</c>（读成 up）与 <c>drop</c>（读成 skip），以及 0/1 数字写法。
-///
-/// 读进来的值一律写成 <see cref="MissingNoteMode.Skip"/>：行为已固定为「有键就发、没键就不发」。
-/// 因为 <see cref="KeymapProfile.MissingNote"/> 打了 <see cref="JsonIgnoreAttribute"/>，
-/// 这个转换器只可能在读老文件时被调用，新文件里不再出现这个字段。
-/// </summary>
 internal sealed class MissingNoteModeConverter : JsonConverter<MissingNoteMode>
 {
     public override MissingNoteMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
@@ -1620,11 +1279,6 @@ internal sealed class MissingNoteModeConverter : JsonConverter<MissingNoteMode>
         => writer.WriteStringValue("skip");
 }
 
-/// <summary>
-/// <c>keys</c> 里每项写成数组 <c>["Z",0,0]</c>（键名、半音偏移、第几行），不是对象。
-/// 老文件的两元素写法 <c>["Z",0]</c> 照样读，行号默认 0。
-/// 放在 <see cref="KeyBinding"/> 类型上，源生成器直接按它读写列表元素。
-/// </summary>
 internal sealed class KeyBindingConverter : JsonConverter<KeyBinding>
 {
     public override KeyBinding Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
@@ -1659,8 +1313,6 @@ internal sealed class KeyBindingConverter : JsonConverter<KeyBinding>
                 throw new JsonException($"键「{name}」的行号要写整数。");
         }
 
-        // 第四项是「要不要按住 Shift」。老文件没有这一项，读成 false。
-        // 写成 1 / 0 或 true / false 都认；再往后多写的项忽略。
         bool shift = false;
         if (reader.TokenType != JsonTokenType.EndArray)
         {

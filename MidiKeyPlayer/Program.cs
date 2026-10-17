@@ -17,18 +17,12 @@ internal static class Program
             catch { }
         };
 
-        // 键位自检（MIDIKEY_GAME_SELFTEST，见 GameSelfTest.cs）：纯逻辑，不建窗口、不注册热键。
         if (GameSelfTest.Requested)
         {
             Environment.Exit(GameSelfTest.Run());
             return;
         }
 
-        // 试听探针（MIDIKEY_PREVIEW_PROBE=1，见 DevPreviewProbe.cs）只放音频、不发按键、
-        // 不注册全局热键，允许与用户正在用的实例并存。
-        // 界面快照与文件夹换歌回归（MIDIKEY_UI_SNAPSHOT*，见 DevUISnapshot.cs）同理：
-        // 只建窗口、载入文件、拍图，不演奏、不发按键，所以也跳过单实例检查 ——
-        // 否则用户开着程序时，发布流程里的自检与回归场景全都会被单实例挡掉。
         if (!PreviewProbeMode.On && !DevSnapshotMode.On && !TryAcquireSingleInstance())
         {
             try { MidiKeyPlayer.Persist.LogFile.Append("检测到已有一个实例在运行，本实例直接退出。"); }

@@ -76,8 +76,6 @@
       <Setter Property="Foreground" Value="{DynamicResource BrushDanger}"/>
     </Style>
 
-    <!-- 行尾与行下的「+」：整个方框都是点击区。
-         虚线画在按钮自己的 BorderBrush 上，不要另放 Rectangle：按钮本体必须占满方框。 -->
     <Style Selector="Button.rowPlus">
       <Setter Property="HorizontalContentAlignment" Value="Center"/>
       <Setter Property="VerticalContentAlignment" Value="Center"/>
@@ -104,9 +102,6 @@
     </Style>
   </Window.Styles>
 
-  <!-- 三页：常规（设备、兼容、热键、导出、自检）、键位（方案、按键绑定、功能键）、赞助（爱发电与作者链接）。
-       常规页的内容由 MainWindow 在打开时搬进来（AdvancedHost），键位页与赞助页的控件就声明在这里。
-       窗口大小跟着页签走：常规页小、键位页大，见 SettingsWindow.axaml.cs 的 ApplyPageSize。 -->
   <DockPanel>
 
     <!-- 底部：一句话说明 + 关闭。设置即时生效，没有「应用」按钮 -->
@@ -207,10 +202,6 @@
                           <ItemsControl.ItemTemplate>
                             <DataTemplate>
                               <Grid Width="76" Height="58" Margin="0,0,6,0">
-                                <!-- 整块键帽就是一个按钮：左键点方块的任何位置都进入「按一个键」等待态。
-                                     大字是音高（数字上下的点表示八度），下沿是当前绑的键名。
-                                     等待中按钮内容换成「按一个键…」。右上角只留解绑的「✕」。
-                                     右键弹这个键自己的菜单（改音高… / 解绑这个键），左键不受影响。 -->
                                 <Border CornerRadius="8" BoxShadow="0 1 2 0 #140F1729"
                                         Background="{DynamicResource BrushSurface}"
                                         BorderBrush="{Binding BlockBorderBrush}"
@@ -318,11 +309,6 @@
   </Grid>
       </TabItem>
 
-      <!-- ============ 赞助页 ============
-           爱发电排在最上面（整页最显眼的一块），下面才是 B 站、GitHub 与 QQ 群。
-           地址与名字由代码从 AutoUpdate 的常量填（见 SettingsWindow.FillSponsorPage），
-           免得同一个链接在 XAML 与代码里各写一遍。
-           「程序完全免费」这类声明只留在「常规」页的关于卡里，这一页不重复。 -->
       <TabItem Header="赞助">
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
           <StackPanel Margin="14,12,14,10" Spacing="10">
@@ -370,21 +356,10 @@
         </ScrollViewer>
       </TabItem>
 
-      <!-- ============ 实验功能页 ============
-           远程同演：几个人各自选自己的声部，一同演奏同一首 MIDI。
-           同步只管两件事：谁弹哪个声部、从什么时候开始。按键全部由本机发出。
-           时间靠本机单调时钟的锚点，不比较两台机器的墙钟，所以不用对时。
-           传输走自建的中转站（cloudflare/ 目录里的 Worker），不走公共代理。
-           这一页的逻辑在 SettingsWindow.Experimental.cs。
-           中间那块「成员表」与「声部」用 ItemsControl 绑 ObservableCollection，
-           不在代码里手工拼控件 —— 成员进出与声部变动是随时变的。 -->
       <TabItem Header="实验功能">
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
           <StackPanel Margin="14,12,14,10" Spacing="10">
 
-            <!-- 顶上的定位说明。实验功能会改行为，先说清楚它是什么。
-                 连接之后就收起来：房间卡里该有的都有，留着它只会把这页底部的
-                 「下一步做什么」与演出按钮挤到滚动条外面（那两样才是要看的）。 -->
             <Border Classes="card" Padding="12,10" x:Name="SyncIntroCard">
               <StackPanel Spacing="4">
                 <TextBlock Text="远程同演（实验功能）" Classes="label"
@@ -588,11 +563,6 @@
                   </StackPanel>
                 </Border>
 
-                <!-- 演出控制。原来「开演 / 暂停 / 继续 / 跳转 / 停止」五个按钮平铺一行：
-                     暂停与继续互斥却并排摆着，暂停之后要在一排长得差不多的按钮里找「继续」；
-                     成员那几个按钮全是灰的，只知道自己按不动、不知道该怎么办。
-                     现在只留一个跟着状态变的主按钮（开演 → 暂停 → ▶ 继续 → 重新开演），
-                     跳转与停止压成次要按钮；成员看到的是右边那行「由房主控制」，不再给一排灰按钮。 -->
                 <Border BorderBrush="{DynamicResource BrushBorder}" BorderThickness="0,1,0,0"
                         Padding="0,8,0,0">
                   <StackPanel Spacing="6">
