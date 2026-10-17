@@ -1640,57 +1640,83 @@ public partial class MainWindow : Window
         InsertLog("已收起左侧的文件夹曲目（下次启动不再显示）。");
     }
 
-    // 两块拖动区的高度在拖动期间自己记账：布局要等下一轮消息循环，读 Bounds 会慢一拍。
-    private double _dragFolderH;
-    private double _dragPlaylistH;
-    private double _dragTracksH;
+    // 拖动期间按「按下时的位置 + 起始高度」算：布局要等下一轮消息循环，读 Bounds 会慢一拍。
+    private object? _splitDrag;
+    private double _splitStartY;
+    private double _splitStartFolder;
+    private double _splitStartPlaylist;
+    private double _splitStartTracks;
     private GridLength _folderRowBeforeHide = GridLength.Auto;
 
     private const double FolderMinH = 165;
     private const double PlaylistMinH = 135;
     private const double TrackMinH = 140;
 
-    private void FolderSplitter_DragStarted(object? sender, VectorEventArgs e)
+    private void FolderSplitter_PointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (FolderCard == null || PlaylistCard == null) return;
+        if (sender is not Border band || LeftColumn == null) return;
+        if (!e.GetCurrentPoint(band).Properties.IsLeftButtonPressed) return;
 
-        // 先把列表从固定 150 改成随卡片走，再记下当前实际高度
-        _dragFolderH = FolderCard.Bounds.Height;
-        _dragPlaylistH = PlaylistCard.Bounds.Height;
+        _splitStartFolder = FolderCard.Bounds.Height;
+        _splitStartPlaylist = PlaylistCard.Bounds.Height;
         FolderListHost.Height = double.NaN;
         PlaylistListHost.Height = double.NaN;
-        LeftColumn.RowDefinitions[1].Height = new GridLength(_dragFolderH);
-        LeftColumn.RowDefinitions[3].Height = new GridLength(_dragPlaylistH);
+        LeftColumn.RowDefinitions[1].Height = new GridLength(_splitStartFolder);
+        LeftColumn.RowDefinitions[3].Height = new GridLength(_splitStartPlaylist);
+        BeginSplitDrag(band, e);
     }
 
-    private void FolderSplitter_DragDelta(object? sender, VectorEventArgs e)
+    private void FolderSplitter_PointerMoved(object? sender, PointerEventArgs e)
     {
-        if (LeftColumn == null) return;
+        if (_splitDrag != sender || LeftColumn == null) return;
 
-        double total = _dragFolderH + _dragPlaylistH;
-        _dragFolderH = Math.Clamp(_dragFolderH + e.Vector.Y, FolderMinH, Math.Max(FolderMinH, total - PlaylistMinH));
-        _dragPlaylistH = total - _dragFolderH;
-        LeftColumn.RowDefinitions[1].Height = new GridLength(_dragFolderH);
-        LeftColumn.RowDefinitions[3].Height = new GridLength(_dragPlaylistH);
+        double dy = e.GetPosition(LeftColumn).Y - _splitStartY;
+        double total = _splitStartFolder + _splitStartPlaylist;
+        double folder = Math.Clamp(_splitStartFolder + dy, FolderMinH, Math.Max(FolderMinH, total - PlaylistMinH));
+        LeftColumn.RowDefinitions[1].Height = new GridLength(folder);
+        LeftColumn.RowDefinitions[3].Height = new GridLength(total - folder);
     }
 
-    private void TrackSplitter_DragStarted(object? sender, VectorEventArgs e)
+    private void TrackSplitter_PointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (PlaylistCard == null || TrackCard == null) return;
+        if (sender is not Border band || LeftColumn == null) return;
+        if (!e.GetCurrentPoint(band).Properties.IsLeftButtonPressed) return;
 
-        _dragPlaylistH = PlaylistCard.Bounds.Height;
-        _dragTracksH = TrackCard.Bounds.Height;
+        _splitStartPlaylist = PlaylistCard.Bounds.Height;
+        _splitStartTracks = TrackCard.Bounds.Height;
         PlaylistListHost.Height = double.NaN;
-        LeftColumn.RowDefinitions[3].Height = new GridLength(_dragPlaylistH);
+        LeftColumn.RowDefinitions[3].Height = new GridLength(_splitStartPlaylist);
+        BeginSplitDrag(band, e);
     }
 
-    private void TrackSplitter_DragDelta(object? sender, VectorEventArgs e)
+    private void TrackSplitter_PointerMoved(object? sender, PointerEventArgs e)
     {
-        if (LeftColumn == null) return;
+        if (_splitDrag != sender || LeftColumn == null) return;
 
-        double max = _dragPlaylistH + _dragTracksH - TrackMinH;
-        _dragPlaylistH = Math.Clamp(_dragPlaylistH + e.Vector.Y, PlaylistMinH, Math.Max(PlaylistMinH, max));
-        LeftColumn.RowDefinitions[3].Height = new GridLength(_dragPlaylistH);
+        double dy = e.GetPosition(LeftColumn).Y - _splitStartY;
+        double max = _splitStartPlaylist + _splitStartTracks - TrackMinH;
+        double playlist = Math.Clamp(_splitStartPlaylist + dy, PlaylistMinH, Math.Max(PlaylistMinH, max));
+        LeftColumn.RowDefinitions[3].Height = new GridLength(playlist);
+    }
+
+    private void BeginSplitDrag(Border band, PointerEventArgs e)
+    {
+        _splitDrag = band;
+        _splitStartY = e.GetPosition(LeftColumn).Y;
+        e.Pointer.Capture(band);
+        e.Handled = true;
+    }
+
+    private void Splitter_PointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (_splitDrag != sender) return;
+        e.Pointer.Capture(null);
+        _splitDrag = null;
+    }
+
+    private void Splitter_PointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        if (_splitDrag == sender) _splitDrag = null;
     }
 
     /// <summary>曲库卡收起时，分隔条和它的行一起收掉，别留一段空白。</summary>
