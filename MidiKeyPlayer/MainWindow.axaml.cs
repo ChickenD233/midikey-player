@@ -1448,7 +1448,7 @@ public partial class MainWindow : Window
 
         bool hasFolder = !string.IsNullOrEmpty(_folderPath);
         FolderCard.IsVisible = hasFolder;
-        UpdateLibrarySplitter();
+        UpdateFolderSplitter();
         if (!hasFolder) return;
 
         // 标题只写文件夹名；根目录（C:\ 这类）取不到名字时退回完整路径，不显示空标题
@@ -1635,25 +1635,81 @@ public partial class MainWindow : Window
         _cfg.FolderPath = "";
         if (FolderList != null) FolderList.Items.Clear();
         if (FolderCard != null) FolderCard.IsVisible = false;
-        UpdateLibrarySplitter();
+        UpdateFolderSplitter();
         SaveSettings();   // 立刻落盘：下次启动这张卡不再出现
         InsertLog("已收起左侧的文件夹曲目（下次启动不再显示）。");
     }
 
-    private void LibrarySplitter_DragDelta(object? sender, VectorEventArgs e)
-    {
-        if (FolderListHost == null || TrackCard == null) return;
+    // 两块拖动区的高度在拖动期间自己记账：布局要等下一轮消息循环，读 Bounds 会慢一拍。
+    private double _dragFolderH;
+    private double _dragPlaylistH;
+    private double _dragTracksH;
+    private GridLength _folderRowBeforeHide = GridLength.Auto;
 
-        double now = FolderListHost.Height;
-        if (double.IsNaN(now)) now = FolderListHost.Bounds.Height;
-        double room = FolderListHost.Bounds.Height + TrackCard.Bounds.Height - 180;
-        FolderListHost.Height = Math.Clamp(now + e.Vector.Y, 80, Math.Max(80, room));
+    private const double FolderMinH = 165;
+    private const double PlaylistMinH = 135;
+    private const double TrackMinH = 140;
+
+    private void FolderSplitter_DragStarted(object? sender, VectorEventArgs e)
+    {
+        if (FolderCard == null || PlaylistCard == null) return;
+
+        // 先把列表从固定 150 改成随卡片走，再记下当前实际高度
+        _dragFolderH = FolderCard.Bounds.Height;
+        _dragPlaylistH = PlaylistCard.Bounds.Height;
+        FolderListHost.Height = double.NaN;
+        PlaylistListHost.Height = double.NaN;
+        LeftColumn.RowDefinitions[1].Height = new GridLength(_dragFolderH);
+        LeftColumn.RowDefinitions[3].Height = new GridLength(_dragPlaylistH);
     }
 
-    private void UpdateLibrarySplitter()
+    private void FolderSplitter_DragDelta(object? sender, VectorEventArgs e)
     {
-        if (LibrarySplitter != null && FolderCard != null)
-            LibrarySplitter.IsVisible = FolderCard.IsVisible;
+        if (LeftColumn == null) return;
+
+        double total = _dragFolderH + _dragPlaylistH;
+        _dragFolderH = Math.Clamp(_dragFolderH + e.Vector.Y, FolderMinH, Math.Max(FolderMinH, total - PlaylistMinH));
+        _dragPlaylistH = total - _dragFolderH;
+        LeftColumn.RowDefinitions[1].Height = new GridLength(_dragFolderH);
+        LeftColumn.RowDefinitions[3].Height = new GridLength(_dragPlaylistH);
+    }
+
+    private void TrackSplitter_DragStarted(object? sender, VectorEventArgs e)
+    {
+        if (PlaylistCard == null || TrackCard == null) return;
+
+        _dragPlaylistH = PlaylistCard.Bounds.Height;
+        _dragTracksH = TrackCard.Bounds.Height;
+        PlaylistListHost.Height = double.NaN;
+        LeftColumn.RowDefinitions[3].Height = new GridLength(_dragPlaylistH);
+    }
+
+    private void TrackSplitter_DragDelta(object? sender, VectorEventArgs e)
+    {
+        if (LeftColumn == null) return;
+
+        double max = _dragPlaylistH + _dragTracksH - TrackMinH;
+        _dragPlaylistH = Math.Clamp(_dragPlaylistH + e.Vector.Y, PlaylistMinH, Math.Max(PlaylistMinH, max));
+        LeftColumn.RowDefinitions[3].Height = new GridLength(_dragPlaylistH);
+    }
+
+    /// <summary>曲库卡收起时，分隔条和它的行一起收掉，别留一段空白。</summary>
+    private void UpdateFolderSplitter()
+    {
+        if (FolderSplitter == null || FolderCard == null || LeftColumn == null) return;
+
+        var row = LeftColumn.RowDefinitions[1];
+        bool hasFolder = FolderCard.IsVisible;
+        FolderSplitter.IsVisible = hasFolder;
+        if (!hasFolder)
+        {
+            if (row.Height.IsAbsolute && row.Height.Value > 0) _folderRowBeforeHide = row.Height;
+            row.Height = new GridLength(0);
+        }
+        else if (row.Height.IsAbsolute && row.Height.Value <= 0)
+        {
+            row.Height = _folderRowBeforeHide;
+        }
     }
 
     private async Task OpenFolderFileAsync(string path)

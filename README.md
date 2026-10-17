@@ -48,7 +48,7 @@
 
 1. 点「打开 MIDI 文件 / 文件夹」，选一个文件，或选一个文件夹让程序列出里面的曲目。支持 `.mid`、`.midi`、`.kar`、`.rmi`。
 2. 选了文件夹之后，左栏在声轨列表上方会多出一块「文件夹曲目」区域，列出这个文件夹里的 MIDI，点哪首载入哪首，右上角「关闭」收起。按钮右边的箭头菜单里还有「最近打开」。
-   曲目列表与声轨列表之间有一条分隔条，上下拖动可调整两块的高度。
+   曲目、歌单、声轨三块之间各有一条分隔条，上下拖动可自由分配三块的高度。
    曲目多时默认只列 50 行，末尾一条「显示其余 N 项」点一下就把这一份列表整份列出来；上面还有一个搜索框，按名字过滤（只搜当前文件夹，不进子文件夹）。
 3. 想按自己的顺序连着放一串曲子，就建一份**歌单**（见下面的「歌单与连播」）。歌单卡和「文件夹曲目」卡可以同时在，互不干扰。
 4. 在左侧点一行，作为主旋律（选中的行带 ● 标记）。打击乐轨也可以选：有的目标乐器自带鼓组。想一起出声，就在左侧勾多个声部。
@@ -534,7 +534,7 @@ To see what changed in a version, open this file. The source file is `MidiKeyPla
 ## Usage
 
 1. Click "Open MIDI File / Folder" (打开 MIDI 文件 / 文件夹), pick a file, or pick a folder to have the program list the songs inside. Supports `.mid`, `.midi`, `.kar`, `.rmi`.
-2. After selecting a folder, a "Folder Songs" (文件夹曲目) area appears above the track list in the left column, listing the MIDI files in that folder — click one to load it; "Close" (关闭) at the top right collapses it. The arrow menu next to the button also has "Recently Opened" (最近打开). Drag the divider between the song list and the track list to set their heights.
+2. After selecting a folder, a "Folder Songs" (文件夹曲目) area appears above the track list in the left column, listing the MIDI files in that folder — click one to load it; "Close" (关闭) at the top right collapses it. The arrow menu next to the button also has "Recently Opened" (最近打开). Drag the dividers between the song list, the playlist, and the track list to set their heights.
    With many songs, only 50 rows are listed by default; a "Show the remaining N" (显示其余 N 项) row at the end expands the whole list in one click. A search box above the list filters by name (current folder only, no recursion into subfolders).
 3. Click a row on the left as the main melody. The green dot marks the row recommended by the program. Percussion tracks can also be selected: some target instruments come with a drum kit. To sound multiple parts together, tick multiple tracks on the left.
 4. When you need to edit the score, edit it directly on the piano roll. See below for how.

@@ -74,7 +74,7 @@
     </Border>
 
     <!-- ================= 左栏：文件 → 文件夹曲目 → 歌单 → 轨道 ================= -->
-    <Grid x:Name="LeftColumn" Width="440" RowDefinitions="Auto,Auto,Auto,*" DockPanel.Dock="Left" Margin="0,0,12,0">
+    <Grid x:Name="LeftColumn" Width="440" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*" DockPanel.Dock="Left" Margin="0,0,12,0">
 
       <Border Grid.Row="0" Classes="card">
         <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
@@ -94,10 +94,9 @@
         </Grid>
       </Border>
 
-      <StackPanel Grid.Row="1">
-      <Border x:Name="FolderCard" Classes="card" Margin="{DynamicResource CardGap}"
+      <Border x:Name="FolderCard" Grid.Row="1" Classes="card" Margin="{DynamicResource CardGap}"
               Padding="12,10" IsVisible="False">
-        <StackPanel Spacing="6">
+        <Grid RowDefinitions="Auto,Auto,*">
           <!-- 标题行：文件夹名（过长省略）+ 「关闭」小按钮。两列，固定排版。 -->
           <Grid ColumnDefinitions="*,Auto">
             <TextBlock Grid.Column="0" x:Name="TxtFolderName" Text="" FontSize="{DynamicResource FontSmall}"
@@ -110,13 +109,13 @@
           </Grid>
 
           <!-- 搜索：只按显示名（文件名 / 子文件夹名）匹配，不递归进子文件夹。清空就恢复整份列表。 -->
-          <TextBox x:Name="TxtFolderSearch" FontSize="{DynamicResource FontCaption}"
+          <TextBox x:Name="TxtFolderSearch" Grid.Row="1" Margin="0,6,0,6"
+                   FontSize="{DynamicResource FontCaption}"
                    Padding="6,3" Watermark="搜索曲目…"
                    TextChanged="FolderSearch_Changed"
                    ToolTip.Tip="按名字过滤下面的列表，留空显示全部。只搜当前文件夹，不进子文件夹"/>
 
-          <!-- 固定高度 150：文件少时也留一块稳定区域，卡片高度不随曲目数量跳动。 -->
-          <Grid x:Name="FolderListHost" Height="150">
+          <Grid x:Name="FolderListHost" Grid.Row="2" Height="150" MinHeight="70">
             <ListBox x:Name="FolderList" SelectionMode="Single" Background="Transparent"
                      SelectionChanged="FolderList_SelectionChanged"
                      ScrollViewer.VerticalScrollBarVisibility="Auto"
@@ -128,12 +127,22 @@
                        Classes="caption" TextWrapping="Wrap" TextAlignment="Center"
                        Text="这个文件夹里没有找到 MIDI 文件或子文件夹。"/>
           </Grid>
-        </StackPanel>
+        </Grid>
       </Border>
 
-      <Border x:Name="PlaylistCard" Grid.Row="2" Classes="card" Margin="{DynamicResource CardGap}"
+      <Grid x:Name="FolderSplitter" Grid.Row="2" Height="10" IsVisible="False"
+            ToolTip.Tip="上下拖动，调整曲库与歌单的高度">
+        <Border Width="46" Height="3" CornerRadius="2" IsHitTestVisible="False"
+                HorizontalAlignment="Center" VerticalAlignment="Center"
+                Background="{DynamicResource BrushBorder}"/>
+        <Thumb x:Name="FolderSplitterThumb" Background="Transparent" Cursor="SizeNorthSouth"
+               DragStarted="FolderSplitter_DragStarted"
+               DragDelta="FolderSplitter_DragDelta"/>
+      </Grid>
+
+      <Border x:Name="PlaylistCard" Grid.Row="3" Classes="card" Margin="{DynamicResource CardGap}"
               Padding="12,10">
-        <StackPanel Spacing="6">
+        <Grid RowDefinitions="Auto,*">
           <Grid ColumnDefinitions="*,Auto,Auto,Auto">
             <TextBlock Grid.Column="0" x:Name="TxtPlaylistName" Text="歌单" FontSize="{DynamicResource FontSmall}"
                        FontWeight="SemiBold" VerticalAlignment="Center"
@@ -151,8 +160,7 @@
                     ToolTip.Tip="收起这张卡，并清掉设置里记住的歌单。歌单文件不删"/>
           </Grid>
 
-          <!-- 固定高度 150：与文件夹曲目卡同高，两张卡高度不随曲目数量跳动。 -->
-          <Grid Height="150">
+          <Grid x:Name="PlaylistListHost" Grid.Row="1" Margin="0,6,0,0" Height="150" MinHeight="70">
             <ListBox x:Name="PlaylistList" SelectionMode="Single" Background="Transparent"
                      SelectionChanged="PlaylistList_SelectionChanged"
                      ScrollViewer.VerticalScrollBarVisibility="Auto"
@@ -163,21 +171,21 @@
                        Classes="caption" TextWrapping="Wrap" TextAlignment="Center"
                        Text="点「管理…」新建一份歌单。"/>
           </Grid>
-        </StackPanel>
+        </Grid>
       </Border>
-      </StackPanel>
 
-      <!-- 拖动分隔条：上下调整曲库列表与声轨列表的高度 -->
-      <Grid x:Name="LibrarySplitter" Grid.Row="2" Height="10" IsVisible="False"
-            ToolTip.Tip="上下拖动，调整曲库与声轨的高度">
+      <!-- 拖动分隔条：上下调整歌单与声轨的高度 -->
+      <Grid x:Name="TrackSplitter" Grid.Row="4" Height="10"
+            ToolTip.Tip="上下拖动，调整歌单与声轨的高度">
         <Border Width="46" Height="3" CornerRadius="2" IsHitTestVisible="False"
                 HorizontalAlignment="Center" VerticalAlignment="Center"
                 Background="{DynamicResource BrushBorder}"/>
-        <Thumb x:Name="LibrarySplitterThumb" Background="Transparent" Cursor="SizeNorthSouth"
-               DragDelta="LibrarySplitter_DragDelta"/>
+        <Thumb x:Name="TrackSplitterThumb" Background="Transparent" Cursor="SizeNorthSouth"
+               DragStarted="TrackSplitter_DragStarted"
+               DragDelta="TrackSplitter_DragDelta"/>
       </Grid>
 
-      <Border x:Name="TrackCard" Grid.Row="3" Classes="card" Margin="{DynamicResource CardGap}" Padding="0">
+      <Border x:Name="TrackCard" Grid.Row="5" Classes="card" Margin="{DynamicResource CardGap}" Padding="0">
         <Grid RowDefinitions="Auto,*">
           <!-- 列头 -->
           <Border Classes="tableHead">
