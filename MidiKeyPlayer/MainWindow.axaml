@@ -303,39 +303,35 @@
         </Border>
         <Border Classes="card">
           <StackPanel Spacing="4">
-            <Grid ColumnDefinitions="*,Auto">
-              <StackPanel Spacing="1" VerticalAlignment="Center">
-                <TextBlock x:Name="LblStatus" FontSize="{DynamicResource FontTitle}" FontWeight="Bold"
-                           Foreground="{DynamicResource BrushSuccess}"
-                           TextAlignment="Left" Text="" TextWrapping="Wrap"/>
-                <TextBlock x:Name="LblMelody" TextWrapping="Wrap" LineHeight="18"
-                           FontSize="{DynamicResource FontSmall}" Foreground="{DynamicResource BrushTextSecondary}"
-                           TextAlignment="Left"
-                           Text="打开 MIDI 文件，再在左侧点一行作为主旋律"/>
-              </StackPanel>
+            <TextBlock x:Name="LblStatus" FontSize="{DynamicResource FontTitle}" FontWeight="Bold"
+                       Foreground="{DynamicResource BrushSuccess}"
+                       TextAlignment="Left" Text="" TextWrapping="Wrap"/>
+            <TextBlock x:Name="LblMelody" TextWrapping="Wrap" LineHeight="18"
+                       FontSize="{DynamicResource FontSmall}" Foreground="{DynamicResource BrushTextSecondary}"
+                       TextAlignment="Left"
+                       Text="打开 MIDI 文件，再在左侧点一行作为主旋律"/>
 
-              <StackPanel x:Name="PreflightRow" Grid.Column="1" Orientation="Horizontal" Spacing="12"
-                          VerticalAlignment="Center" Margin="12,0,0,0">
-                <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center"
-                            ToolTip.Tip="目标程序提权时本程序也要提权">
-                  <TextBlock x:Name="TxtCheckAdminMark" Text="–" FontSize="{DynamicResource FontBody}" FontWeight="Bold"
-                             Foreground="{DynamicResource BrushTextMuted}" VerticalAlignment="Center"/>
-                  <TextBlock x:Name="TxtCheckAdmin" Text="管理员" FontSize="{DynamicResource FontSmall}" VerticalAlignment="Center"/>
-                </StackPanel>
-                <Button x:Name="BtnElevate" Content="以管理员重启" FontSize="{DynamicResource FontCaption}" Padding="10,3"
-                        Classes="secondary" VerticalAlignment="Center" Click="BtnElevate_Click" IsVisible="False"
-                        ToolTip.Tip="目标程序提权时才需要"/>
-                <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center"
-                            ToolTip.Tip="中文输入状态会截走按键，切英文即可">
-                  <TextBlock x:Name="TxtCheckImeMark" Text="–" FontSize="{DynamicResource FontBody}" FontWeight="Bold"
-                             Foreground="{DynamicResource BrushTextMuted}" VerticalAlignment="Center"/>
-                  <TextBlock x:Name="TxtCheckIme" Text="输入法" FontSize="{DynamicResource FontSmall}" VerticalAlignment="Center"/>
-                </StackPanel>
-                <Button x:Name="BtnRecheck" Content="刷新" FontSize="{DynamicResource FontCaption}" Padding="10,3"
-                        Classes="secondary" VerticalAlignment="Center" Click="BtnRecheck_Click"
-                        ToolTip.Tip="重新检测权限与输入法"/>
+            <StackPanel x:Name="PreflightRow" Orientation="Horizontal" Spacing="12"
+                        VerticalAlignment="Center" Margin="0,2,0,0">
+              <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center"
+                          ToolTip.Tip="目标程序提权时本程序也要提权">
+                <TextBlock x:Name="TxtCheckAdminMark" Text="–" FontSize="{DynamicResource FontBody}" FontWeight="Bold"
+                           Foreground="{DynamicResource BrushTextMuted}" VerticalAlignment="Center"/>
+                <TextBlock x:Name="TxtCheckAdmin" Text="管理员" FontSize="{DynamicResource FontSmall}" VerticalAlignment="Center"/>
               </StackPanel>
-            </Grid>
+              <Button x:Name="BtnElevate" Content="以管理员重启" FontSize="{DynamicResource FontCaption}" Padding="10,3"
+                      Classes="secondary" VerticalAlignment="Center" Click="BtnElevate_Click" IsVisible="False"
+                      ToolTip.Tip="目标程序提权时才需要"/>
+              <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center"
+                          ToolTip.Tip="中文输入状态会截走按键，切英文即可">
+                <TextBlock x:Name="TxtCheckImeMark" Text="–" FontSize="{DynamicResource FontBody}" FontWeight="Bold"
+                           Foreground="{DynamicResource BrushTextMuted}" VerticalAlignment="Center"/>
+                <TextBlock x:Name="TxtCheckIme" Text="输入法" FontSize="{DynamicResource FontSmall}" VerticalAlignment="Center"/>
+              </StackPanel>
+              <Button x:Name="BtnRecheck" Content="刷新" FontSize="{DynamicResource FontCaption}" Padding="10,3"
+                      Classes="secondary" VerticalAlignment="Center" Click="BtnRecheck_Click"
+                      ToolTip.Tip="重新检测权限与输入法"/>
+            </StackPanel>
 
             <TextBlock x:Name="LblWarn" TextWrapping="Wrap" TextAlignment="Left"
                        FontSize="{DynamicResource FontSmall}" Text=""
