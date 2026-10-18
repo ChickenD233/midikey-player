@@ -94,9 +94,40 @@ public partial class MainWindow : Window
 
     private KeymapProfile _keymap = KeymapProfile.Default;
 
+    private void ClampRightRows()
+    {
+        if (RightColumn == null || RightColumn.RowDefinitions.Count < 4) return;
+        var status = RightColumn.RowDefinitions[0];
+        var splitter = RightColumn.RowDefinitions[2];
+        var options = RightColumn.RowDefinitions[3];
+        if (!options.Height.IsAbsolute) return;
+
+        double room = RightColumn.Bounds.Height - status.ActualHeight - splitter.ActualHeight - EditorMinH;
+        if (options.Height.Value > room)
+            options.Height = new GridLength(Math.Max(OptionsMinH, room));
+    }
+
+    private void ClampToScreen()
+    {
+        var screen = Screens.ScreenFromWindow(this) ?? Screens.Primary;
+        if (screen == null) return;
+
+        double maxW = screen.WorkingArea.Width / screen.Scaling - 24;
+        double maxH = screen.WorkingArea.Height / screen.Scaling - 48;
+        if (maxW < 700) maxW = 700;
+        if (maxH < 620) maxH = 620;
+
+        MinWidth = Math.Min(MinWidth, maxW);
+        MinHeight = Math.Min(MinHeight, maxH);
+        if (Width > maxW) Width = maxW;
+        if (Height > maxH) Height = maxH;
+    }
+
     public MainWindow()
     {
         InitializeComponent();
+        ClampToScreen();
+        SizeChanged += (_, _) => ClampRightRows();
 
         TrackList.ItemsSource = _tracks;
 
@@ -1529,11 +1560,12 @@ public partial class MainWindow : Window
     }
 
     private object? _splitDrag;
+    private double _splitStartX;
     private double _splitStartY;
+    private double _splitStartLeftWidth;
     private double _splitStartFolder;
     private double _splitStartPlaylist;
     private double _splitStartTracks;
-    private double _splitStartStatusH;
     private double _splitStartOptionsH;
     private double _splitStartEditorH;
     private GridLength _folderRowBeforeHide = GridLength.Auto;
@@ -1542,38 +1574,38 @@ public partial class MainWindow : Window
     private const double FolderMinH = 165;
     private const double PlaylistMinH = 135;
     private const double TrackMinH = 140;
-    private const double StatusMinH = 110;
     private const double OptionsMinH = 180;
     private const double EditorMinH = 200;
 
-    private void TopSplitter_PointerPressed(object? sender, PointerPressedEventArgs e)
+    private void WidthSplitter_PointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (sender is not Border band || RightColumn == null || StatusArea == null || EditorArea == null) return;
+        if (sender is not Border band || LeftColumn == null || MainBody == null) return;
         if (!e.GetCurrentPoint(band).Properties.IsLeftButtonPressed) return;
-        _splitStartStatusH = StatusArea.Bounds.Height;
-        _splitStartEditorH = EditorArea.Bounds.Height;
-        RightColumn.RowDefinitions[0].Height = new GridLength(_splitStartStatusH);
-        BeginSplitDrag(band, e);
-        _splitStartY = e.GetPosition(RightColumn).Y;
+
+        _splitStartLeftWidth = LeftColumn.Width;
+        _splitDrag = band;
+        _splitStartX = e.GetPosition(MainBody).X;
+        e.Pointer.Capture(band);
+        e.Handled = true;
     }
 
-    private void TopSplitter_PointerMoved(object? sender, PointerEventArgs e)
+    private void WidthSplitter_PointerMoved(object? sender, PointerEventArgs e)
     {
-        if (_splitDrag != sender || RightColumn == null) return;
+        if (_splitDrag != sender || LeftColumn == null || MainBody == null) return;
 
-        double dy = e.GetPosition(RightColumn).Y - _splitStartY;
-        double max = _splitStartStatusH + _splitStartEditorH - EditorMinH;
-        double h = Math.Clamp(_splitStartStatusH + dy, StatusMinH, Math.Max(StatusMinH, max));
-        RightColumn.RowDefinitions[0].Height = new GridLength(h);
+        double dx = e.GetPosition(MainBody).X - _splitStartX;
+        double max = Math.Max(420, MainBody.Bounds.Width - 440);
+        LeftColumn.Width = Math.Clamp(_splitStartLeftWidth + dx, 420, Math.Min(640, max));
     }
 
     private void BottomSplitter_PointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (sender is not Border band || RightColumn == null || OptionsArea == null || EditorArea == null) return;
         if (!e.GetCurrentPoint(band).Properties.IsLeftButtonPressed) return;
+
         _splitStartOptionsH = OptionsArea.Bounds.Height;
         _splitStartEditorH = EditorArea.Bounds.Height;
-        RightColumn.RowDefinitions[4].Height = new GridLength(_splitStartOptionsH);
+        RightColumn.RowDefinitions[3].Height = new GridLength(_splitStartOptionsH);
         BeginSplitDrag(band, e);
         _splitStartY = e.GetPosition(RightColumn).Y;
     }
@@ -1585,7 +1617,7 @@ public partial class MainWindow : Window
         double dy = e.GetPosition(RightColumn).Y - _splitStartY;
         double max = _splitStartOptionsH + _splitStartEditorH - EditorMinH;
         double h = Math.Clamp(_splitStartOptionsH - dy, OptionsMinH, Math.Max(OptionsMinH, max));
-        RightColumn.RowDefinitions[4].Height = new GridLength(h);
+        RightColumn.RowDefinitions[3].Height = new GridLength(h);
     }
 
     private void FolderSplitter_PointerPressed(object? sender, PointerPressedEventArgs e)

@@ -52,6 +52,18 @@
       <Setter Property="Background" Value="{DynamicResource BrushAccent}"/>
       <Setter Property="Opacity" Value="0.55"/>
     </Style>
+    <Style Selector="Border.vsplitter > Border">
+      <Setter Property="Width" Value="3"/>
+      <Setter Property="CornerRadius" Value="1"/>
+      <Setter Property="HorizontalAlignment" Value="Center"/>
+      <Setter Property="VerticalAlignment" Value="Stretch"/>
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="IsHitTestVisible" Value="False"/>
+    </Style>
+    <Style Selector="Border.vsplitter:pointerover > Border">
+      <Setter Property="Background" Value="{DynamicResource BrushAccent}"/>
+      <Setter Property="Opacity" Value="0.55"/>
+    </Style>
   </Window.Styles>
 
   <Grid>
@@ -79,7 +91,9 @@
       </Grid>
     </Border>
 
-    <Grid x:Name="LeftColumn" Width="440" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*" DockPanel.Dock="Left" Margin="0,0,12,0">
+    <Grid x:Name="BodyColumns" ColumnDefinitions="Auto,Auto,*">
+
+    <Grid x:Name="LeftColumn" Grid.Column="0" Width="440" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*">
 
       <Border Grid.Row="0" Classes="card">
         <Grid ColumnDefinitions="Auto,*">
@@ -265,7 +279,17 @@
       </Border>
     </Grid>
 
-    <Grid x:Name="RightColumn" RowDefinitions="Auto,Auto,*,Auto,Auto">
+      <Border x:Name="WidthSplitter" Grid.Column="1" Width="10" Classes="vsplitter"
+              Background="Transparent" Cursor="SizeWestEast"
+              ToolTip.Tip="左右拖动，调整左栏宽度"
+              PointerPressed="WidthSplitter_PointerPressed"
+              PointerMoved="WidthSplitter_PointerMoved"
+              PointerReleased="Splitter_PointerReleased"
+              PointerCaptureLost="Splitter_PointerCaptureLost">
+        <Border/>
+      </Border>
+
+    <Grid x:Name="RightColumn" Grid.Column="2" RowDefinitions="Auto,*,Auto,Auto">
 
       <StackPanel x:Name="StatusArea" Grid.Row="0">
         <Border x:Name="UpdateBanner" IsVisible="False" Classes="card"
@@ -326,17 +350,7 @@
         </Border>
       </StackPanel>
 
-      <Border x:Name="TopSplitter" Grid.Row="1" Height="22" Classes="splitter"
-              Background="Transparent" Cursor="SizeNorthSouth"
-              ToolTip.Tip="上下拖动，调整状态区与编辑区的高度"
-              PointerPressed="TopSplitter_PointerPressed"
-              PointerMoved="TopSplitter_PointerMoved"
-              PointerReleased="Splitter_PointerReleased"
-              PointerCaptureLost="Splitter_PointerCaptureLost">
-        <Border/>
-      </Border>
-
-      <Border x:Name="EditorArea" Grid.Row="2" Classes="card" ClipToBounds="True">
+      <Border x:Name="EditorArea" Grid.Row="1" Classes="card" ClipToBounds="True">
         <Grid ColumnDefinitions="*,Auto" ClipToBounds="True">
           <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto" ClipToBounds="True">
           <Grid Grid.Row="0" RowDefinitions="Auto,Auto" Margin="0,0,0,6">
@@ -486,7 +500,7 @@
         </Grid>
       </Border>
 
-      <Border x:Name="BottomSplitter" Grid.Row="3" Height="22" Classes="splitter"
+      <Border x:Name="BottomSplitter" Grid.Row="2" Height="22" Classes="splitter"
               Background="Transparent" Cursor="SizeNorthSouth"
               ToolTip.Tip="上下拖动，调整编辑区与参数区的高度"
               PointerPressed="BottomSplitter_PointerPressed"
@@ -496,7 +510,7 @@
         <Border/>
       </Border>
 
-      <StackPanel x:Name="OptionsArea" Grid.Row="4" Spacing="8">
+      <StackPanel x:Name="OptionsArea" Grid.Row="3" Spacing="8">
 
         <Border Classes="card" Padding="14,10">
           <StackPanel Spacing="8">
@@ -584,6 +598,7 @@
         </Border>
 
       </StackPanel>
+    </Grid>
     </Grid>
   </DockPanel>
 

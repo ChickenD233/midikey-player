@@ -543,12 +543,12 @@ public partial class MainWindow
             else
             {
                 double h0 = g.RowDefinitions[0].ActualHeight;
-                double h1 = g.RowDefinitions.Count > 2 ? g.RowDefinitions[2].ActualHeight : 0;
-                double h2 = g.RowDefinitions.Count > 4 ? g.RowDefinitions[4].ActualHeight : 0;
+                double h1 = g.RowDefinitions.Count > 1 ? g.RowDefinitions[1].ActualHeight : 0;
+                double h2 = g.RowDefinitions.Count > 3 ? g.RowDefinitions[3].ActualHeight : 0;
                 string kind = window.OptionsArea?.GetType().Name ?? "缺失";
                 double rollH = window.Roll?.Bounds.Height ?? -1;
                 line = $"[高度] 右栏总高 {g.Bounds.Height:F0}；第0行(状态) {h0:F0}；"
-                       + $"第2行(卷帘) {h1:F0}；第4行(选项) {h2:F0}；第4行根元素 {kind}；卷帘控件 {rollH:F0}";
+                       + $"第1行(卷帘) {h1:F0}；第3行(选项) {h2:F0}；第3行根元素 {kind}；卷帘控件 {rollH:F0}";
             }
             Console.WriteLine(line);
             System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "midikey-snap.log"),
