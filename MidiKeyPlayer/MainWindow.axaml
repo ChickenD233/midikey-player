@@ -71,13 +71,13 @@
     <DockPanel x:Name="MainBody" Margin="14">
 
     <Border DockPanel.Dock="Bottom" Margin="0,6,0,0" Padding="10,4" CornerRadius="8"
-            Background="{DynamicResource BrushSurfaceAlt}">
+            ZIndex="20" Background="{DynamicResource BrushSurfaceAlt}">
       <TextBlock x:Name="TxtLastMsg" FontSize="{DynamicResource FontCaption}"
                  Foreground="{DynamicResource BrushTextSecondary}"
                  TextTrimming="CharacterEllipsis" Text="就绪"/>
     </Border>
 
-    <Border x:Name="DisclaimerBar" DockPanel.Dock="Bottom" Margin="0,12,0,0" Background="{DynamicResource BrushDangerSoft}"
+    <Border x:Name="DisclaimerBar" DockPanel.Dock="Bottom" ZIndex="20" Margin="0,12,0,0" Background="{DynamicResource BrushDangerSoft}"
             BorderBrush="{DynamicResource BrushDangerBorder}" BorderThickness="1" CornerRadius="10" Padding="12,8"
             PointerPressed="Disclaimer_PointerPressed" Cursor="Hand">
       <Grid ColumnDefinitions="*,Auto">
@@ -91,7 +91,7 @@
       </Grid>
     </Border>
 
-    <Grid x:Name="BodyColumns" ColumnDefinitions="Auto,Auto,*">
+    <Grid x:Name="BodyColumns" ColumnDefinitions="Auto,Auto,*" ClipToBounds="True">
 
     <Grid x:Name="LeftColumn" Grid.Column="0" Width="440" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*">
 
@@ -200,7 +200,7 @@
       <Border x:Name="TrackCard" Grid.Row="5" Classes="card" Margin="{DynamicResource CardGap}" Padding="0">
         <Grid RowDefinitions="Auto,*">
           <Border Classes="tableHead">
-            <Grid ColumnDefinitions="22,24,26,58,50,*,52,40,62">
+            <Grid ColumnDefinitions="22,24,26,52,46,*,46,36,66">
               <TextBlock Text="" FontSize="{DynamicResource FontMicro}"/>
               <TextBlock Grid.Column="1" Text="合" FontSize="{DynamicResource FontCaption}" Classes="sectionLabel"
                          Padding="2,7" FontWeight="SemiBold"
@@ -232,7 +232,7 @@
               </ListBox.Styles>
               <ListBox.ItemTemplate>
                 <DataTemplate>
-                  <Grid ColumnDefinitions="22,24,26,58,50,*,52,40,62" MinHeight="30">
+                  <Grid ColumnDefinitions="22,24,26,52,46,*,46,36,66" MinHeight="30">
                     <TextBlock Text="{Binding MixRank}" FontSize="{DynamicResource FontMicro}" Foreground="{DynamicResource BrushInfoText}"
                                FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"
                                IsVisible="{Binding IsMix}"/>
@@ -264,7 +264,8 @@
                     <TextBlock Grid.Column="7" Text="{Binding NoteCount}" VerticalAlignment="Center"
                                Padding="4,3" FontSize="{DynamicResource FontSmall}" HorizontalAlignment="Center"/>
                     <TextBlock Grid.Column="8" Text="{Binding RangeLabel}" VerticalAlignment="Center"
-                               Padding="4,3" FontSize="{DynamicResource FontSmall}"/>
+                               Padding="4,3" FontSize="{DynamicResource FontSmall}"
+                               TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding RangeLabel}"/>
                   </Grid>
                 </DataTemplate>
               </ListBox.ItemTemplate>
@@ -289,7 +290,7 @@
         <Border/>
       </Border>
 
-    <Grid x:Name="RightColumn" Grid.Column="2" RowDefinitions="Auto,*,Auto,Auto">
+    <Grid x:Name="RightColumn" Grid.Column="2" RowDefinitions="Auto,*,Auto,Auto" ClipToBounds="True">
 
       <StackPanel x:Name="StatusArea" Grid.Row="0">
         <Border x:Name="UpdateBanner" IsVisible="False" Classes="card"
@@ -355,7 +356,7 @@
           <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto" ClipToBounds="True">
           <Grid Grid.Row="0" RowDefinitions="Auto,Auto" Margin="0,0,0,6">
             <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*,Auto">
-              <TextBlock Grid.Column="0" Text="MIDI 编辑" Classes="sectionLabel"
+              <TextBlock Grid.Column="0" Text="MIDI 编辑" Classes="sectionLabel" FontWeight="SemiBold"
                          VerticalAlignment="Center" Margin="0,0,8,0"/>
               <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                 <Button x:Name="BtnUndo" Content="撤销" FontSize="{DynamicResource FontCaption}" Padding="10,3"
@@ -513,7 +514,7 @@
       <StackPanel x:Name="OptionsArea" Grid.Row="3" Spacing="8">
 
         <Border Classes="card" Padding="14,10">
-          <StackPanel Spacing="8">
+          <StackPanel Spacing="6">
 
             <Grid ColumnDefinitions="*,Auto">
               <TextBlock Grid.Column="0" Text="演奏与谱面" Classes="sectionLabel"
@@ -528,7 +529,7 @@
               </StackPanel>
             </Grid>
 
-            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
+            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="4">
               <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="8">
                 <TextBlock Text="速度" Classes="label" MinWidth="34" VerticalAlignment="Center"/>
                 <Slider x:Name="SliderSpeed" Width="96" Minimum="10" Maximum="400" Value="100"

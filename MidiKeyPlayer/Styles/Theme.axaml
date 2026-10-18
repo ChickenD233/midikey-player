@@ -169,8 +169,8 @@
   <x:Double x:Key="FontMicro">12.5</x:Double>
   <x:Double x:Key="FontCaption">12.5</x:Double>
   <x:Double x:Key="FontSmall">12.5</x:Double>
-  <x:Double x:Key="FontBody">13.5</x:Double>
-  <x:Double x:Key="FontTitle">15</x:Double>
+  <x:Double x:Key="FontBody">14</x:Double>
+  <x:Double x:Key="FontTitle">16</x:Double>
   <x:Double x:Key="FontDisplay">22</x:Double>
   <x:Double x:Key="FontCountdown">38</x:Double>
 

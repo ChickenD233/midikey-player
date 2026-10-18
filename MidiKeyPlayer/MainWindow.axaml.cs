@@ -103,8 +103,10 @@ public partial class MainWindow : Window
         if (!options.Height.IsAbsolute) return;
 
         double room = RightColumn.Bounds.Height - status.ActualHeight - splitter.ActualHeight - EditorMinH;
-        if (options.Height.Value > room)
-            options.Height = new GridLength(Math.Max(OptionsMinH, room));
+        if (!double.IsFinite(room)) return;
+        double cap = Math.Max(OptionsMinH, room);
+        if (options.Height.Value > cap + 0.5)
+            options.Height = new GridLength(cap);
     }
 
     private void ClampToScreen()
@@ -128,6 +130,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         ClampToScreen();
         SizeChanged += (_, _) => ClampRightRows();
+        LayoutUpdated += (_, _) => ClampRightRows();
 
         TrackList.ItemsSource = _tracks;
 
@@ -607,7 +610,7 @@ public partial class MainWindow : Window
         string reason = hasTrack
             ? (hasPlayable ? "" : "这首歌没有可弹的音，换个键位方案或调移调")
             : "先打开 MIDI，再点一行";
-        TxtHotHint.Text = BtnPlay.IsEnabled ? "F6：开始 / 暂停 / 继续" : reason;
+        TxtHotHint.Text = BtnPlay.IsEnabled ? "" : reason;
         Avalonia.Controls.ToolTip.SetTip(BtnPlay, BtnPlay.IsEnabled ? null : reason);
     }
 
