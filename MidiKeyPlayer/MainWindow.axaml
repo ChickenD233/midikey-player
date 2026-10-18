@@ -129,7 +129,7 @@
         </Grid>
       </Border>
 
-      <Border x:Name="FolderSplitter" Grid.Row="2" Height="10" Classes="splitter"
+      <Border x:Name="FolderSplitter" Grid.Row="2" Height="22" Classes="splitter"
               Background="Transparent" Cursor="SizeNorthSouth" IsVisible="False"
               ToolTip.Tip="上下拖动，调整曲库与歌单的高度"
               PointerPressed="FolderSplitter_PointerPressed"
@@ -173,7 +173,7 @@
         </Grid>
       </Border>
 
-      <Border x:Name="TrackSplitter" Grid.Row="4" Height="10" Classes="splitter"
+      <Border x:Name="TrackSplitter" Grid.Row="4" Height="22" Classes="splitter"
               Background="Transparent" Cursor="SizeNorthSouth"
               ToolTip.Tip="上下拖动，调整歌单与声轨的高度"
               PointerPressed="TrackSplitter_PointerPressed"
@@ -265,9 +265,9 @@
       </Border>
     </Grid>
 
-    <Grid x:Name="RightColumn" RowDefinitions="Auto,*,Auto">
+    <Grid x:Name="RightColumn" RowDefinitions="Auto,Auto,*,Auto,Auto">
 
-      <StackPanel Grid.Row="0">
+      <StackPanel x:Name="StatusArea" Grid.Row="0">
         <Border x:Name="UpdateBanner" IsVisible="False" Classes="card"
                 Margin="0,0,0,12" Padding="12,9" Background="{DynamicResource BrushInfoSoft}"
                 BorderBrush="{DynamicResource BrushInfoBorder}"
@@ -326,7 +326,17 @@
         </Border>
       </StackPanel>
 
-      <Border Grid.Row="1" Classes="card" Margin="{DynamicResource CardGap}" ClipToBounds="True">
+      <Border x:Name="TopSplitter" Grid.Row="1" Height="22" Classes="splitter"
+              Background="Transparent" Cursor="SizeNorthSouth"
+              ToolTip.Tip="上下拖动，调整状态区与编辑区的高度"
+              PointerPressed="TopSplitter_PointerPressed"
+              PointerMoved="TopSplitter_PointerMoved"
+              PointerReleased="Splitter_PointerReleased"
+              PointerCaptureLost="Splitter_PointerCaptureLost">
+        <Border/>
+      </Border>
+
+      <Border x:Name="EditorArea" Grid.Row="2" Classes="card" ClipToBounds="True">
         <Grid ColumnDefinitions="*,Auto" ClipToBounds="True">
           <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto" ClipToBounds="True">
           <Grid Grid.Row="0" RowDefinitions="Auto,Auto" Margin="0,0,0,6">
@@ -476,7 +486,17 @@
         </Grid>
       </Border>
 
-      <StackPanel x:Name="OptionsArea" Grid.Row="2" Spacing="8" Margin="{DynamicResource CardGap}">
+      <Border x:Name="BottomSplitter" Grid.Row="3" Height="22" Classes="splitter"
+              Background="Transparent" Cursor="SizeNorthSouth"
+              ToolTip.Tip="上下拖动，调整编辑区与参数区的高度"
+              PointerPressed="BottomSplitter_PointerPressed"
+              PointerMoved="BottomSplitter_PointerMoved"
+              PointerReleased="Splitter_PointerReleased"
+              PointerCaptureLost="Splitter_PointerCaptureLost">
+        <Border/>
+      </Border>
+
+      <StackPanel x:Name="OptionsArea" Grid.Row="4" Spacing="8">
 
         <Border Classes="card" Padding="14,10">
           <StackPanel Spacing="8">
@@ -486,7 +506,7 @@
                          FontSize="{DynamicResource FontSmall}" FontWeight="SemiBold"
                          VerticalAlignment="Center"/>
               <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <TextBlock x:Name="TxtKeymapName" Classes="caption" MaxWidth="120" VerticalAlignment="Center"
+                <TextBlock x:Name="TxtKeymapName" Classes="caption" MaxWidth="220" VerticalAlignment="Center"
                            TextTrimming="CharacterEllipsis" ToolTip.Tip="当前键位方案"/>
                 <Button x:Name="BtnSettings" Content="设置…" FontSize="{DynamicResource FontSmall}"
                         Padding="14,5" Classes="secondary" VerticalAlignment="Center" Click="Settings_Click"

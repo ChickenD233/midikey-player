@@ -215,7 +215,7 @@ v1.1.8 已移除。
 
 **音高怎么对。**
 
-- 基准八度的 do re mi fa sol la si → `Z X C V B N M`（默认方案「8 键半音」）。
+- 基准八度的 do re mi fa sol la si → `Z X C V B N M`（默认方案「8 键半音（五字搜打撤游戏）」）。
 - 音域由当前方案决定。「21 键自然音」与「第五人格键位」不带功能键，只弹键位范围内的音。
 - 想跨八度弹，就在键位设置里勾「启用功能键」，再绑升高八度与降低八度。
 - 没有对应键的音不发声。状态文字与日志写明原因：超出音域，或键表里没有这个音。
@@ -266,7 +266,7 @@ v1.1.8 已移除。
 
 | 方案 | 键位 | 音域 | 功能键 |
 |---|---|---|---|
-| 8 键半音（默认） | 一排 `Z X C V B N M ,` = do..高音 do（自然音）。鼠标左键降八度、右键升八度、中键升半音 | `1.` ~ `#1˙` | 开，鼠标左、右、中三键 |
+| 8 键半音（五字搜打撤游戏，默认） | 一排 `Z X C V B N M ,` = do..高音 do（自然音）。鼠标左键降八度、右键升八度、中键升半音 | `1.` ~ `#1˙` | 开，鼠标左、右、中三键 |
 | 21 键自然音 | 下排 `Z X C V B N M` = 中音 do..si；中排 `A S D F G H J` 高一个八度；上排 `Q W E R T Y U` 再高一个八度 | `1` ~ `7˙˙` | 不用 |
 | 21 键半音 | 下排 `Z X C V B N M` = 低音 do..si；中排 `A S D F G H J` = 中音；上排 `Q W E R T Y U` = 高音。按 `Shift` 升半音，按 `Ctrl` 降低半音 | 低音 do 再低半音 ~ `7˙` | 开，`Shift` 升半音、`Ctrl` 降半音 |
 | 第五人格键位 | 低排 `, L . ; / I 9 O 0 P - [`（低八度）；中排 `Z S X D C V G B H N J M`（中音）；高排 `Q 2 W 3 E R 5 T 6 Y 7 U`（高八度）。每排 12 个半音 | `1.` ~ `7˙` | 不用 |
@@ -275,8 +275,8 @@ v1.1.8 已移除。
 | FF14 钢琴键位 | 一个半音一条键位，共 37 条。低八度 `Z 1 X 2 C V 3 B 4 N 5 M`、中八度 `A 6 S 7 D F 8 G 9 H 0 J`、高八度 `K Y L U Q W I E O R P T`，最后 `,` = 最高的 do | `1.` ~ `1˙˙`（C4..C7，MIDI 60..96） | 不用 |
 | 心动小镇 | 一个半音一条键位，共 37 条，三排各一个八度。白键：低音 `, . / O P [ ]`、中音 `Z X C V B N M`、高音 `Q W E R T Y U I`；黑键：低音 `L ; 0 - =`、中音 `S D G H J`、高音 `2 3 5 6 7` | `1.` ~ `1˙˙`（C3..C6，MIDI 48..84） | 不用 |
 
-「21 键半音」与「8 键半音」都开着功能键：不按修饰键是自然音，按住就得到变化的音
-（`Shift`+`Z` 升半音、`Ctrl`+`Z` 降半音，或按住鼠标中键再按 `Z`）。「8 键半音」的两个鼠标键还能整排上下挪一个八度。
+「21 键半音」与「8 键半音（五字搜打撤游戏）」都开着功能键：不按修饰键是自然音，按住就得到变化的音
+（`Shift`+`Z` 升半音、`Ctrl`+`Z` 降半音，或按住鼠标中键再按 `Z`）。「8 键半音（五字搜打撤游戏）」的两个鼠标键还能整排上下挪一个八度。
 
 「Roblox 钢琴键位」不用功能键：61 个音一个一条键位，黑键自己就是一条（写的是「下面那个白键 + `Shift`」）。
 键帽上按游戏写谱子的习惯显示：白键字母小写（`z x c v b n m`），黑键是同一个键的上位字符（`Z X C V B N M`、`! @ $ % ^ * (`）。
@@ -287,7 +287,7 @@ v1.1.8 已移除。
 
 **没有对应键的音不弹。** 音域里缺哪个半音，就跳过哪个音，不换音高。这条行为固定，界面里没有开关。
 「第五人格键位」「FF14 钢琴键位」「心动小镇」是完整半音阶：每个半音都有自己的键，不用八度键与升半音键。
-「8 键半音」只有自然音键，半音靠鼠标中键补。
+「8 键半音（五字搜打撤游戏）」只有自然音键，半音靠鼠标中键补。
 「Roblox 钢琴键位」的 61 条键位 = 36 个白键 + 25 个黑键：E、B 与最高的 C7 上面没有黑键，所以正好 25 条。
 「FF14 钢琴键位」的 37 条键位 = 三排各 12 个半音，再加最高的一个 do。`Shift` 一条都不用按。
 「心动小镇」的 37 条键位 = 低音 12 条 + 中音 12 条 + 高音 13 条，白键 7 + 7 + 8 个，黑键每排 5 个。`Shift` 一条都不用按。
@@ -643,7 +643,7 @@ Connect a MIDI keyboard or pad, and key presses are sent directly to the target 
 
 **How pitches map.**
 
-- Base octave do re mi fa sol la si → `Z X C V B N M` (default scheme "8-key chromatic" / 8 键半音).
+- Base octave do re mi fa sol la si → `Z X C V B N M` (default scheme "8-key chromatic" / 8 键半音（五字搜打撤游戏）).
 - The range is determined by the current scheme. "21-key diatonic" (21 键自然音) and "Identity V layout" (第五人格键位) have no function keys and only play notes within the layout range.
 - To play across octaves, tick "Enable function keys" (启用功能键) in the key settings, then bind octave up and octave down.
 - Notes with no corresponding key stay silent. The status text and the log state the reason: out of range, or the note is not in the key table.
@@ -691,7 +691,7 @@ The program ships with eight built-in schemes. The scheme names are the eight na
 
 | Scheme | Keys | Range | Function keys |
 |---|---|---|---|
-| 8-key chromatic (default) (8 键半音) | One row `Z X C V B N M ,` = do..high do (natural notes). Left mouse button lowers an octave, right raises an octave, middle raises a semitone | `1.` ~ `#1˙` | On; left, right, and middle mouse buttons |
+| 8-key chromatic (default) (8 键半音（五字搜打撤游戏）) | One row `Z X C V B N M ,` = do..high do (natural notes). Left mouse button lowers an octave, right raises an octave, middle raises a semitone | `1.` ~ `#1˙` | On; left, right, and middle mouse buttons |
 | 21-key diatonic (21 键自然音) | Bottom row `Z X C V B N M` = middle do..si; middle row `A S D F G H J` one octave higher; top row `Q W E R T Y U` another octave higher | `1` ~ `7˙˙` | Not used |
 | 21-key chromatic (21 键半音) | Bottom row `Z X C V B N M` = low do..si; middle row `A S D F G H J` = middle; top row `Q W E R T Y U` = high. Hold `Shift` to raise a semitone, hold `Ctrl` to lower a semitone | one semitone below low do ~ `7˙` | On; `Shift` raises a semitone, `Ctrl` lowers a semitone |
 | Identity V layout (第五人格键位) | Low row `, L . ; / I 9 O 0 P - [` (low octave); middle row `Z S X D C V G B H N J M` (middle); high row `Q 2 W 3 E R 5 T 6 Y 7 U` (high octave). 12 semitones per row | `1.` ~ `7˙` | Not used |

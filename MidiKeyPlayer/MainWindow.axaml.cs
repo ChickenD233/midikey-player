@@ -1533,12 +1533,60 @@ public partial class MainWindow : Window
     private double _splitStartFolder;
     private double _splitStartPlaylist;
     private double _splitStartTracks;
+    private double _splitStartStatusH;
+    private double _splitStartOptionsH;
+    private double _splitStartEditorH;
     private GridLength _folderRowBeforeHide = GridLength.Auto;
     private GridLength _playlistRowBeforeHide = GridLength.Auto;
 
     private const double FolderMinH = 165;
     private const double PlaylistMinH = 135;
     private const double TrackMinH = 140;
+    private const double StatusMinH = 110;
+    private const double OptionsMinH = 180;
+    private const double EditorMinH = 200;
+
+    private void TopSplitter_PointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is not Border band || RightColumn == null || StatusArea == null || EditorArea == null) return;
+        if (!e.GetCurrentPoint(band).Properties.IsLeftButtonPressed) return;
+        _splitStartStatusH = StatusArea.Bounds.Height;
+        _splitStartEditorH = EditorArea.Bounds.Height;
+        RightColumn.RowDefinitions[0].Height = new GridLength(_splitStartStatusH);
+        BeginSplitDrag(band, e);
+        _splitStartY = e.GetPosition(RightColumn).Y;
+    }
+
+    private void TopSplitter_PointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_splitDrag != sender || RightColumn == null) return;
+
+        double dy = e.GetPosition(RightColumn).Y - _splitStartY;
+        double max = _splitStartStatusH + _splitStartEditorH - EditorMinH;
+        double h = Math.Clamp(_splitStartStatusH + dy, StatusMinH, Math.Max(StatusMinH, max));
+        RightColumn.RowDefinitions[0].Height = new GridLength(h);
+    }
+
+    private void BottomSplitter_PointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is not Border band || RightColumn == null || OptionsArea == null || EditorArea == null) return;
+        if (!e.GetCurrentPoint(band).Properties.IsLeftButtonPressed) return;
+        _splitStartOptionsH = OptionsArea.Bounds.Height;
+        _splitStartEditorH = EditorArea.Bounds.Height;
+        RightColumn.RowDefinitions[4].Height = new GridLength(_splitStartOptionsH);
+        BeginSplitDrag(band, e);
+        _splitStartY = e.GetPosition(RightColumn).Y;
+    }
+
+    private void BottomSplitter_PointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_splitDrag != sender || RightColumn == null) return;
+
+        double dy = e.GetPosition(RightColumn).Y - _splitStartY;
+        double max = _splitStartOptionsH + _splitStartEditorH - EditorMinH;
+        double h = Math.Clamp(_splitStartOptionsH - dy, OptionsMinH, Math.Max(OptionsMinH, max));
+        RightColumn.RowDefinitions[4].Height = new GridLength(h);
+    }
 
     private void FolderSplitter_PointerPressed(object? sender, PointerPressedEventArgs e)
     {
@@ -1632,6 +1680,10 @@ public partial class MainWindow : Window
 
         FolderSplitter.IsVisible = FolderCard.IsVisible;
         TrackSplitter.IsVisible = PlaylistCard.IsVisible;
+
+        var gap = this.TryFindResource("CardGap", out var g) && g is Thickness t ? t : new Thickness(0, 12, 0, 0);
+        PlaylistCard.Margin = FolderCard.IsVisible ? new Thickness(0) : gap;
+        TrackCard.Margin = FolderCard.IsVisible || PlaylistCard.IsVisible ? new Thickness(0) : gap;
 
         void ApplyRow(Control card, int index, ref GridLength saved)
         {

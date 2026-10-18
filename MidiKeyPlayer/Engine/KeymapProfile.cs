@@ -33,7 +33,7 @@ public sealed class KeymapFormatException : Exception
 
 public sealed class KeymapProfile
 {
-    public const string DefaultName = "8 键半音";
+    public const string DefaultName = "8 键半音（五字搜打撤游戏）";
 
     public const int CurrentVersion = 1;
 
@@ -458,8 +458,9 @@ public sealed class KeymapProfile
         ["36 键 4 排 3 个八度"] = "第五人格键位",
         ["36 键 3 排 3 个八度"] = "第五人格键位",
         ["36 键半音三排"] = "第五人格键位",
-        ["8 键单排（含高八度 do，默认）"] = "8 键半音",
-        ["8 键 1 排 3 个八度"] = "8 键半音",
+        ["8 键单排（含高八度 do，默认）"] = DefaultName,
+        ["8 键 1 排 3 个八度"] = DefaultName,
+        ["8 键半音"] = DefaultName,
         ["异环键位"] = "21 键半音",
     };
 

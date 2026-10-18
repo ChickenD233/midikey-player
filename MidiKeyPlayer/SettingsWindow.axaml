@@ -126,7 +126,7 @@
           <StackPanel Spacing="4">
             <StackPanel Orientation="Horizontal" Spacing="8">
               <TextBlock Text="方案" Classes="label" VerticalAlignment="Center"/>
-              <ComboBox x:Name="KeymapCombo" Width="175" FontSize="{DynamicResource FontSmall}"
+              <ComboBox x:Name="KeymapCombo" Width="250" FontSize="{DynamicResource FontSmall}"
                         VerticalAlignment="Center" SelectionChanged="KeymapCombo_Changed"
                         ToolTip.Tip="当前正在用的键位方案。改完自动存"/>
               <Button x:Name="BtnNewScheme" Content="新建方案…" Classes="secondary"
