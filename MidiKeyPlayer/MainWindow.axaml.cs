@@ -113,7 +113,7 @@ public partial class MainWindow : Window
         if (screen == null) return;
 
         double maxW = screen.WorkingArea.Width / screen.Scaling - 24;
-        double maxH = screen.WorkingArea.Height / screen.Scaling - 48;
+        double maxH = screen.WorkingArea.Height / screen.Scaling - 64;
         if (maxW < 700) maxW = 700;
         if (maxH < 620) maxH = 620;
 
