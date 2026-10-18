@@ -3,10 +3,8 @@
 
   <ResourceDictionary.ThemeDictionaries>
 
-    <!-- ===================== 白（默认） ===================== -->
     <ResourceDictionary x:Key="Light">
 
-      <!-- 背景与表面 -->
       <SolidColorBrush x:Key="BrushCanvas"       Color="#F4F6F9"/>
       <SolidColorBrush x:Key="BrushSurface"      Color="#FFFFFF"/>
       <SolidColorBrush x:Key="BrushSurfaceAlt"   Color="#F8FAFC"/>
@@ -14,12 +12,10 @@
       <SolidColorBrush x:Key="BrushBorder"       Color="#E4E8EE"/>
       <SolidColorBrush x:Key="BrushBorderStrong" Color="#D3DAE3"/>
 
-      <!-- 文字 -->
       <SolidColorBrush x:Key="BrushText"          Color="#1F2933"/>
       <SolidColorBrush x:Key="BrushTextSecondary" Color="#5B6673"/>
       <SolidColorBrush x:Key="BrushTextMuted"     Color="#6B7480"/>
 
-      <!-- 品牌绿 -->
       <SolidColorBrush x:Key="BrushAccent"         Color="#2E8B57"/>
       <SolidColorBrush x:Key="BrushAccentHover"    Color="#26784A"/>
       <SolidColorBrush x:Key="BrushAccentPressed"  Color="#1F6540"/>
@@ -27,12 +23,10 @@
       <SolidColorBrush x:Key="BrushAccentSoft"     Color="#E8F3EC"/>
       <SolidColorBrush x:Key="BrushOnAccent"       Color="#FFFFFF"/>
 
-      <!-- 语义色 -->
       <SolidColorBrush x:Key="BrushSuccess" Color="#1E7A3C"/>
       <SolidColorBrush x:Key="BrushWarn"    Color="#B25A00"/>
       <SolidColorBrush x:Key="BrushDanger"  Color="#C0392B"/>
 
-      <!-- 提示条 -->
       <SolidColorBrush x:Key="BrushDangerSoft"   Color="#FDF1EF"/>
       <SolidColorBrush x:Key="BrushDangerBorder" Color="#F0CFC9"/>
       <SolidColorBrush x:Key="BrushDangerText"   Color="#A32B22"/>
@@ -44,7 +38,6 @@
 
       <SolidColorBrush x:Key="BrushCountdownChrome" Color="#FFF3E4D8"/>
 
-      <!-- 控件自绘用的小色（深浅两套都在，卷帘与状态行按主题取） -->
       <SolidColorBrush x:Key="BrushKeyWhite"   Color="#FFFFFF"/>
       <SolidColorBrush x:Key="BrushKeyBlack"   Color="#E4EAF2"/>
       <SolidColorBrush x:Key="BrushRollBg"     Color="#F7F9FC"/>
@@ -86,10 +79,8 @@
 
     </ResourceDictionary>
 
-    <!-- ===================== 黑 ===================== -->
     <ResourceDictionary x:Key="Dark">
 
-      <!-- 背景与表面。比纯黑亮一点，卡片与画布才分得开 -->
       <SolidColorBrush x:Key="BrushCanvas"       Color="#12161B"/>
       <SolidColorBrush x:Key="BrushSurface"      Color="#1A2027"/>
       <SolidColorBrush x:Key="BrushSurfaceAlt"   Color="#212831"/>
@@ -97,12 +88,10 @@
       <SolidColorBrush x:Key="BrushBorder"       Color="#2C343E"/>
       <SolidColorBrush x:Key="BrushBorderStrong" Color="#3B4551"/>
 
-      <!-- 文字。三级都过 WCAG AA（在 #1A2027 上：正文 13.7:1、次级 7.8:1、弱化 6.1:1） -->
       <SolidColorBrush x:Key="BrushText"          Color="#E7ECF2"/>
       <SolidColorBrush x:Key="BrushTextSecondary" Color="#AAB4C0"/>
       <SolidColorBrush x:Key="BrushTextMuted"     Color="#93A0AE"/>
 
-      <!-- 品牌绿。深底上整体提亮一档，否则按不动、看不清 -->
       <SolidColorBrush x:Key="BrushAccent"         Color="#3AA469"/>
       <SolidColorBrush x:Key="BrushAccentHover"    Color="#4FB57C"/>
       <SolidColorBrush x:Key="BrushAccentPressed"  Color="#2E8B57"/>
@@ -110,12 +99,10 @@
       <SolidColorBrush x:Key="BrushAccentSoft"     Color="#1D3227"/>
       <SolidColorBrush x:Key="BrushOnAccent"       Color="#FFFFFF"/>
 
-      <!-- 语义色。深底上用亮色，不要沿用白底那三个深色（对比度不够） -->
       <SolidColorBrush x:Key="BrushSuccess" Color="#4ED8A0"/>
       <SolidColorBrush x:Key="BrushWarn"    Color="#FFB020"/>
       <SolidColorBrush x:Key="BrushDanger"  Color="#FF6B5E"/>
 
-      <!-- 提示条：底色压深、文字提亮 -->
       <SolidColorBrush x:Key="BrushDangerSoft"   Color="#35201D"/>
       <SolidColorBrush x:Key="BrushDangerBorder" Color="#5A342C"/>
       <SolidColorBrush x:Key="BrushDangerText"   Color="#FF9E92"/>
@@ -127,7 +114,6 @@
 
       <SolidColorBrush x:Key="BrushCountdownChrome" Color="#FF2A1E14"/>
 
-      <!-- 控件自绘用的小色 -->
       <SolidColorBrush x:Key="BrushKeyWhite"   Color="#D8DEE6"/>
       <SolidColorBrush x:Key="BrushKeyBlack"   Color="#2A323C"/>
       <SolidColorBrush x:Key="BrushRollBg"     Color="#161B21"/>
@@ -158,7 +144,6 @@
       <SolidColorBrush x:Key="BrushVoice10" Color="#B0A0FF"/>
       <SolidColorBrush x:Key="BrushVoice11" Color="#F2A65A"/>
 
-      <!-- 同白皮肤：SplitButton 的八个画刷键指向本套的品牌绿 -->
       <StaticResource x:Key="SplitButtonBackground" ResourceKey="BrushAccent"/>
       <StaticResource x:Key="SplitButtonBackgroundPointerOver" ResourceKey="BrushAccentHover"/>
       <StaticResource x:Key="SplitButtonBackgroundPressed" ResourceKey="BrushAccentPressed"/>
@@ -172,11 +157,11 @@
 
   </ResourceDictionary.ThemeDictionaries>
 
-  <SolidColorBrush x:Key="BrushRoleRhythm"  Color="#B2553A"/>   <!-- 鼓 -->
-  <SolidColorBrush x:Key="BrushRoleLow"     Color="#2F6D8E"/>   <!-- 贝斯 -->
-  <SolidColorBrush x:Key="BrushRoleHarmony" Color="#3F7A4F"/>   <!-- 吉他 / 键盘 / 弦乐 / 和声 -->
-  <SolidColorBrush x:Key="BrushRoleLead"    Color="#8A4E9E"/>   <!-- 旋律 / 人声 / 主音 -->
-  <SolidColorBrush x:Key="BrushRoleOther"   Color="#6A6F78"/>   <!-- 铜管 / 管乐 / 效果 -->
+  <SolidColorBrush x:Key="BrushRoleRhythm"  Color="#B2553A"/>   
+  <SolidColorBrush x:Key="BrushRoleLow"     Color="#2F6D8E"/>   
+  <SolidColorBrush x:Key="BrushRoleHarmony" Color="#3F7A4F"/>   
+  <SolidColorBrush x:Key="BrushRoleLead"    Color="#8A4E9E"/>   
+  <SolidColorBrush x:Key="BrushRoleOther"   Color="#6A6F78"/>   
 
   <FontFamily x:Key="FontUi">Microsoft YaHei UI, 微软雅黑, PingFang SC, Hiragino Sans GB, Noto Sans CJK SC, Source Han Sans SC, Segoe UI, Helvetica Neue, sans-serif</FontFamily>
   <FontFamily x:Key="FontMono">Cascadia Mono, Consolas, SF Mono, Menlo, DejaVu Sans Mono, monospace</FontFamily>
@@ -189,7 +174,6 @@
   <x:Double x:Key="FontDisplay">22</x:Double>
   <x:Double x:Key="FontCountdown">38</x:Double>
 
-  <!-- ===================== 圆角与间距 ===================== -->
   <CornerRadius x:Key="RadiusCard">10</CornerRadius>
   <CornerRadius x:Key="RadiusControl">8</CornerRadius>
   <Thickness x:Key="CardPadding">14,12</Thickness>

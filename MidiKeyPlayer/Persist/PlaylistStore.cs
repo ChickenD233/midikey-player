@@ -6,10 +6,8 @@ namespace MidiKeyPlayer.Engine;
 
 public static class PlaylistStore
 {
-    /// <summary>【开发用】把歌单目录临时指到别处，默认 null = 真实目录。只在自检里赋值。</summary>
     internal static string? DirPathForDev { get; set; }
 
-    /// <summary>歌单文件所在目录。</summary>
     public static string DirPath =>
         DirPathForDev ??
         Path.Combine(
@@ -17,7 +15,6 @@ public static class PlaylistStore
             "MidiKeyPlayer",
             "playlists");
 
-    /// <summary>名字洗不出可用文件名时的兜底名。</summary>
     private const string FallbackName = "未命名歌单";
 
     private static readonly char[] InvalidChars = Path.GetInvalidFileNameChars();
@@ -35,7 +32,6 @@ public static class PlaylistStore
         return cleaned.Length == 0 ? FallbackName : cleaned;
     }
 
-    /// <summary>某个歌单的完整文件路径。</summary>
     public static string FilePathFor(string? name) =>
         Path.Combine(DirPath, SanitizeFileName(name) + ".json");
 
@@ -68,7 +64,6 @@ public static class PlaylistStore
         return list;
     }
 
-    /// <summary>按名字读一份歌单；没有或读不动返回 null。</summary>
     public static Playlist? Load(string? name)
     {
         try
@@ -88,7 +83,6 @@ public static class PlaylistStore
         }
     }
 
-    /// <summary>保存一份歌单。失败只记日志，不抛。</summary>
     public static bool Save(Playlist playlist)
     {
         try
@@ -108,7 +102,6 @@ public static class PlaylistStore
         }
     }
 
-    /// <summary>删除一份歌单。没有这个文件也算成功。</summary>
     public static bool Delete(string? name)
     {
         try
@@ -124,7 +117,6 @@ public static class PlaylistStore
         }
     }
 
-    /// <summary>改名：按新名字另存一份，再删旧文件。留着旧文件，下次启动会多出一份重名歌单。</summary>
     public static bool Rename(string? oldName, Playlist playlist)
     {
         string oldFile = FilePathFor(oldName);

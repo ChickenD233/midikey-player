@@ -1,13 +1,11 @@
 namespace MidiKeyPlayer.Midi;
 
-/// <summary>MIDI 文件解析后的一个音符（已换算成秒）。</summary>
 public sealed class RawNote
 {
-    public int Pitch { get; init; }        // MIDI 音高 0..127, 60 = C4
-    public double Start { get; init; }     // 起始秒
-    public double End { get; init; }       // 结束秒
+    public int Pitch { get; init; }        
+    public double Start { get; init; }     
+    public double End { get; init; }       
     public int Velocity { get; init; }
-    /// <summary>MIDI 通道 0..15（9 = 通道 10 = 打击乐）；-1 = 未知。单音提取用它排除打击乐。</summary>
     public int Channel { get; init; } = -1;
 
     public int Voice { get; init; } = -1;
@@ -15,11 +13,10 @@ public sealed class RawNote
     public override string ToString() => $"{Music.NoteName(Pitch)} {Start:F2}s~{End:F2}s";
 }
 
-/// <summary>一个可被选作主旋律的候选 = (轨道, 声道)。</summary>
 public sealed class MidiCandidate
 {
-    public int TrackIndex { get; init; }   // 0 起
-    public int Channel { get; init; }      // 0 起（MIDI 内部声道编号）
+    public int TrackIndex { get; init; }   
+    public int Channel { get; init; }      
     public string Name { get; init; } = "";
     public List<RawNote> Notes { get; init; } = new();
     public double DurationSec { get; set; }
@@ -28,42 +25,32 @@ public sealed class MidiCandidate
     public int MinPitch => Notes.Count == 0 ? 0 : Notes.Min(n => n.Pitch);
     public int MaxPitch => Notes.Count == 0 ? 0 : Notes.Max(n => n.Pitch);
 
-    /// <summary>MIDI 文件里的原始轨名（MTrk 的 SequenceTrackName），没写就是空串。</summary>
     public string TrackName { get; init; } = "";
 
-    /// <summary>这条轨用的 GM 音色号 0..127；-1 = 文件里没有 Program Change。</summary>
     public int Program { get; init; } = -1;
 
-    /// <summary>识别出的声部角色。Program 或轨名给的一手证据优先，都没有才是推断。</summary>
     public TrackRole Role { get; init; } = TrackRole.Unknown;
 
-    /// <summary>Role 是推断出来的（文件里既没音色号也没说得清的轨名）。界面会写「疑似」。</summary>
     public bool RoleGuessed { get; init; }
 
-    /// <summary>声部标牌的字，例：鼓 / 贝斯 / 电吉他 / 和声 / 人声。</summary>
     public string RoleTag => GmInstrument.TagOf(Role);
 
     public string ChannelLabel => Channel == 9 ? $"{Channel + 1}(鼓)" : (Channel + 1).ToString();
-    /// <summary>列表里的音域：简谱范围，例如 5.~2。不留空格，列表里省地方。</summary>
     public string RangeLabel => Notes.Count == 0 ? "-"
         : Music.SolfegeRange(MinPitch, MaxPitch);
     public string TrackLabel => (TrackIndex + 1).ToString();
 }
 
-/// <summary>解析后的整份 MIDI 文件。</summary>
 public sealed class ParsedMidi
 {
     public string FilePath { get; init; } = "";
     public string DivisionLabel { get; init; } = "";
     public double DurationSec { get; init; }
-    /// <summary>拍长（秒），取文件第一处速度；卷帘标尺用它画小节线。</summary>
     public double SecondsPerBeat { get; init; } = 0.5;
-    /// <summary>每小节拍数，取文件第一处拍号。</summary>
     public int BeatsPerBar { get; init; } = 4;
     public List<MidiCandidate> Candidates { get; init; } = new();
 }
 
-/// <summary>MIDI 音高相关的命名工具。</summary>
 public static class Music
 {
     private static readonly string[] Names =
@@ -72,34 +59,30 @@ public static class Music
     private static readonly string[] JianPu =
         { "1", "#1", "2", "#2", "3", "4", "#4", "5", "#5", "6", "#6", "7" };
 
-    /// <summary>标准音名，如 C4 / F#5。</summary>
     public static string NoteName(int pitch) => $"{Names[Mod(pitch, 12)]}{pitch / 12 - 1}";
 
-    /// <summary>简谱记号（含升降号），音高模 12。不带八度点，内部用途保留。</summary>
     public static string DegreeName(int pitch) => JianPu[Mod(pitch, 12)];
 
-    private const string DotUp = "\u02D9";     // ˙ 上点
-    private const string DotDown = ".";        // . 下点
+    private const string DotUp = "\u02D9";     
+    private const string DotDown = ".";        
 
     public static string SolfegeName(int pitch)
     {
         int octave = (int)Math.Floor((pitch - 60) / 12.0);
         if (octave == 0) return DegreeName(pitch);
         string mark = octave > 0 ? DotUp : DotDown;
-        int count = Math.Min(Math.Abs(octave), 2);   // 最多两个点：低音 / 高音 / 高高音
+        int count = Math.Min(Math.Abs(octave), 2);   
         var sb = new System.Text.StringBuilder(DegreeName(pitch), DegreeName(pitch).Length + count);
         for (int i = 0; i < count; i++) sb.Append(mark);
         return sb.ToString();
     }
 
-    /// <summary>简谱音域：低到高，例如 5.~2。传反了自动换过来。不留空格，列表里省地方。</summary>
     public static string SolfegeRange(int lo, int hi)
     {
         if (lo > hi) (lo, hi) = (hi, lo);
         return $"{SolfegeName(lo)}~{SolfegeName(hi)}";
     }
 
-    /// <summary>0..127 全部简谱名，配表用。下标就是音高，省得每次现算。</summary>
     public static readonly string[] SolfegeNames = BuildSolfegeNames();
 
     private static string[] BuildSolfegeNames()

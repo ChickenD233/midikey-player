@@ -6,19 +6,14 @@ namespace MidiKeyPlayer.Engine;
 
 internal sealed class SyncRelay : IDisposable
 {
-    /// <summary>连接状态变了。</summary>
     public event Action<SyncConnState>? ConnectionChanged;
 
-    /// <summary>收到一条消息。参数是解析好的消息对象。</summary>
     public event Action<SyncMessage>? MessageReceived;
 
-    /// <summary>要写进日志的一行。</summary>
     public event Action<string>? Log;
 
-    /// <summary>连接中断，重连次数用完了。</summary>
     public event Action<string>? Faulted;
 
-    /// <summary>重连次数上限。到顶就停手，不无限打扰服务器。</summary>
     private const int MaxReconnect = 10;
 
     private readonly SyncRoomInfo _room;
@@ -34,7 +29,6 @@ internal sealed class SyncRelay : IDisposable
     private int _reconnectCount;
     private int _generation;
 
-    /// <summary>第一条消息（join）还没发出去时挂在这里，连上就发。</summary>
     private SyncMessage? _pendingJoin;
 
     internal SyncRelay(SyncRoomInfo room, string peerId, string name, string voice, int xpose)
@@ -64,7 +58,6 @@ internal sealed class SyncRelay : IDisposable
         _ = ConnectLoopAsync();
     }
 
-    /// <summary>发一条消息。没连上就丢掉并记一行日志。</summary>
     internal void Send(SyncMessage msg)
     {
         var ws = _ws;
@@ -93,7 +86,7 @@ internal sealed class SyncRelay : IDisposable
             try
             {
                 await ConnectOnceAsync(generation).ConfigureAwait(false);
-                if (_conn == SyncConnState.Offline) return;   // 用户主动断开
+                if (_conn == SyncConnState.Offline) return;   
             }
             catch (OperationCanceledException)
             {
@@ -115,14 +108,13 @@ internal sealed class SyncRelay : IDisposable
             }
 
             SetConn(SyncConnState.Reconnecting);
-            int wait = Math.Min(30, 1 << Math.Min(_reconnectCount, 5));   // 2、4、8、16、30 秒
+            int wait = Math.Min(30, 1 << Math.Min(_reconnectCount, 5));   
             Log?.Invoke($"远程同演：{wait} 秒后重连（第 {_reconnectCount} 次）。");
             try { await Task.Delay(wait * 1000).ConfigureAwait(false); }
             catch (OperationCanceledException) { return; }
         }
     }
 
-    /// <summary>连一次，跑到断开为止。</summary>
     private async Task ConnectOnceAsync(int generation)
     {
         SetConn(SyncConnState.Connecting);
@@ -148,7 +140,6 @@ internal sealed class SyncRelay : IDisposable
         _reconnectCount = 0;
         Log?.Invoke($"远程同演：已连上中转站 {_room.Host}，房间「{_room.RoomName}」。");
 
-        // 连上就报身份。重连时也重发一次，服务器那边当同一个人重新登记。
         if (_pendingJoin != null) Send(_pendingJoin);
 
         var chunk = new byte[8192];
@@ -167,7 +158,6 @@ internal sealed class SyncRelay : IDisposable
             if (result.MessageType == WebSocketMessageType.Close) break;
             if (result.Count > 0) buffer.AddRange(new ArraySegment<byte>(chunk, 0, result.Count));
 
-            // 一条消息可能分几帧到，收全了才解析
             if (!result.EndOfMessage) continue;
 
             if (buffer.Count > 0)
@@ -193,7 +183,6 @@ internal sealed class SyncRelay : IDisposable
     {
         if (msg.T == SyncKind.Error)
         {
-            // 服务器明确拒绝：密码不对、房间满了、发得太快。这些重连也没用，直接告诉用户。
             Log?.Invoke($"远程同演：房间拒绝了这次连接（{msg.Reason}）。");
             Faulted?.Invoke($"远程同演：{msg.Reason}。");
             return;
@@ -201,7 +190,6 @@ internal sealed class SyncRelay : IDisposable
         MessageReceived?.Invoke(msg);
     }
 
-    /// <summary>主动断开，不再重连。</summary>
     public void Disconnect()
     {
         SetConn(SyncConnState.Offline);
@@ -230,7 +218,6 @@ internal sealed class SyncRelay : IDisposable
     }
 }
 
-/// <summary>连接状态。</summary>
 internal enum SyncConnState
 {
     Offline = 0,

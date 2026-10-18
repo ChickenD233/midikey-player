@@ -7,7 +7,6 @@ namespace MidiKeyPlayer;
 
 internal static partial class GameSelfTest
 {
-    // ================= 远程同演 =================
 
     private static void TestRemoteSync()
     {
@@ -19,8 +18,6 @@ internal static partial class GameSelfTest
         TestFoldOctave();
         TestKeyCollision();
     }
-
-    // ---------- 折八度 ----------
 
     private static void TestFoldOctave()
     {
@@ -35,7 +32,6 @@ internal static partial class GameSelfTest
             Lines.Add($"      [诊断] 折八度验证用「{profile.Name}」：范围 {lo}..{hi}，"
                 + $"键 {profile.Keys.Count} 个，可达音 {profile.ReachablePitches().Count} 个");
 
-            // 关键前提：能弹范围之外确实没有键
             Check("折八度：能弹范围下界下面一个半音没有键",
                 !profile.TryKeyOfPitch(lo - 1, out _, out _, out _, out _, out _),
                 $"下界 {lo}");
@@ -43,7 +39,6 @@ internal static partial class GameSelfTest
                 !profile.TryKeyOfPitch(hi + 1, out _, out _, out _, out _, out _),
                 $"上界 {hi}");
 
-            // 范围外的音折得进来
             bool okLow = NoteMapper.TryFoldIntoRange(profile, lo - 1, out int foldedLow);
             Check("折八度：范围下界外的音能折进来", okLow && profile.InRange(foldedLow),
                 okLow ? $"{lo - 1} → {foldedLow}" : "折不动");
@@ -52,7 +47,6 @@ internal static partial class GameSelfTest
             Check("折八度：范围上界外的音能折进来", okHigh && profile.InRange(foldedHigh),
                 okHigh ? $"{hi + 1} → {foldedHigh}" : "折不动");
 
-            // 折八度只挪整八度，音名不变
             if (okLow)
             {
                 int delta = foldedLow - (lo - 1);
@@ -63,7 +57,6 @@ internal static partial class GameSelfTest
                     $"{Music.NoteName(lo - 1)} → {Music.NoteName(foldedLow)}");
             }
 
-            // 连续音域的方案里，任何音高都应当折得进来
             int unfolded = 0;
             for (int p = 0; p <= 127; p++)
             {
@@ -73,7 +66,6 @@ internal static partial class GameSelfTest
             Check("折八度：半音阶方案下 0..127 每个音都能折进来（连续音域不该有洞）",
                 unfolded == 0, $"{unfolded} 个折不动");
 
-            // 整条链路：范围外的音不再被丢掉
             var notes = new List<RawNote>
             {
                 new() { Pitch = lo - 13, Start = 0, End = 1, Velocity = 90, Channel = 0, Voice = 0 },
@@ -104,7 +96,7 @@ internal static partial class GameSelfTest
         }
         finally
         {
-            KeymapProfile.Current = original;   // 必须还原
+            KeymapProfile.Current = original;   
         }
 
         var handpan = KeymapProfile.PresetByName("洛克王国手碟");
@@ -123,11 +115,8 @@ internal static partial class GameSelfTest
         }
     }
 
-    // ---------- 同一个键撞车 ----------
-
     private static void TestKeyCollision()
     {
-        // 造两个音：同一个键、时间重叠、不同声部。低序号该赢。
         var a = new MappedNote
         {
             Pitch = 60, Start = 0, End = 1, Key = 'Z', InRange = true, Voice = 0,
@@ -145,7 +134,6 @@ internal static partial class GameSelfTest
         Check("撞键：Playable 只返回按得下去的那个",
             NoteMapper.Playable(list).Count == 1 && NoteMapper.Playable(list)[0].Voice == 0);
 
-        // 时间不重叠：两个都能按
         var c = new MappedNote { Pitch = 60, Start = 0, End = 1, Key = 'Z', InRange = true, Voice = 0 };
         var d = new MappedNote { Pitch = 72, Start = 1.5, End = 2.5, Key = 'Z', InRange = true, Voice = 1 };
         var seq = new List<MappedNote> { c, d };
@@ -153,7 +141,6 @@ internal static partial class GameSelfTest
         Check("撞键：时间不重叠时两个都能按",
             !c.SameKeyBlocked && !d.SameKeyBlocked && NoteMapper.Playable(seq).Count == 2);
 
-        // 不同键：各按各的
         var e = new MappedNote { Pitch = 60, Start = 0, End = 1, Key = 'Z', InRange = true, Voice = 0 };
         var f = new MappedNote { Pitch = 62, Start = 0, End = 1, Key = 'X', InRange = true, Voice = 1 };
         var diff = new List<MappedNote> { e, f };
@@ -161,7 +148,6 @@ internal static partial class GameSelfTest
         Check("撞键：不同键同时响各按各的",
             !e.SameKeyBlocked && !f.SameKeyBlocked && NoteMapper.Playable(diff).Count == 2);
 
-        // 没有声部标注（-1）：按先到先得，后到的让位
         var g = new MappedNote { Pitch = 60, Start = 0, End = 1, Key = 'Z', InRange = true, Voice = -1 };
         var h = new MappedNote { Pitch = 60, Start = 0, End = 1, Key = 'Z', InRange = true, Voice = -1 };
         var same = new List<MappedNote> { g, h };
@@ -169,7 +155,6 @@ internal static partial class GameSelfTest
         Check("撞键：声部未知时先到先得，第二个让位",
             !g.SameKeyBlocked && h.SameKeyBlocked);
 
-        // Playable 同时排除"没键"和"按不下去"两类
         var skipped = new MappedNote { Pitch = 99, Start = 0, End = 1, Key = ' ', InRange = false, Voice = 0 };
         var mixed = new List<MappedNote> { a, b, skipped };
         NoteMapper.MarkKeyCollisions(mixed);
@@ -177,15 +162,12 @@ internal static partial class GameSelfTest
             NoteMapper.Playable(mixed).Count == 1, $"{NoteMapper.Playable(mixed).Count} 个");
     }
 
-    // ---------- 房间键派生 ----------
-
     private static void TestRoomKey()
     {
         string a = SyncRoomInfo.DeriveRoomKey("小明的琴房");
         Check("远程同演：房间键是 64 位小写十六进制",
             a.Length == 64 && IsLowerHex(a), a[..16] + "…");
 
-        // 同一个房间名必须每次算出同一个键，否则换个程序版本就进不去同一个房间
         Check("远程同演：同一个房间名算出同一个键",
             SyncRoomInfo.DeriveRoomKey("小明的琴房") == a);
         Check("远程同演：不同房间名算出不同的键",
@@ -193,19 +175,15 @@ internal static partial class GameSelfTest
         Check("远程同演：房间名大小写敏感（算出来不同）",
             SyncRoomInfo.DeriveRoomKey("Room") != SyncRoomInfo.DeriveRoomKey("room"));
 
-        // 键里不能出现明文房间名，否则"房间名不进网络"这句就是假的
         bool leaks = a.Contains("小明", StringComparison.Ordinal)
             || a.Contains(Convert.ToHexString(Encoding.UTF8.GetBytes("小")).ToLowerInvariant(), StringComparison.Ordinal);
         Check("远程同演：房间键里不含房间名明文", !leaks, a[..16] + "…");
 
-        // 迭代次数是跨端约定，写错了就进不去同一个房间
         Check("远程同演：房间键的迭代次数与中转站一致（10 万）",
             SyncRoomInfo.KeyIterations == 100_000, $"{SyncRoomInfo.KeyIterations}");
 
-        // 位数：PBKDF2 256 位 → 32 字节 → 64 个十六进制字符
         Check("远程同演：房间键长度是 64 个字符", a.Length == 64, $"{a.Length}");
 
-        // 房间名合法性
         Check("远程同演：空房间名不合法", !SyncRoomInfo.IsValidRoomName(""));
         Check("远程同演：全是空格的房间名不合法", !SyncRoomInfo.IsValidRoomName("   "));
         Check("远程同演：33 个字符的房间名不合法", !SyncRoomInfo.IsValidRoomName(new string('a', 33)));
@@ -214,12 +192,10 @@ internal static partial class GameSelfTest
             !SyncRoomInfo.IsValidRoomName("房间\n名"));
         Check("远程同演：中文房间名合法", SyncRoomInfo.IsValidRoomName("小明的琴房"));
 
-        // 密码合法性：允许空密码（等于不设防），但太长要拒
         Check("远程同演：空密码合法（等于不设防）", SyncRoomInfo.IsValidPassword(""));
         Check("远程同演：128 字符密码合法", SyncRoomInfo.IsValidPassword(new string('a', 128)));
         Check("远程同演：129 字符密码不合法", !SyncRoomInfo.IsValidPassword(new string('a', 129)));
 
-        // 中转站地址归一化：用户可能粘四种写法
         Check("远程同演：中转站地址去掉协议前缀",
             SyncRoomInfo.NormalizeHost("https://x.workers.dev") == "x.workers.dev");
         Check("远程同演：中转站地址去掉 wss 前缀",
@@ -231,14 +207,12 @@ internal static partial class GameSelfTest
         Check("远程同演：中转站地址前后空白不影响",
             SyncRoomInfo.NormalizeHost("  x.workers.dev  ") == "x.workers.dev");
 
-        // 连接地址里必须带房间键，而且不带明文房间名
         var room = new SyncRoomInfo { Host = "x.workers.dev", RoomName = "秘密房间", Password = "pw" };
         Check("远程同演：连接地址带房间键",
             room.WebSocketUrl == $"wss://x.workers.dev/room?k={room.RoomKey}", room.WebSocketUrl);
         Check("远程同演：连接地址里不含明文房间名",
             !room.WebSocketUrl.Contains("秘密", StringComparison.Ordinal));
 
-        // 成员号
         string id1 = SyncRoomInfo.NewPeerId();
         string id2 = SyncRoomInfo.NewPeerId();
         Check("远程同演：成员号形如 m 加 16 位十六进制",
@@ -253,8 +227,6 @@ internal static partial class GameSelfTest
         return true;
     }
 
-    // ---------- 邀请串 ----------
-
     private static void TestInviteString()
     {
         var room = new SyncRoomInfo { Host = "x.workers.dev", RoomName = "小明的琴房", Password = "pw123" };
@@ -267,27 +239,21 @@ internal static partial class GameSelfTest
             ok && back != null && back.Host == room.Host
             && back.RoomName == room.RoomName && back.Password == room.Password, err);
 
-        // 前后空白与换行
         Check("远程同演：邀请串前后有空白也能解析",
             SyncRoomInfo.TryParse("  " + invite + "\n", out var t1, out _)
             && t1 != null && t1.RoomName == room.RoomName);
-        // 漏掉前缀
         Check("远程同演：漏掉 mkp:// 前缀也能解析",
             SyncRoomInfo.TryParse(invite["mkp://".Length..], out var t2, out _)
             && t2 != null && t2.RoomName == room.RoomName);
-        // 带 https 前缀的中转站
         Check("远程同演：中转站写成 https:// 也能解析",
             SyncRoomInfo.TryParse("mkp://https://x.workers.dev|房|p", out var t3, out _)
             && t3 != null && t3.Host == "x.workers.dev", t3?.Host ?? "");
-        // 空密码
         Check("远程同演：空密码的邀请串能解析",
             SyncRoomInfo.TryParse("mkp://x.workers.dev|房|", out var t4, out _)
             && t4 != null && t4.Password.Length == 0);
-        // 密码里带竖线不行：竖线是分隔符，会多出一段
         Check("远程同演：密码里带竖线会被拒（分隔符冲突）",
             !SyncRoomInfo.TryParse("mkp://x.workers.dev|房|a|b", out _, out string e5) && e5.Length > 0);
 
-        // 各种坏串都要被拒，并给出人话
         var bads = new[]
         {
             "", "   ", "mkp://x.workers.dev|房", "mkp://x.workers.dev",
@@ -304,11 +270,8 @@ internal static partial class GameSelfTest
         Check("远程同演：坏邀请串一律拒绝且给出原因", allRejected, firstBad);
     }
 
-    // ---------- 消息序列化 ----------
-
     private static void TestMessageJson()
     {
-        // 上行：join 要带密码、名字、声部、移调
         var join = new SyncMessage
         {
             T = SyncKind.Join,
@@ -330,7 +293,6 @@ internal static partial class GameSelfTest
             && back.Voice == "1、3" && back.Xpose == -5 && back.Pass == "pw",
             back?.Name ?? "（读不出）");
 
-        // 没赋值的字段不该出现在 JSON 里：省字节
         var start = new SyncMessage { T = SyncKind.Start, DelayMs = 3000, PositionSec = 12.5, SentAt = 987654 };
         text = Encoding.UTF8.GetString(
             JsonSerializer.SerializeToUtf8Bytes(start, SyncJsonContext.Default.SyncMessage));
@@ -343,7 +305,6 @@ internal static partial class GameSelfTest
             && text.Contains("\"positionSec\":12.5", StringComparison.Ordinal)
             && text.Contains("\"sentAt\":987654", StringComparison.Ordinal), text);
 
-        // 下行：名单
         var roster = new SyncMessage
         {
             T = SyncKind.Roster,
@@ -363,7 +324,6 @@ internal static partial class GameSelfTest
             && backRoster.Peers[1].Voice == "2、4" && backRoster.Peers[1].Xpose == -5,
             $"{backRoster?.Peers?.Count ?? -1} 人");
 
-        // 读不懂的消息不能让程序崩
         Check("远程同演：读不懂的 JSON 会抛 JsonException（调用方负责吞）",
             Throws<JsonException>(() => JsonSerializer.Deserialize(
                 Encoding.UTF8.GetBytes("not json"), SyncJsonContext.Default.SyncMessage)));
@@ -375,8 +335,6 @@ internal static partial class GameSelfTest
         catch (T) { return true; }
         catch { return false; }
     }
-
-    // ---------- 开演等待换算 ----------
 
     private static void TestStartDelayCompensation()
     {
@@ -395,13 +353,11 @@ internal static partial class GameSelfTest
             startA == 4000 && startB == 4000 && startA == startB,
             $"甲={startA} 乙={startB}");
 
-        // 再验一个极端的：路上 2.9 秒的也能对齐
         long arriveC = 3900;
         long startC = arriveC + SyncSession.RemainingDelayCore(3000, 1000, arriveC);
         Check("远程同演：慢到 2.9 秒的成员也落在同一刻",
             startC == 4000, $"{startC}");
 
-        // 但迟到超过 DelayMs 的对不齐，而且不能算出负数等待
         long arriveLate = 9000;
         long startLate = arriveLate + SyncSession.RemainingDelayCore(3000, 1000, arriveLate);
         Check("远程同演：迟到超过 DelayMs 的成员立刻开演（不等成负数）",
@@ -418,8 +374,6 @@ internal static partial class GameSelfTest
         Check("远程同演：DelayMs 为 0 时立刻开演",
             SyncSession.RemainingDelayCore(0, 1000, 1300) == 0);
     }
-
-    // ---------- 单调锚点 ----------
 
     private static void TestAnchor()
     {
@@ -464,7 +418,6 @@ internal static partial class GameSelfTest
 
         Check("远程同演：速度传 0 时按 1 处理", Math.Abs(SyncAnchor.At(0, 0).Speed - 1.0) < 1e-9);
 
-        // 单调时钟本身：这是整套同步的地基，必须是单调的毫秒
         long a = SyncClock.NowMs;
         Thread.Sleep(20);
         long b = SyncClock.NowMs;

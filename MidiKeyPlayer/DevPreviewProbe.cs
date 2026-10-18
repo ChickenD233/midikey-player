@@ -4,7 +4,6 @@ using MidiKeyPlayer.Engine;
 
 namespace MidiKeyPlayer;
 
-/// <summary>探针模式开关。只有 MIDIKEY_PREVIEW_PROBE=1 才为 true（其它值一律不生效）。</summary>
 internal static class PreviewProbeMode
 {
     internal static readonly bool On =
@@ -31,7 +30,6 @@ public partial class MainWindow
 
     private static string ProbeEnv(string name) => Environment.GetEnvironmentVariable(name) ?? "";
 
-    /// <summary>探针自己的单调时钟（秒）。</summary>
     private static double ProbeNow() => Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency;
 
     private static double ProbeNum(string name, double fallback)
@@ -50,7 +48,6 @@ public partial class MainWindow
 
     private void BeginPreviewProbe()
     {
-        // 不抢焦点：探针窗口弹出来时不要打断用户手上的操作
         ShowActivated = false;
         string file = ProbeEnv("MIDIKEY_PREVIEW_PROBE_FILE");
         string mix = ProbeEnv("MIDIKEY_PREVIEW_PROBE_MIX");
@@ -60,7 +57,6 @@ public partial class MainWindow
         foreach (string part in seeks.Split(',', StringSplitOptions.RemoveEmptyEntries))
             if (double.TryParse(part, out double s)) _probeSeeks.Add(s);
 
-        // 先让布局就绪（与 DevUISnapshot 用同一个经验值），再走用户同一条载入链路
         var prep = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
         prep.Tick += (_, _) =>
         {
@@ -88,12 +84,10 @@ public partial class MainWindow
             start.Tick += (_, _) =>
             {
                 start.Stop();
-                // 先 Reset 再起播：Start() 里记的说明（timeBeginPeriod 等）不能被清掉
                 string probeTitle = ProbeEnv("MIDIKEY_PREVIEW_PROBE_TITLE");
                 PreviewJitterProbe.Reset(string.IsNullOrEmpty(probeTitle) ? Path.GetFileName(file) : probeTitle);
                 if (ProbeEnv("MIDIKEY_PREVIEW_PROBE_CLICK") == "1")
                 {
-                    // 走真实按钮点击这条链路（不是直接调内部方法）
                     BtnPreview.IsEnabled = true;
                     BtnPreview.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
                     ProbeLog("已用真实按钮点击「试听」");
@@ -117,7 +111,6 @@ public partial class MainWindow
         };
         prep.Start();
 
-        // 兜底：无论如何 6 分钟后必须自己退出，不留常驻进程
         var guard = new DispatcherTimer { Interval = TimeSpan.FromMinutes(6) };
         guard.Tick += (_, _) =>
         {
@@ -137,7 +130,6 @@ public partial class MainWindow
 
     private void ProbeMonitorTick()
     {
-        // 界面定时器自己的滞后：基线实现把派发放进 UI 线程时这里会变大
         double now = ProbeNow();
         double late = (now - _probeLastTickStamp - 0.1) * 1000.0;
         _probeLastTickStamp = now;
@@ -146,7 +138,6 @@ public partial class MainWindow
         double pos = CurrentPosition();
         if (pos > _probeUiMaxPosition) _probeUiMaxPosition = pos;
 
-        // 跳转是异步的（调度线程清音 + 补音），下一拍再看"在响几个音"才准
         if (_probeSeekLogPending)
         {
             _probeSeekLogPending = false;
@@ -154,7 +145,6 @@ public partial class MainWindow
                      + $"noteOn={_preview?.NoteOnCount ?? -1}，noteOff={_preview?.NoteOffCount ?? -1}");
         }
 
-        // 探针跑测期间禁用"试听"按钮：防止人工点击打断测量（只在探针模式下生效）
         if (_previewOn && BtnPreview.IsEnabled) BtnPreview.IsEnabled = false;
 
         double elapsed = now - _probeStartStamp;
@@ -269,7 +259,6 @@ public partial class MainWindow
         PreviewJitterProbe.WriteReport();
         WriteProbeSummary(reason);
         try { File.AppendAllText(ProbeEnv("MIDIKEY_PREVIEW_PROBE_OUT"), "[probe] 探针退出" + Environment.NewLine); } catch { }
-        // A19：退出前走一遍主窗的显式清理（停试听与播放、停热键与 MIDI 服务、释放按键、移除托盘）
         DevCleanUpForExit();
         Environment.Exit(0);
     }

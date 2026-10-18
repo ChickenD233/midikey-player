@@ -2,27 +2,21 @@ using MidiKeyPlayer.Midi;
 
 namespace MidiKeyPlayer.Engine;
 
-/// <summary>映射后的单个可演奏音符。</summary>
 public sealed class MappedNote
 {
-    /// <summary>移调后的原音高（界面与卷帘按它显示）。</summary>
     public int Pitch { get; init; }
 
-    public double Start { get; init; }   // 秒（未乘速度）
+    public double Start { get; init; }   
     public double End { get; init; }
 
     public char Key { get; init; }
 
-    /// <summary>方案里写的键名（"Z" / "," / "PageUp" / "MouseLeft"）。</summary>
     public string KeyName { get; init; } = "";
 
-    /// <summary>true → 需要按住升半音键。功能键关掉或键表里没有升半音键时恒为 false。</summary>
     public bool Sharp { get; init; }
 
-    /// <summary>true → 需要按住降半音键（与 <see cref="Sharp"/> 互斥；只有方案绑了降半音键时才可能出现）。</summary>
     public bool Flat { get; init; }
 
-    /// <summary>八度档位：相对方案基准音所在八度的偏移（-1 / 0 / +1）。</summary>
     public int OctaveOffset { get; init; }
 
     public int SoundingPitch { get; init; }
@@ -37,28 +31,21 @@ public sealed class MappedNote
 
     public string SkipReason { get; init; } = "";
 
-    /// <summary>发声了，但音高被挪过。只有折八度这一条路径会造成它。</summary>
     public bool Shifted => InRange && SoundingPitch != Pitch;
 }
 
-/// <summary>一次映射的结果。</summary>
 public sealed class MappingResult
 {
-    /// <summary>基准八度（MIDI 编号，C4 = 第 4 八度）。</summary>
     public int BaseOctave { get; set; }
 
-    /// <summary>本次映射有没有开「超范围的音折八度」。</summary>
     public bool FoldedOctave { get; set; }
 
     public List<MappedNote> Notes { get; init; } = new();
 
-    /// <summary>有对应的键、演奏时会发声的音数。</summary>
     public int InRangeCount => Notes.Count(n => n.InRange);
 
-    /// <summary>没有对应的键（或超出能弹范围）而跳过的音数。卷帘画成灰色的就是它们。</summary>
     public int SkipCount => Notes.Count(n => !n.InRange);
 
-    /// <summary>发声但音高被折八度挪过的音数。</summary>
     public int ShiftedCount => Notes.Count(n => n.Shifted);
 }
 
@@ -69,7 +56,6 @@ public static class NoteMapper
             ? KeymapProfile.KeyCharOf(key)
             : ' ';
 
-    /// <summary>该音高是否需要按住升半音键（旧接口保留：内部走当前方案）。</summary>
     public static bool IsSharpPitch(int pitch)
         => KeymapProfile.Current.TryKeyOfPitch(pitch, out _, out _, out bool sharp) && sharp;
 
@@ -128,7 +114,6 @@ public static class NoteMapper
         int baseOctave = manualBaseOctave ?? AutoBaseOctave(valid);
         result.BaseOctave = baseOctave;
 
-        // baseOctave 相对方案基准八度整体移动多少个八度；音域与键表都跟着移动。
         int shift = 12 * (baseOctave - profile.BaseOctave);
         int lo = profile.ResolveMinNote();
         int hi = profile.ResolveMaxNote();
@@ -155,8 +140,6 @@ public static class NoteMapper
             {
                 if (foldOctave)
                 {
-                    // 折八度：把音上下挪整八度，落在能弹范围里最近的那个位置。
-                    // 找不到（例如手碟上没有 #4 与 7）就照旧不弹。
                     if (TryFoldIntoRange(profile, want, out int foldedWant))
                     {
                         folded = foldedWant - want;
@@ -194,7 +177,6 @@ public static class NoteMapper
                 Sharp = sharp,
                 Flat = flat,
                 OctaveOffset = octaveOffset,
-                // 折过八度的音：发声音高要跟着挪，否则试听与卷帘显示都会与手上按的对不上
                 SoundingPitch = p + folded,
                 FoldedSemitones = folded,
                 Voice = n.Voice,
@@ -202,7 +184,6 @@ public static class NoteMapper
             });
         }
 
-        // 收尾：标出"同一个键同一时刻撞车"的音。只标记、不删除，理由见 MarkKeyCollisions。
         MarkKeyCollisions(result.Notes);
         return result;
     }
@@ -210,7 +191,6 @@ public static class NoteMapper
     internal static bool TryFoldIntoRange(KeymapProfile profile, int pitch, out int folded)
     {
         folded = pitch;
-        // ±4 个八度足够覆盖任何现实音域；再远就没有音乐意义了。
         for (int octaves = 1; octaves <= 4; octaves++)
         {
             foreach (int dir in new[] { 1, -1 })
@@ -249,21 +229,16 @@ public static class NoteMapper
             .ToList();
         if (ordered.Count == 0) return new List<RawNote>();
 
-        // 起音在同一帧内就算"同一刻"。25 毫秒约等于一帧半，够容下文件里的微小抖动。
         const double eps = 0.025;
 
         var result = new List<RawNote>(ordered.Count);
-        // 已经保留过的"真正同一个音"：键是（音高，起音刻度）。用来去重。
         var seen = new HashSet<(int Pitch, long StartTick)>();
-        // 声部序号 → 已经在响的同一个音高到几点。同声部同音高不重复起音（那是同一根键）。
         var heldByVoice = new Dictionary<(int Voice, int Pitch), double>();
 
         foreach (var (rank, note) in ordered)
         {
             long tick = (long)Math.Round(note.Start / eps);
 
-            // 1) 跨声部的真正同一个音：只留一个，别的扔掉。
-            //    第一次保留时用它自己的 Rank 与时长。
             if (!seen.Add((note.Pitch, tick))) continue;
 
             if (heldByVoice.TryGetValue((rank, note.Pitch), out double until) && note.Start < until - 1e-9)
@@ -279,14 +254,13 @@ public static class NoteMapper
 
     internal static void MarkKeyCollisions(List<MappedNote> notes)
     {
-        // 键 → 这个键已经被占到几点，以及占用它的声部序号
         var usedUntil = new Dictionary<char, (double Until, int Voice)>();
 
         foreach (var n in notes.OrderBy(x => x.Start).ThenBy(x => x.Voice))
         {
             bool blocked = false;
             if (usedUntil.TryGetValue(n.Key, out var held) && n.Start < held.Until - 1e-9)
-                blocked = n.Voice >= held.Voice;   // 序号更靠后的让位；同序号也先到先得
+                blocked = n.Voice >= held.Voice;   
 
             if (blocked)
             {
@@ -303,7 +277,6 @@ public static class NoteMapper
     public static List<MappedNote> Playable(IEnumerable<MappedNote> notes)
         => notes.Where(n => n.InRange && !n.SameKeyBlocked).ToList();
 
-    /// <summary>复制一个音并写上声部序号。RawNote.Voice 是 init，只能复制，不能就地改。</summary>
     private static RawNote WithVoice(RawNote n, int voice) => new()
     {
         Pitch = n.Pitch,
@@ -327,11 +300,10 @@ public static class NoteMapper
             End = Math.Max(0, n.End - first),
             Velocity = n.Velocity,
             Channel = n.Channel,
-            Voice = n.Voice        // 整体平移不改归属，声轨号必须一起带过去
+            Voice = n.Voice        
         }).ToList();
     }
 
-    /// <summary>给界面用的单音描述。</summary>
     public static string Describe(MappedNote n, bool withTime)
     {
         if (!n.InRange) return (withTime ? $"{n.Start:F2}s " : "") + "空拍（不发声）";
@@ -343,7 +315,6 @@ public static class NoteMapper
             > 0 => OctaveLabel(profile.OctaveUp, "高八度"),
             _ => "基准八度"
         };
-        // 只显示方案里的键名：内部的哨兵字符绝不给人看
         string keyShow = string.IsNullOrEmpty(n.KeyName) ? "（无按键）"
             : (n.KeyName == "," ? "，" : n.KeyName);
         string sharpName = string.IsNullOrWhiteSpace(profile.Sharp) || !profile.ModifiersEnabled
@@ -357,7 +328,6 @@ public static class NoteMapper
         return $"{time}{Music.SolfegeName(n.Pitch)}{fold} → 按[{keyShow}] {sharp}{flat}{slot}";
     }
 
-    /// <summary>八度档位的中文名，给跳过原因与音高描述用。</summary>
     private static string OctaveLabel(string? key, string fallback)
         => string.IsNullOrWhiteSpace(key) ? fallback : $"{fallback}(按{key})";
 }

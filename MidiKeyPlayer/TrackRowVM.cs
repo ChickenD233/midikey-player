@@ -34,7 +34,6 @@ public sealed class TrackRowVM : INotifyPropertyChanged
         }
     }
 
-    /// <summary>勾选进“多声部合奏”。</summary>
     public bool IsMix
     {
         get => _isMix;
@@ -47,10 +46,8 @@ public sealed class TrackRowVM : INotifyPropertyChanged
         }
     }
 
-    /// <summary>参与合奏时显示优先级编号，不再显示主旋律圆点。</summary>
     public bool ShowStar => IsMain && !IsMix;
 
-    /// <summary>合奏优先级：1 最优先，0=未参与合奏。</summary>
     public int MixRank
     {
         get => _mixRank;
@@ -68,13 +65,11 @@ public sealed class TrackRowVM : INotifyPropertyChanged
     public int NoteCount => Candidate.NoteCount;
     public string RangeLabel => Candidate.RangeLabel;
 
-    /// <summary>名字列的悬浮提示：文件里的原始轨名 + 时长 + 音符数，方便核对识别结果。</summary>
     public string NameTip =>
         Candidate.TrackName.Length > 0 && Candidate.TrackName != Candidate.Name
             ? $"{Candidate.Name}（文件里的轨名：{Candidate.TrackName}）"
             : Candidate.Name;
 
-    /// <summary>时长显示：不足 1 分钟显示秒，否则 分:秒。</summary>
     public string DurationText
     {
         get
@@ -88,7 +83,6 @@ public sealed class TrackRowVM : INotifyPropertyChanged
         }
     }
 
-    /// <summary>打击乐等不适合作为乐器主旋律的轨道。</summary>
     public bool IsPercussion =>
         Candidate.Role == TrackRole.Drums ||
         Candidate.Channel == 9 ||
@@ -97,9 +91,6 @@ public sealed class TrackRowVM : INotifyPropertyChanged
         Candidate.Name.Contains("drum", StringComparison.OrdinalIgnoreCase) ||
         Candidate.Name.Contains("percussion", StringComparison.OrdinalIgnoreCase);
 
-    // ================= 声部识别 =================
-
-    /// <summary>声部标牌的字：鼓 / 贝斯 / 电吉他 / 和声 / 人声…（识别结果，见 GmInstrument）。</summary>
     public string RoleTag => Candidate.RoleTag;
 
     public Avalonia.Media.IBrush? RoleBrush
@@ -113,7 +104,6 @@ public sealed class TrackRowVM : INotifyPropertyChanged
         }
     }
 
-    /// <summary>这个声部有没有参与本次演奏。参与时标牌用实色，没参与时整块弱化。</summary>
     public bool RoleActive
     {
         get => _roleActive;
@@ -125,7 +115,6 @@ public sealed class TrackRowVM : INotifyPropertyChanged
         }
     }
 
-    /// <summary>声部标牌的悬浮说明：识别出什么、证据是什么、是文件里写的还是推断的。</summary>
     public string RoleTip
     {
         get
@@ -149,8 +138,6 @@ public sealed class TrackRowVM : INotifyPropertyChanged
 
     public bool IsPlayable => true;
 
-    // ================= 声轨配色 =================
-
     public int VoiceIndex
     {
         get => _voiceIndex;
@@ -173,7 +160,6 @@ public sealed class TrackRowVM : INotifyPropertyChanged
         }
     }
 
-    /// <summary>本轨当前是否参与演奏（决定卷帘与列表用亮色还是弱化色）。</summary>
     public bool IsVoiceActive
     {
         get => _voiceActive;

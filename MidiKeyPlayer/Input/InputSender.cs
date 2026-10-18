@@ -3,7 +3,6 @@ using MidiKeyPlayer.Engine;
 
 namespace MidiKeyPlayer.Input;
 
-/// <summary>用 Windows SendInput 模拟键鼠（全局真实输入，目标窗口聚焦即可）。</summary>
 public static class InputSender
 {
     public enum MouseButton { Left, Right, Middle }
@@ -76,7 +75,6 @@ public static class InputSender
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
 
-    /// <summary>窗口所属进程的 PID；hwnd 为空返回 0。</summary>
     public static uint PidOfWindow(IntPtr hwnd)
     {
         if (!OperatingSystem.IsWindows() || hwnd == IntPtr.Zero) return 0;
@@ -87,7 +85,6 @@ public static class InputSender
     public static IntPtr ForegroundWindow =>
         OperatingSystem.IsWindows() ? GetForegroundWindow() : IntPtr.Zero;
 
-    /// <summary>前台窗口标题，用于诊断按键发给了谁。</summary>
     public static string ForegroundWindowTitle
     {
         get
@@ -101,7 +98,6 @@ public static class InputSender
         }
     }
 
-    /// <summary>置前后台窗口；停止时先把焦点还给目标程序，再补发一次“松开”。</summary>
     public static void BringToForeground(IntPtr hWnd)
     {
         if (OperatingSystem.IsWindows() && hWnd != IntPtr.Zero) SetForegroundWindow(hWnd);
@@ -109,12 +105,10 @@ public static class InputSender
 
     public static bool IsSupported => OperatingSystem.IsWindows();
 
-    private static bool _mouseWarnedInDriverMode;   // 罗技驱动模式下「鼠标键发不了」只提醒一次
+    private static bool _mouseWarnedInDriverMode;   
 
-    /// <summary>输入后端：SendInput（默认，用户态注入）/ 罗技 G HUB 驱动（驱动级 HID 报告）。</summary>
     public enum BackendKind { SendInput = 0, LogitechGHub = 1 }
 
-    /// <summary>当前输入后端。默认 SendInput；只有 SetBackend 成功后才会变成罗技驱动。</summary>
     public static BackendKind Backend { get; private set; } = BackendKind.SendInput;
 
     public static bool SetBackend(BackendKind kind, out string error, out string? warn)
@@ -138,19 +132,16 @@ public static class InputSender
         error = "";
         warn = null;
         if (Backend != BackendKind.LogitechGHub) return true;
-        // TryInit 在已初始化时直接返回、warn 保持 null：只有这次真做了初始化才可能带出提醒
         if (IbDriver.TryInit(out error, out warn)) return true;
         Backend = BackendKind.SendInput;
         error += "\n本次先退回 SendInput。";
         return false;
     }
 
-    // 本程序真正按下过的键/鼠标键。ReleaseEverything 只抬这一份记录，绝不碰用户物理按住的键。
     private static readonly object HeldGate = new();
     private static readonly HashSet<string> HeldKeys = new(StringComparer.Ordinal);
     private static readonly HashSet<MouseButton> HeldButtons = new();
 
-    /// <summary>记账用的规范键名：鼠标键与命名键大小写敏感，单字符键统一成大写（"z" 与 "Z" 是同一个键）。</summary>
     private static string NormKey(string? keyName)
     {
         string name = keyName ?? "";
@@ -158,14 +149,12 @@ public static class InputSender
         return name;
     }
 
-    /// <summary>标点键的虚拟键码（US 布局，与扫描码方式配套）。</summary>
     private static readonly Dictionary<char, ushort> OemVk = new()
     {
         [','] = 0xBC, ['.'] = 0xBE, [';'] = 0xBA, ['/'] = 0xBF, ['\''] = 0xDE,
         ['['] = 0xDB, [']'] = 0xDD, ['\\'] = 0xDC, ['-'] = 0xBD, ['='] = 0xBB, ['`'] = 0xC0,
     };
 
-    /// <summary>命名键的虚拟键码。</summary>
     private static readonly Dictionary<string, ushort> NamedVk = new(StringComparer.Ordinal)
     {
         ["Space"] = 0x20, ["Enter"] = 0x0D, ["Tab"] = 0x09, ["Back"] = 0x08, ["Escape"] = 0x1B,
@@ -179,7 +168,6 @@ public static class InputSender
         ["NumPad5"] = 0x65, ["NumPad6"] = 0x66, ["NumPad7"] = 0x67, ["NumPad8"] = 0x68, ["NumPad9"] = 0x69,
     };
 
-    /// <summary>要用「扩展键」标志发送的虚拟键码（方向键、翻页、Home/End、Insert/Delete、小键盘除号）。</summary>
     private static readonly HashSet<ushort> ExtendedVk = new()
     {
         0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x2D, 0x2E, 0x6F,
@@ -201,7 +189,6 @@ public static class InputSender
         return NamedVk.TryGetValue(name, out vk);
     }
 
-    /// <summary>键名 → 鼠标键。不是鼠标键则返回 false。</summary>
     public static bool TryMouseButton(string? keyName, out MouseButton button)
     {
         button = MouseButton.Left;
@@ -215,17 +202,13 @@ public static class InputSender
         }
     }
 
-    /// <summary>字符形式 → 键名（命名键的哨兵字符在这里还原）。</summary>
     public static string KeyNameOf(char c) => KeymapProfile.NameOfKeyChar(c);
 
-    /// <returns>true = 事件注入成功；false = 被系统拦截（SendInput 返回 0）或驱动报告失败。</returns>
     private static bool SendKeyVk(bool down, ushort vk, bool extended)
     {
-        // 罗技驱动后端：直接发标准 HID 键盘报告，不走 SendInput（注入标记那条链路）。
         if (Backend == BackendKind.LogitechGHub)
             return IbDriver.Keybd(down, vk);
 
-        // 一律发扫描码（wVk=0 + KEYEVENTF_SCANCODE）：很多目标程序/DirectInput 只认扫描码
         uint flags = (down ? 0u : KEYEVENTF_KEYUP) | KEYEVENTF_SCANCODE;
         if (extended) flags |= KEYEVENTF_EXTENDEDKEY;
 
@@ -246,7 +229,6 @@ public static class InputSender
         return SendInput(1, new[] { input }, Marshal.SizeOf<INPUT>()) == 1;
     }
 
-    /// <returns>true = 事件注入成功；false = 被系统拦截（SendInput 返回 0）。</returns>
     private static bool SendMouse(MouseButton button, bool down)
     {
         if (!OperatingSystem.IsWindows()) return false;
@@ -283,14 +265,12 @@ public static class InputSender
 
     public static void KeyDown(string? keyName) => SendKeyByName(keyName, true);
 
-    /// <summary>松开一个键。名字规则同 <see cref="KeyDown(string?)"/>。</summary>
     public static void KeyUp(string? keyName) => SendKeyByName(keyName, false);
 
     private static void SendKeyByName(string? keyName, bool down)
     {
         if (!OperatingSystem.IsWindows()) return;
 
-        // 鼠标键：记账走 HeldButtons
         if (TryMouseButton(keyName, out var button))
         {
             bool changed;
@@ -303,7 +283,6 @@ public static class InputSender
             return;
         }
 
-        // 记账（A04）：只记不在同一状态的键，重复调用不发也不重复记
         string norm = NormKey(keyName);
         bool changedKey;
         lock (HeldGate) changedKey = down ? HeldKeys.Add(norm) : HeldKeys.Remove(norm);
@@ -311,7 +290,6 @@ public static class InputSender
 
         if (!TryVkCode(keyName, out ushort vk))
         {
-            // 认不出的键名：回滚记账，避免留一条永远不会被释放的记录
             lock (HeldGate) { if (down) HeldKeys.Remove(norm); else HeldKeys.Add(norm); }
             return;
         }
@@ -321,10 +299,8 @@ public static class InputSender
         }
     }
 
-    /// <summary>按下一个键（字符形式）。命名键的哨兵字符会还原成键名。</summary>
     public static void KeyDown(char c) => SendKeyByChar(c, true);
 
-    /// <summary>松开一个键（字符形式）。</summary>
     public static void KeyUp(char c) => SendKeyByChar(c, false);
 
     private static void SendKeyByChar(char c, bool down)
@@ -350,11 +326,10 @@ public static class InputSender
                 foreach (var k in HeldKeys) { key = k; break; }
                 if (key == null)
                     foreach (var b in HeldButtons) { button = b; break; }
-                if (key == null && button == null) return;   // 账已空
+                if (key == null && button == null) return;   
                 if (key != null) HeldKeys.Remove(key);
                 else HeldButtons.Remove(button!.Value);
             }
-            // 账已结，直接发抬键（不走 SendKeyByName 的记账：抬起失败也不再记回，避免死循环）
             if (key != null)
             {
                 if (TryVkCode(key, out ushort vk)) SendKeyVk(false, vk, ExtendedVk.Contains(vk));

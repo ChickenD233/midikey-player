@@ -2,7 +2,6 @@ using MidiKeyPlayer.Midi;
 
 namespace MidiKeyPlayer.Engine;
 
-/// <summary>可编辑的旋律谱面：增删改 + 撤销重做。列表始终按起始时间排序。</summary>
 public sealed class ScoreEditor
 {
     private const int MaxUndo = 200;
@@ -18,7 +17,6 @@ public sealed class ScoreEditor
 
     public double TotalSeconds => _notes.Count == 0 ? 0 : _notes.Max(n => n.End);
 
-    /// <summary>整批换谱。这是新基线，清空撤销栈。</summary>
     public void Reset(IEnumerable<RawNote> notes)
     {
         _notes.Clear();
@@ -30,7 +28,6 @@ public sealed class ScoreEditor
 
     public void Clear() => Reset(Array.Empty<RawNote>());
 
-    /// <summary>新增一个音，返回它在排序后的下标。</summary>
     public int Add(int pitch, double start, double end)
     {
         Snapshot();
@@ -40,10 +37,8 @@ public sealed class ScoreEditor
         return _notes.IndexOf(n);
     }
 
-    /// <summary>改一个音，返回它在重新排序后的下标。</summary>
     public int Update(int index, int pitch, double start, double end)
     {
-        // 越界下标原样返回会让调用方把无效值存成选中下标，统一返回 -1
         if (index < 0 || index >= _notes.Count) return -1;
         Snapshot();
         var n = Make(pitch, start, end);
@@ -67,7 +62,6 @@ public sealed class ScoreEditor
         _notes.RemoveAt(index);
     }
 
-    /// <summary>该时刻正在响的音符下标；没有返回 -1。</summary>
     public int IndexAt(double seconds)
     {
         for (int i = _notes.Count - 1; i >= 0; i--)
@@ -99,7 +93,6 @@ public sealed class ScoreEditor
         _notes.AddRange(snapshot);
     }
 
-    /// <summary>改动前留快照。RawNote 是 init-only，所以浅拷贝列表就够。</summary>
     private void Snapshot()
     {
         _undo.Add(new List<RawNote>(_notes));

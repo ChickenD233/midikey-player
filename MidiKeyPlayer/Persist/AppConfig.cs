@@ -4,18 +4,13 @@ using MidiKeyPlayer.Engine;
 
 namespace MidiKeyPlayer.Persist;
 
-/// <summary>某个键位方案单独记住的速度 / 移调 / 输入兼容档。</summary>
 public sealed class ProfileSettings
 {
-    /// <summary>速度（%）。</summary>
     public int Speed { get; set; } = 100;
-    /// <summary>移调（半音）。</summary>
     public int Transpose { get; set; } = 0;
-    /// <summary>输入兼容档位：0 稳健 / 1 标准 / 2 极限。</summary>
     public int TimingIndex { get; set; } = 1;
 }
 
-/// <summary>用户设置：退出后记住，下次启动自动恢复。</summary>
 public sealed class AppConfig
 {
     public const int MinSpeedPercent = 10;
@@ -25,78 +20,65 @@ public sealed class AppConfig
     private int _speed = 100;
     private int _transpose;
 
-    public int Speed          // %
+    public int Speed          
     {
         get => _speed;
         set => _speed = Math.Clamp(value, MinSpeedPercent, MaxSpeedPercent);
     }
 
-    public int Transpose      // 半音
+    public int Transpose      
     {
         get => _transpose;
         set => _transpose = Math.Clamp(value, -MaxTransposeSemitones, MaxTransposeSemitones);
     }
 
-    public int CountdownIndex { get; set; } = 1;   // 0秒/3/5/10
-    public int ControlHotkeyIndex { get; set; } = 6; // 统一控制键（默认 F6：开始/暂停/继续）
-    public int RewindHotkeyIndex { get; set; } = 5;  // 后退热键（默认 F5）
-    public int ForwardHotkeyIndex { get; set; } = 7; // 前进热键（默认 F7）
-    public int PrevSongHotkeyIndex { get; set; } = 8;   // 上一首热键（默认 F8，文件夹曲目）
-    public int NextSongHotkeyIndex { get; set; } = 9;   // 下一首热键（默认 F9，文件夹曲目）
+    public int CountdownIndex { get; set; } = 1;   
+    public int ControlHotkeyIndex { get; set; } = 6; 
+    public int RewindHotkeyIndex { get; set; } = 5;  
+    public int ForwardHotkeyIndex { get; set; } = 7; 
+    public int PrevSongHotkeyIndex { get; set; } = 8;   
+    public int NextSongHotkeyIndex { get; set; } = 9;   
     public bool TrimLead { get; set; } = true;
     public bool FoldOctave { get; set; } = false;
-    public bool FirstRunDone { get; set; } = false;   // 首次“快速上手”是否已看过
-    public bool AutoMinimizeOnPlay { get; set; } = true;  // 播放开始后自动最小化窗口
-    public bool FocusGuard { get; set; } = true;          // 焦点离开目标程序时自动暂停（按键只进游戏）
-    public bool ShowPreflight { get; set; } = true;   // 主界面状态卡里显示播放前自检（默认开）
-    public int ThemeMode { get; set; } = 0;           // 皮肤：0 自动（跟随系统）/ 1 浅色 / 2 深色
-    public int TimingIndex { get; set; } = 1;         // 输入兼容档位：0稳健/1标准/2极限
-    public int InputBackend { get; set; } = 0;        // 输入方式：0 SendInput（默认）/ 1 罗技 G HUB 驱动
-    public string SkippedUpdateTag { get; set; } = "";   // 用户选择“跳过”的版本号（空=不跳过）
-    public bool DisclaimerAccepted { get; set; } = false;  // 免责声明确认过一次后不再显示
+    public bool FirstRunDone { get; set; } = false;   
+    public bool AutoMinimizeOnPlay { get; set; } = true;  
+    public bool FocusGuard { get; set; } = true;          
+    public bool ShowPreflight { get; set; } = true;   
+    public int ThemeMode { get; set; } = 0;           
+    public int TimingIndex { get; set; } = 1;         
+    public int InputBackend { get; set; } = 0;        
+    public string SkippedUpdateTag { get; set; } = "";   
+    public bool DisclaimerAccepted { get; set; } = false;  
     public string LastRunVersion { get; set; } = "";
     public string NoticeShownVersion { get; set; } = "";
-    // 第一次使用时那道「作者的 B 站 ID」验证题是否已经答对。答对一次就永远不再弹。
     public bool AuthorQuizPassed { get; set; } = false;
 
-    // —— 播放悬浮窗（倒计时 / 进度 / 当前音，置顶显示在目标程序上）——
     public bool OverlayEnabled { get; set; } = true;
     public bool OverlayHideOnPause { get; set; } = true;
-    public int OverlayX { get; set; } = -1;             // 悬浮窗位置（-1 = 默认屏幕右上角）
+    public int OverlayX { get; set; } = -1;             
     public int OverlayY { get; set; } = -1;
 
-    // —— 键位方案 ——
     public string KeymapName { get; set; } = KeymapProfile.DefaultName;
 
     public int PlayModeIndex { get; set; } = 0;
-    // 歌单是可选功能：关掉后左栏只留曲库，播放模式也一起收起，放完一首就停。
     public bool PlaylistEnabled { get; set; } = false;
-    // 上次选中的歌单名（空 = 没选过）。左栏那张曲目卡与 F9 切歌都按它找列表。
     public string ActivePlaylist { get; set; } = "";
 
-    /// <summary>按方案名分别记住的速度 / 移调 / 输入兼容档。键是方案名。</summary>
     public Dictionary<string, ProfileSettings> PerProfile { get; set; } = new();
 
-    // —— MIDI 设备接入（issue #4）——
-    public string MidiDeviceName { get; set; } = "";     // 上次用的 MIDI 输入设备名（空=没选过）
-    public bool MidiLiveEnabled { get; set; } = false;   // 设备实时演奏开关（默认关，避免误触发）
-    public int MidiBaseOctave { get; set; } = 4;         // 基准八度（乐器中音 do 所在的 MIDI 八度）
-    public int MidiMinVelocity { get; set; } = 1;        // 力度下限（1 = 不过滤）
-    public bool MidiAutoFit { get; set; } = true;        // 自动贴合音域
+    public string MidiDeviceName { get; set; } = "";     
+    public bool MidiLiveEnabled { get; set; } = false;   
+    public int MidiBaseOctave { get; set; } = 4;         
+    public int MidiMinVelocity { get; set; } = 1;        
+    public bool MidiAutoFit { get; set; } = true;        
 
-    public string SyncPeerName { get; set; } = "";       // 上次用的成员名（空 = 没填过）
-    // 成员号：重连后还是同一个人，所以必须记住。空 = 第一次用，界面上生成一个。
+    public string SyncPeerName { get; set; } = "";       
     public string SyncPeerId { get; set; } = "";
     public string SyncBroker { get; set; } = "";
-    // 上次建的房间名（空 = 没建过）。密码不记，所以这里只图省一次输入。
     public string SyncRoomName { get; set; } = "";
-    // 开演倒数档位：0=2 秒 / 1=3 秒 / 2=5 秒 / 3=10 秒 / 4=15 秒。
     public int SyncCountdownIndex { get; set; } = 1;
-    // 是否已经看过「实验功能」页开头那段说明。看完只弹一次。
     public bool SyncIntroSeen { get; set; } = false;
 
-    // —— MIDI 文件「最近打开」——
-    /// <summary>「最近打开」最多记这么多条，超出丢最旧的。</summary>
     public const int MaxRecentFiles = 10;
 
     private List<string> _recentFiles = new();
@@ -104,19 +86,17 @@ public sealed class AppConfig
     public List<string> RecentFiles
     {
         get => _recentFiles;
-        set => _recentFiles = value ?? new List<string>();   // 设置文件里写成 null 也不能崩
+        set => _recentFiles = value ?? new List<string>();   
     }
 
-    // —— MIDI 文件「文件夹曲目」目录（左栏常驻卡，issue #57）——
     private string _folderPath = "";
 
     public string FolderPath
     {
         get => _folderPath;
-        set => _folderPath = value ?? "";   // 设置文件里写成 null 也不能崩
+        set => _folderPath = value ?? "";   
     }
 
-    /// <summary>旧版本程序（HarpAutoPlayer）的设置目录名。</summary>
     private const string LegacyDirName = "HarpAutoPlayer";
 
     private static string LocalAppData =>
@@ -128,8 +108,6 @@ public sealed class AppConfig
 
     private static string LegacyFilePath =>
         Path.Combine(LocalAppData, LegacyDirName, "settings.json");
-
-    // ================= 按方案记忆 =================
 
     public ProfileSettings SettingsFor(string? name)
     {
@@ -148,39 +126,30 @@ public sealed class AppConfig
         return s;
     }
 
-    /// <summary>记住某个方案用的速度 / 移调 / 输入档位。</summary>
     public void RememberProfile(string? name, int speed, int transpose, int timingIndex)
     {
         var s = SettingsFor(name);
-        // 与界面滑块、引擎同口径（FN-02 / VR-10）：速度 10%–400%，移调 ±24
         s.Speed = Math.Clamp(speed, MinSpeedPercent, MaxSpeedPercent);
         s.Transpose = Math.Clamp(transpose, -MaxTransposeSemitones, MaxTransposeSemitones);
         s.TimingIndex = Math.Clamp(timingIndex, 0, 2);
     }
 
-    // ================= 最近打开 =================
-
-    /// <summary>把一个路径记进「最近打开」：同路径只留一条、最新的排最前、超出上限丢最旧的。</summary>
     public void RememberRecentFile(string? path)
     {
         if (string.IsNullOrWhiteSpace(path)) return;
-        // 大小写不敏感：Windows 上同一条路径可能写成不同的大小写
         _recentFiles.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
         _recentFiles.Insert(0, path);
         TrimRecentFiles();
     }
 
-    /// <summary>把某个路径从「最近打开」里去掉（文件已被删或改名时用）。</summary>
     public void ForgetRecentFile(string? path)
     {
         if (string.IsNullOrWhiteSpace(path)) return;
         _recentFiles.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>清空「最近打开」列表。</summary>
     public void ClearRecentFiles() => _recentFiles.Clear();
 
-    /// <summary>去掉空项并截到上限：读盘后（见 <see cref="Normalize"/>）与每次记录后都走一遍。</summary>
     private void TrimRecentFiles()
     {
         _recentFiles.RemoveAll(string.IsNullOrWhiteSpace);
@@ -192,22 +161,18 @@ public sealed class AppConfig
     {
         Speed = Speed;
         Transpose = Transpose;
-        // 脏设置文件里的模式号不能一路传到按钮上：越界当作顺序播放。
         PlayModeIndex = PlayModeIndex is >= 0 and <= 4 ? PlayModeIndex : 0;
         ActivePlaylist ??= "";
-        TrimRecentFiles();   // 最近打开：老设置文件里可能超过 10 条，也可能带空串
+        TrimRecentFiles();   
         if (PerProfile == null) return;
         foreach (var s in PerProfile.Values)
         {
             if (s == null) continue;
             s.Speed = Math.Clamp(s.Speed, MinSpeedPercent, MaxSpeedPercent);
             s.Transpose = Math.Clamp(s.Transpose, -MaxTransposeSemitones, MaxTransposeSemitones);
-            // D11：每方案的输入档位也要夹。漏了这一行，脏设置文件里的 99 会一路传到 InputTiming.FromIndex
             s.TimingIndex = Math.Clamp(s.TimingIndex, 0, 2);
         }
     }
-
-    // ================= 读盘 / 写盘 =================
 
     public static AppConfig Load()
     {
@@ -219,17 +184,15 @@ public sealed class AppConfig
                 var cfg = JsonSerializer.Deserialize(File.ReadAllText(FilePath), ConfigJson.Default.AppConfig);
                 if (cfg != null)
                 {
-                    // 老用户升级：设置文件已存在就不算“首次”，不弹快速上手
                     cfg.FirstRunDone = true;
                     cfg.PerProfile ??= new Dictionary<string, ProfileSettings>();
-                    cfg.Normalize();   // 读盘与写盘同口径
+                    cfg.Normalize();   
                     return cfg;
                 }
             }
         }
         catch (Exception ex) { LogFile.Append("[设置] 读取失败，用默认值：" + ex.Message); }
 
-        // 首次启动（新目录还没有 settings.json）：旧目录有设置就迁移一次
         if (!existed)
         {
             var migrated = TryLoadLegacy();
@@ -237,15 +200,14 @@ public sealed class AppConfig
             {
                 migrated.FirstRunDone = true;
                 migrated.PerProfile ??= new Dictionary<string, ProfileSettings>();
-                migrated.Normalize();   // 旧设置文件可能是 500% / ±30，按新口径夹回
-                migrated.Save();   // 只迁移一次：写进新目录后，下次就走新目录
+                migrated.Normalize();   
+                migrated.Save();   
                 return migrated;
             }
         }
         return new AppConfig();
     }
 
-    /// <summary>读旧目录 HarpAutoPlayer 的设置。字段对不上或读不动都只写日志，返回 null。</summary>
     private static AppConfig? TryLoadLegacy()
     {
         try
@@ -290,7 +252,6 @@ internal sealed partial class ConfigJson : JsonSerializerContext
 {
 }
 
-/// <summary>本地运行日志（便于回传排查）。</summary>
 public static class LogFile
 {
     private static readonly object Gate = new();
@@ -317,6 +278,6 @@ public static class LogFile
                 File.AppendAllText(FilePath, line + Environment.NewLine);
             }
         }
-        catch { /* 日志失败不影响使用 */ }
+        catch { }
     }
 }

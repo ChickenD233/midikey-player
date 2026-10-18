@@ -18,22 +18,19 @@
     <Grid>
     <StackPanel Spacing="6">
 
-      <!-- 倒计时态 -->
       <StackPanel x:Name="PanelCountdown" Spacing="2" IsVisible="False" MinWidth="150">
         <TextBlock x:Name="TxtCountdown" Text="3" FontSize="38" FontWeight="Bold"
                    Foreground="#FFFFD166" HorizontalAlignment="Center"/>
         <TextBlock Text="秒后开始 · F6 可取消" FontSize="11" Foreground="#BFFFFFFF"
                    HorizontalAlignment="Center"/>
-        <!-- 连播时写下一首的歌名。只放一行，太长就省略：悬浮窗宽 250，写满会盖住目标程序 -->
         <TextBlock x:Name="TxtCountdownNext" Text="" FontSize="11" Foreground="#BFFFFFFF"
                    HorizontalAlignment="Center" MaxWidth="250"
                    TextTrimming="CharacterEllipsis" IsVisible="False"/>
       </StackPanel>
 
-      <!-- 演奏态：滚动迷你卷帘 + 进度条 + 时间 -->
       <StackPanel x:Name="PanelProgress" Spacing="5" Width="250" IsVisible="False">
         <Border CornerRadius="4" Background="#22FFFFFF" Height="90"
-                ToolTip.Tip="迷你卷帘跟着进度滚动：黄线是当前位置，右边是即将演奏的音">
+                ToolTip.Tip="迷你卷帘，黄线是当前位置">
           <Canvas x:Name="RollCanvas" Width="250" Height="90" ClipToBounds="True">
             <Canvas x:Name="RollContent">
               <Canvas.RenderTransform>
@@ -51,7 +48,6 @@
           <TextBlock x:Name="TxtState" Grid.Column="1" Text="" FontSize="11"
                      Foreground="#FFFFD166"/>
         </Grid>
-        <!-- 连播状态：列表里的第几首、下一首叫什么。没有列表时整行不显示 -->
         <TextBlock x:Name="TxtQueue" Text="" FontSize="11" Foreground="#BFFFFFFF"
                    TextTrimming="CharacterEllipsis" IsVisible="False"/>
       </StackPanel>
@@ -62,7 +58,7 @@
             HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-8,-11,0"
             Padding="5,1" FontSize="10" Focusable="False"
             Background="Transparent" BorderThickness="0" Foreground="#80FFFFFF"
-            ToolTip.Tip="本次播放不再显示悬浮窗（下次播放自动回来；要永久关掉：设置 → 常规 → 界面）"/>
+            ToolTip.Tip="只关本次播放，下次还会出现"/>
     </Grid>
   </Border>
 </Window>

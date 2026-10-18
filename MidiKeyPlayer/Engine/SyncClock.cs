@@ -4,33 +4,24 @@ namespace MidiKeyPlayer.Engine;
 
 internal sealed class SyncClock
 {
-    /// <summary>保留最近这么多个往返样本。8 个约等于两分钟（每 15 秒一个）。</summary>
     internal const int WindowSize = 8;
 
-    /// <summary>超过这个年纪的样本作废（毫秒）。也用来在系统休眠后自动重新播种。</summary>
     internal const long MaxSampleAgeMs = 150_000;
 
-    /// <summary>只让往返延迟不超过"窗口内最快值加这么多"的样本参与（毫秒）。</summary>
     internal const double RttToleranceMs = 20;
 
-    /// <summary>少于这么多个可用样本时，最大延迟不过滤，直接取原始最大值。</summary>
     internal const int MinTrustedSamples = 3;
 
-    /// <summary>一次往返采样。</summary>
     internal readonly record struct RttSample(double RttMs, long AtTick);
 
     private readonly List<RttSample> _samples = new();
 
-    /// <summary>平滑后的往返延迟（毫秒）。0 表示还没测过。</summary>
     public double RttMs { get; private set; }
 
-    /// <summary>抖动：最近几次往返延迟的平均绝对差（毫秒）。开演精度约等于它的一半。</summary>
     public double JitterMs { get; private set; }
 
-    /// <summary>已经攒了几个样本。</summary>
     public int SampleCount => _samples.Count;
 
-    /// <summary>现在这个单调时刻（毫秒）。全类只用这一个时间源，别处不许另取。</summary>
     public static long NowMs => Environment.TickCount64;
 
     public void AddSample(double rttMs)
@@ -43,7 +34,6 @@ internal sealed class SyncClock
         Recompute();
     }
 
-    /// <summary>断线或换房间之后重新播种，别让旧样本拖住估计。</summary>
     public void Reset()
     {
         _samples.Clear();
@@ -62,7 +52,6 @@ internal sealed class SyncClock
         double fastest = double.MaxValue;
         foreach (var s in _samples) if (s.RttMs < fastest) fastest = s.RttMs;
 
-        // 慢样本的往返几乎总是不对称的，它的延迟会偏大半程。只让"够快"的样本参与。
         var competing = new List<double>();
         foreach (var s in _samples)
             if (_samples.Count < MinTrustedSamples || s.RttMs <= fastest + RttToleranceMs)
@@ -71,7 +60,6 @@ internal sealed class SyncClock
 
         RttMs = Median(competing);
 
-        // 抖动：相邻竞争的样本之差的平均绝对值
         if (competing.Count < 2) { JitterMs = 0; return; }
         double sum = 0;
         int n = 0;
@@ -105,16 +93,14 @@ internal readonly struct SyncAnchor
     public static SyncAnchor At(double positionSec, double speed)
         => new() { PositionSec = positionSec, AtTickMs = SyncClock.NowMs, Speed = speed <= 0 ? 1 : speed, Valid = true };
 
-    /// <summary>从现在这一刻算起的位置（秒）。锚点无效时返回 0。</summary>
     public double PositionNow()
     {
         if (!Valid) return 0;
         long elapsed = SyncClock.NowMs - AtTickMs;
-        if (elapsed < 0) elapsed = 0;      // 单调时钟不会倒流，出现负数只能是调用方的错
+        if (elapsed < 0) elapsed = 0;      
         return PositionSec + elapsed / 1000.0 * Speed;
     }
 
-    /// <summary>换速度时保留当前进度，只换基准。</summary>
     public SyncAnchor WithSpeed(double speed)
         => At(PositionNow(), speed);
 }

@@ -7,7 +7,6 @@ namespace MidiKeyPlayer.Engine;
 
 public static class MacroExporter
 {
-    /// <summary>导出格式。</summary>
     public enum Format { LogitechGHub, KeystrokeCsv }
 
     public static string Extension(Format f) => f switch
@@ -26,7 +25,6 @@ public static class MacroExporter
             : BuildCsv(events);
     }
 
-    /// <summary>字符形式的按键 → 真实键名（命名键的哨兵字符在这里还原）。</summary>
     private static string KeyNameOf(char c) => InputSender.KeyNameOf(c);
 
     private static string LuaKeyName(string name) => name switch
@@ -60,7 +58,7 @@ public static class MacroExporter
         "Down" => "down",
         "Left" => "left",
         "Right" => "right",
-        _ => name.ToLowerInvariant(),     // 字母、数字、F1..F12、NumPad0..9 直接小写
+        _ => name.ToLowerInvariant(),     
     };
 
     private static string MouseName(string kind) => kind switch
@@ -99,7 +97,6 @@ public static class MacroExporter
             string action;
             if (e.Kind == "key")
             {
-                // 方案里的音乐键也可以是鼠标键（MouseLeft 等）：那种要写鼠标按下，不能写 PressKey
                 if (InputSender.TryMouseButton(name, out var button))
                     action = e.Down ? $"PressMouseButton({MouseButtonNo(button)})"
                                     : $"ReleaseMouseButton({MouseButtonNo(button)})";
@@ -145,7 +142,6 @@ public static class MacroExporter
         _ => 3
     };
 
-    /// <summary>鼠标键的中文名。</summary>
     private static string MouseName(InputSender.MouseButton button) => button switch
     {
         InputSender.MouseButton.Left => "左键",
@@ -153,7 +149,6 @@ public static class MacroExporter
         _ => "中键"
     };
 
-    /// <summary>键名 → CSV 里的目标名：鼠标键写中文，其余写键名本身。</summary>
     private static string MouseOrKeyName(string name)
         => InputSender.TryMouseButton(name, out var button) ? MouseName(button) : name;
 
@@ -171,7 +166,6 @@ public static class MacroExporter
         return sb.ToString();
     }
 
-    /// <summary>导出时给出的事件摘要（用于界面提示）。跳过 = 传进来的音里不发声的那些。</summary>
     public static ExportSummary Summarize(
         IReadOnlyList<MappedNote> notes, double speed = 1.0, InputTiming? timing = null)
     {
@@ -192,13 +186,9 @@ public readonly struct ExportSummary
         Skipped = skipped;
     }
 
-    /// <summary>会发声的音符数。</summary>
     public int Notes { get; }
-    /// <summary>派发的按键/鼠标事件数。</summary>
     public int Events { get; }
-    /// <summary>最后一个事件的音乐时刻（秒）。</summary>
     public double Seconds { get; }
-    /// <summary>不发声音符数（超界丢音、缺音丢弃等）。</summary>
     public int Skipped { get; }
 
     public void Deconstruct(out int notes, out int events, out double seconds)

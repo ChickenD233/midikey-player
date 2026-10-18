@@ -30,16 +30,13 @@ internal static partial class GameSelfTest
             || v.Equals("off", StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>环境变量给出的自定义报告路径（没有就是空串）。</summary>
     private static string CustomPath(string value)
     {
         string v = value.Trim();
-        // "1" 是约定的「开」，没有路径含义
         if (v == "1" || IsOffValue(v)) return "";
         return v.Contains('\\') || v.Contains('/') ? v : "";
     }
 
-    /// <summary>跑完全部用例，返回进程退出码。</summary>
     public static int Run()
     {
         string value = Environment.GetEnvironmentVariable(EnvVar) ?? "";
@@ -47,7 +44,6 @@ internal static partial class GameSelfTest
         string path = custom.Length > 0
             ? custom
             : Path.Combine(Path.GetTempPath(), "midikey-keymap-selftest.txt");
-        // 报告一律写成 .txt：环境变量驱动的路径只在开发机上用，避免写出奇怪的后缀
         if (!path.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
             path = Path.Combine(Path.GetTempPath(), "midikey-keymap-selftest.txt");
 
@@ -89,13 +85,11 @@ internal static partial class GameSelfTest
             if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
             File.WriteAllText(path, text, new System.Text.UTF8Encoding(false));
         }
-        catch { /* 写不出去也要把退出码给对 */ }
+        catch { }
         try { Console.WriteLine(text); } catch { }
 
         return _failed == 0 ? 0 : 1;
     }
-
-    // ================= 内置方案 =================
 
     private static void TestPresetBinding()
     {
@@ -128,7 +122,6 @@ internal static partial class GameSelfTest
         Check("预设：每套都有按键", emptyKeys == 0, $"空方案 {emptyKeys} 套");
         Check("预设：每套的键名都不重复（带 Shift 的另算一条）", dupKey == 0, $"重键 {dupKey} 套");
 
-        // 界面换方案走的就是这条查表路径：名字取得回来，才能真的切过去
         var notFound = names.Where(n => KeymapProfile.PresetByName(n) == null).ToList();
         Check("预设：每套都能按名字取回", notFound.Count == 0, string.Join(" | ", notFound));
 
@@ -139,7 +132,6 @@ internal static partial class GameSelfTest
               && (!defaultPresent || KeymapProfile.PresetByName(defaultName) != null),
               $"默认「{defaultName}」；内置：{string.Join(" | ", names)}");
 
-        // 半音阶方案（偏移从 0 起连续覆盖 12 个半音）存在时，一个偏移只配一个键
         var chromatic = presets.Where(p => Covers(p, 12)).ToList();
         bool oneOffsetPerKey = chromatic.All(p =>
             p.Keys.Where(k => k != null).Select(k => k.Offset).Distinct().Count()
@@ -148,7 +140,6 @@ internal static partial class GameSelfTest
               $"半音阶方案 {chromatic.Count} 套");
     }
 
-    /// <summary>这套方案的偏移是否从 0 起连续覆盖 n 个半音。</summary>
     private static bool Covers(KeymapProfile p, int n)
     {
         var offsets = new HashSet<int>(p.Keys.Where(k => k != null).Select(k => k.Offset));
@@ -156,11 +147,8 @@ internal static partial class GameSelfTest
         return true;
     }
 
-    // ================= 键名 =================
-
     private static void TestKeyMapNames()
     {
-        // 鼠标键要能被方案认出来，否则鼠标修饰键永远匹配不上
         Check("键名：鼠标三键在方案里可用",
               IsUsableName("MouseLeft") && IsUsableName("MouseRight") && IsUsableName("MouseMiddle"),
               "MouseLeft / MouseRight / MouseMiddle");
@@ -178,7 +166,6 @@ internal static partial class GameSelfTest
         Check("键名：没有功能键的方案开关是关的", !modsEmpty || !def.ModifiersEnabled,
               $"开关={def.ModifiersEnabled}");
 
-        // 键名 → 键名字符：命名键走私用区哨兵，单字符键原样返回
         Check("键名：命名字符是私用区哨兵",
               KeymapProfile.KeyCharOf("PageUp") != '\0' && KeymapProfile.KeyCharOf("PageUp") != 'P',
               $"实际 U+{(int)KeymapProfile.KeyCharOf("PageUp"):X4}");
@@ -187,19 +174,14 @@ internal static partial class GameSelfTest
               "Z=" + KeymapProfile.KeyCharOf("Z") + " ,=" + KeymapProfile.KeyCharOf(","));
     }
 
-    /// <summary>键名可用：非空、方案认得、能换出键名字符。</summary>
     private static bool IsUsableName(string name)
         => name.Length > 0 && KeymapProfile.IsKnownKeyName(name) && KeymapProfile.KeyCharOf(name) != '\0';
 
-    /// <summary>功能键位置允许留空（方案不一定需要功能键）；填了就必须是认得的键名。</summary>
     private static bool IsBlankOrKnown(string? name)
         => string.IsNullOrWhiteSpace(name) || IsUsableName(KeymapProfile.CanonicalKeyName(name));
 
-    // ================= 简谱换算 =================
-
     private static void TestSolfegeNames()
     {
-        // 中音区（60 起）：do re mi fa sol la si = 1 2 3 4 5 6 7
         string[] middle = { "1", "2", "3", "4", "5", "6", "7" };
         bool middleOk = true;
         string middleBad = "";
@@ -211,10 +193,8 @@ internal static partial class GameSelfTest
         }
         Check("简谱：中音区 1..7 对得上", middleOk, middleBad);
 
-        // 中音 do 不带八度点
         Check("简谱：中音 do（60）= 1", Music.SolfegeName(60) == "1", $"实际「{Music.SolfegeName(60)}」");
 
-        // 上点（U+02D9）是间距字符，界面的字体有字形；组合字符会渲染成豆腐块
         Check("简谱：高八度 do（72）= 1 加上点",
               Music.SolfegeName(72) == "1\u02D9", $"实际「{Music.SolfegeName(72)}」");
         Check("简谱：低八度 do（48）= 1 加下点",
@@ -223,23 +203,18 @@ internal static partial class GameSelfTest
               Music.SolfegeName(96) == "1\u02D9\u02D9" && Music.SolfegeName(24) == "1..",
               $"96→「{Music.SolfegeName(96)}」 24→「{Music.SolfegeName(24)}」");
 
-        // 升降号：61 = #1
         Check("简谱：升号音（61）= #1", Music.SolfegeName(61) == "#1", $"实际「{Music.SolfegeName(61)}」");
 
-        // 音名与音域文字
         Check("简谱：音名 60 = C4", Music.NoteName(60) == "C4", $"实际「{Music.NoteName(60)}」");
         Check("简谱：音域低到高",
               Music.SolfegeRange(72, 60) == "1~1\u02D9",
               $"实际「{Music.SolfegeRange(72, 60)}」");
 
-        // 预生成的查表结果必须与现算的一致（配表用，下标就是音高）
         Check("简谱：查表 SolfegeNames 与现算一致",
               Music.SolfegeNames.Length == 128 && Music.SolfegeNames[60] == "1"
               && Music.SolfegeNames[72] == "1\u02D9",
               $"长度 {Music.SolfegeNames.Length}");
     }
-
-    // ================= 降半音键 =================
 
     private static void TestFlatModifier()
     {
@@ -249,36 +224,29 @@ internal static partial class GameSelfTest
               p == null ? "取不到" : $"Sharp=「{p.Sharp}」 Flat=「{p.Flat}」 开关={p.ModifiersEnabled}");
         if (p == null) return;
 
-        // 改名合并：v1.0.14 的「异环键位」要落到合并后的「21 键半音」上
         var alias = KeymapProfile.PresetByName("异环键位");
         Check("降半音：老名字「异环键位」落到 21 键半音",
               alias != null && alias.Name == "21 键半音",
               alias == null ? "取不到" : $"落到「{alias.Name}」");
 
-        // 音域：低音 do（48）被 Ctrl 向下多扩一个半音到 47；最高仍是高音 si+升半音 = 84
         Check("降半音：音域向下多扩一个半音",
               p.ResolveMinNote() == 47 && p.ResolveMaxNote() == 84,
               $"实际 {p.ResolveMinNote()}..{p.ResolveMaxNote()}");
 
-        // 黑键（61 = 中音 #1）：升半音优先 → A(60) + Shift，不用 Ctrl
         bool okSharp = p.TryKeyOfPitch(61, out string k61, out _, out bool s61, out bool f61, out _)
                        && k61 == "A" && s61 && !f61;
         Check("降半音：黑键固定优先升半音", okSharp, $"61 → {k61} 升={s61} 降={f61}");
 
-        // 最低键下面那一个半音（47）：升半音够不到，用 低音 do(Z, 48) + Ctrl
         bool okLow = p.TryKeyOfPitch(47, out string k47, out _, out bool s47, out bool f47, out _)
                      && k47 == "Z" && !s47 && f47;
         Check("降半音：最低键下面半音用降半音", okLow, $"47 → {k47} 升={s47} 降={f47}");
 
-        // 只绑降半音键的方案：黑键用「上方邻键 + 降半音」（61 = 中音 re(S, 62) + Ctrl）
         var onlyFlat = p.Clone();
         onlyFlat.Sharp = null;
         bool okOnly = onlyFlat.TryKeyOfPitch(61, out string k61b, out _, out bool s61b, out bool f61b, out _)
                       && k61b == "S" && !s61b && f61b;
         Check("降半音：没绑升半音时用上方邻键", okOnly, $"61 → {k61b} 升={s61b} 降={f61b}");
     }
-
-    // ================= Roblox 钢琴键位 =================
 
     private static void TestRobloxPiano()
     {
@@ -291,7 +259,6 @@ internal static partial class GameSelfTest
                                       + $"；开关={p.ModifiersEnabled} Sharp=「{p.Sharp}」");
         if (p == null) return;
 
-        // 白键：键名 → 音高。C2 = 36 起，自然音逐个往上，四排连成一条。
         var white = new (string Key, int Pitch)[]
         {
             ("1", 36), ("2", 38), ("3", 40), ("4", 41), ("5", 43), ("6", 45), ("7", 47),
@@ -309,7 +276,6 @@ internal static partial class GameSelfTest
                 badWhite += $"{pitch}→「{got}」(Shift={sharp}) 应为「{key}」 ";
         Check("Roblox 钢琴：36 个白键都对上", badWhite.Length == 0, badWhite);
 
-        // 黑键：同一个白键 + Shift。E、B 与最高的 C7 上面没有黑键，所以是 25 条。
         var black = new (string Key, int Pitch)[]
         {
             ("1", 37), ("2", 39), ("4", 42), ("5", 44), ("6", 46), ("8", 49), ("9", 51),
@@ -324,7 +290,6 @@ internal static partial class GameSelfTest
                 badBlack += $"{pitch}→「{got}」(Shift={sharp}) 应为「{key}」+Shift ";
         Check("Roblox 钢琴：25 个黑键都是下面白键 + Shift", badBlack.Length == 0, badBlack);
 
-        // 显示名：黑键在界面上要写成游戏里的那个字符。
         Check("Roblox 钢琴：黑键显示名是 ! @ * Q 这种上位字符",
               KeymapProfile.ShiftedNameOf("1") == "!" && KeymapProfile.ShiftedNameOf("8") == "*"
               && KeymapProfile.ShiftedNameOf("q") == "Q" && KeymapProfile.ShiftedNameOf(",") == "<",
@@ -339,7 +304,6 @@ internal static partial class GameSelfTest
               p.SharpKeyToHold == "Shift" && p.HasSelfShiftKeys,
               $"SharpKeyToHold=「{p.SharpKeyToHold}」 自带 Shift={p.HasSelfShiftKeys}");
 
-        // 方案 JSON 的第四项是 Shift 标记：写出去要写、读回来要还原，老文件（没有第四项）读成 false。
         var round = KeymapProfile.FromJson(p.ToJson());
         bool same = round.Keys.Count == p.Keys.Count;
         for (int i = 0; same && i < p.Keys.Count; i++)
@@ -356,8 +320,6 @@ internal static partial class GameSelfTest
               string.Join(" | ", legacy.Keys.Select(k => k.ToString())));
     }
 
-    // ================= FF14 钢琴键位 =================
-
     private static void TestFf14Piano()
     {
         var p = KeymapProfile.PresetByName("FF14 钢琴键位");
@@ -369,7 +331,6 @@ internal static partial class GameSelfTest
                                       + $"；开关={p.ModifiersEnabled} Sharp=「{p.Sharp}」");
         if (p == null) return;
 
-        // 全部 37 个音：音高 → 键名。60..96 一个半音一条键位，音高连成一条不断档。
         var table = new (string Key, int Pitch)[]
         {
             ("Z", 60), ("1", 61), ("X", 62), ("2", 63), ("C", 64), ("V", 65), ("3", 66),
@@ -393,7 +354,6 @@ internal static partial class GameSelfTest
         Check("FF14 钢琴：演奏时不按任何修饰键", p.SharpKeyToHold == null,
               $"SharpKeyToHold=「{p.SharpKeyToHold}」");
 
-        // 一排 12 条、一行一个八度：行号必须刚好是偏移除以 12，界面才排得出三行十二列。
         bool rowsOk = p.Keys.All(k => k.Row == k.Offset / 12)
                       && p.Keys.Count(k => k.Row == 0) == 12 && p.Keys.Count(k => k.Row == 1) == 12
                       && p.Keys.Count(k => k.Row == 2) == 12 && p.Keys.Count(k => k.Row == 3) == 1;
@@ -401,7 +361,6 @@ internal static partial class GameSelfTest
               rowsOk, string.Join(" | ", p.Keys.GroupBy(k => k.Row).OrderBy(g => g.Key)
                                                   .Select(g => $"第{g.Key}行 {g.Count()} 条")));
 
-        // 方案 JSON 往返后键名、偏移、行号一字不差（预设要存成文件、要能分享）。
         var round = KeymapProfile.FromJson(p.ToJson());
         bool same = round.Keys.Count == p.Keys.Count;
         for (int i = 0; same && i < p.Keys.Count; i++)
@@ -412,8 +371,6 @@ internal static partial class GameSelfTest
         Check("FF14 钢琴：方案 JSON 往返后 37 条键位一字不差", same,
               same ? "" : $"原 {p.Keys.Count} 条 / 回读 {round.Keys.Count} 条");
     }
-
-    // ================= 心动小镇 =================
 
     private static void TestXindong()
     {
@@ -426,7 +383,6 @@ internal static partial class GameSelfTest
                                       + $"；开关={p.ModifiersEnabled} Sharp=「{p.Sharp}」");
         if (p == null) return;
 
-        // 全部 37 个音：音高 → 键名。48..84 一个半音一条键位，音高连成一条不断档。
         var table = new (string Key, int Pitch)[]
         {
             (",", 48), ("L", 49), (".", 50), (";", 51), ("/", 52), ("O", 53), ("0", 54),
@@ -459,7 +415,6 @@ internal static partial class GameSelfTest
               rowsOk, string.Join(" | ", p.Keys.GroupBy(k => k.Row).OrderBy(g => g.Key)
                                                   .Select(g => $"第{g.Key}行 {g.Count()} 条")));
 
-        // 方案 JSON 往返后键名、偏移、行号一字不差（预设要存成文件、要能分享）。
         var round = KeymapProfile.FromJson(p.ToJson());
         bool same = round.Keys.Count == p.Keys.Count;
         for (int i = 0; same && i < p.Keys.Count; i++)
@@ -473,7 +428,7 @@ internal static partial class GameSelfTest
 
     private static void TestLegacyCopyMigration()
     {
-        var old = KeymapProfile.BuildXindongV1117();   // v1.1.17 / v1.1.18 的样子
+        var old = KeymapProfile.BuildXindongV1117();   
         Check("旧副本：v1.1.17 的心动小镇副本认得出是旧副本",
               KeymapProfile.IsUntouchedLegacyCopy("心动小镇", old));
 
@@ -481,13 +436,11 @@ internal static partial class GameSelfTest
         Check("旧副本：当前内置键位不算旧副本（说明两版确实不同）",
               now != null && !KeymapProfile.IsUntouchedLegacyCopy("心动小镇", now));
 
-        // 用户把低音 do 换成 A：这是他自己的方案，不能拿内置键位盖掉。
         var mine = KeymapProfile.FromJson(old.ToJson());
         mine.Keys[0].Key = "A";
         Check("旧副本：用户改过一个键就不动他",
               !KeymapProfile.IsUntouchedLegacyCopy("心动小镇", mine));
 
-        // 键位还是旧的、说明已经是新的：这份副本是 v1.1.19 之后存下来又手改回去的，也不能动。
         var mixed = KeymapProfile.FromJson(old.ToJson());
         mixed.Description = "我自己写的说明";
         Check("旧副本：说明动过也不动他",
@@ -510,7 +463,6 @@ internal static partial class GameSelfTest
             Directory.CreateDirectory(Path.Combine(root, "schemes"));
             KeymapProfile.DirPathForDev = root;
 
-            // 零、先确认往返（写盘 → 读回）不改变旧副本的样子：迁移就是靠「一模一样」认的。
             var legacyObj = KeymapProfile.BuildXindongV1117();
             var round = KeymapProfile.FromJson(old);
             string diff = "";
@@ -527,7 +479,6 @@ internal static partial class GameSelfTest
             Check("旧副本：往返后的旧副本仍然认得出",
                   KeymapProfile.IsUntouchedLegacyCopy("心动小镇", round));
 
-            // 一、活动方案：keymap.json 还是旧副本 → Load() 换掉内存里那一份，并把文件重写。
             File.WriteAllText(Path.Combine(root, "keymap.json"), old, utf8);
             Check("旧副本：开发用的目录开关生效", KeymapProfile.FilePath.StartsWith(root, StringComparison.OrdinalIgnoreCase),
                   "FilePath=" + KeymapProfile.FilePath + " root=" + root);
@@ -541,7 +492,6 @@ internal static partial class GameSelfTest
                   memNew && !memOld && fileNew && !fileOld,
                   $"内存 {loaded.Keys.Count} 条（新 {memNew} / 旧 {memOld}）；文件 {after.Keys.Count} 条（新 {fileNew} / 旧 {fileOld}）");
 
-            // 二、用户副本：schemes\心动小镇.json 还是旧副本 → LoadByName() 换掉并重写副本。
             string copy = Path.Combine(root, "schemes", "心动小镇.json");
             File.WriteAllText(copy, old, utf8);
             File.Delete(Path.Combine(root, "keymap.json"));
@@ -552,7 +502,6 @@ internal static partial class GameSelfTest
                   && copyAfter.Keys.Any(k => k.Key == "L" && k.Offset == -11),
                   byName == null ? "取不到" : $"副本 {copyAfter.Keys.Count} 条");
 
-            // 三、用户自己改过的副本：不迁移，文件也不许被重写。
             var mine = KeymapProfile.FromJson(old);
             mine.Keys[0].Key = "A";
             File.WriteAllText(copy, mine.ToJson(), utf8);
@@ -569,11 +518,8 @@ internal static partial class GameSelfTest
         }
     }
 
-    // ================= 和弦调度 =================
-
     private static void TestChordScheduling()
     {
-        // 三个同刻音（都在基准八度、不需要修饰键）→ 必须同时按住 3 根
         var chordEvs = PlaybackEngine.BuildSchedulePreview(new List<MappedNote>
         {
             ScheduleNote(60, 'Z', 1.0, 1.5),
@@ -583,7 +529,6 @@ internal static partial class GameSelfTest
         int held = MaxHeldKeyCount(chordEvs);
         Check("和弦：三个同刻音同时按住", held == 3, $"实际最多同时按住 {held} 根");
 
-        // 重叠但不同刻的两个音也要同时发声，长音不能被截断
         var overlapEvs = PlaybackEngine.BuildSchedulePreview(new List<MappedNote>
         {
             ScheduleNote(60, 'Z', 0.0, 2.0),
@@ -597,7 +542,6 @@ internal static partial class GameSelfTest
               longUp != null && Math.Abs(longUp.MusicTime - 2.0) < 1e-6,
               longUp == null ? "找不到 Z 的抬起" : $"Z 抬起 {longUp.MusicTime:F4}");
 
-        // 不重叠的单音线不能被改坏：时刻与谱面一字不差
         var lineEvs = PlaybackEngine.BuildSchedulePreview(new List<MappedNote>
         {
             ScheduleNote(60, 'Z', 0.0, 0.5),
@@ -608,7 +552,6 @@ internal static partial class GameSelfTest
               lineDowns.Count == 2 && Math.Abs(lineDowns[0]) < 1e-9 && Math.Abs(lineDowns[1] - 0.6) < 1e-9,
               $"实际 {string.Join(",", lineDowns.Select(t => t.ToString("F4")))}");
 
-        // 同一根键的两个音：不能同时按住
         var repeatEvs = PlaybackEngine.BuildSchedulePreview(new List<MappedNote>
         {
             ScheduleNote(60, 'Z', 0.0, 0.4),
@@ -618,7 +561,6 @@ internal static partial class GameSelfTest
         Check("和弦：同一根键不会被同时按住两次", repeatHeld == 1, $"实际最多同时按住 {repeatHeld} 根");
     }
 
-    /// <summary>自检用：造一个不需要修饰键的可演奏音符。</summary>
     private static MappedNote ScheduleNote(int pitch, char key, double start, double end) => new()
     {
         Pitch = pitch,
@@ -633,11 +575,8 @@ internal static partial class GameSelfTest
         InRange = true,
     };
 
-    // ================= 和弦保留（谱面合并） =================
-
     private static void TestChordMerge()
     {
-        // 1) 一个声部里的三音和弦：一个音都不许少
         var kept = NoteMapper.MergeVoicesByPriority(new List<(int, RawNote)>
         {
             (0, MergeNote(60, 0.0, 1.0)),
@@ -647,22 +586,19 @@ internal static partial class GameSelfTest
         Check("和弦保留：一个声部的三音和弦全部留下", kept.Count == 3,
               $"实际 {kept.Count} 个音：" + string.Join(",", kept.Select(n => Music.NoteName(n.Pitch))));
 
-        // 2) 和弦里各音长短不同：长音不能被截断，时值原样保留
         var longNote = kept.FirstOrDefault(n => n.Pitch == 64);
         Check("和弦保留：和弦里的长音时值不变（0.0000~1.2000）",
               longNote != null && Math.Abs(longNote.Start) < 1e-9 && Math.Abs(longNote.End - 1.2) < 1e-9,
               longNote == null ? "64 号音不见了" : $"{longNote.Start:F4}~{longNote.End:F4}");
 
-        // 3) 更宽的叠置和弦同样一个不落
         var wide = new List<(int, RawNote)>();
         foreach (int p in new[] { 55, 59, 62, 65, 69 }) wide.Add((0, MergeNote(p, 2.0, 2.5)));
         int wideKept = NoteMapper.MergeVoicesByPriority(wide).Count;
         Check("和弦保留：五音和弦全部留下", wideKept == 5, $"实际 {wideKept} 个音");
 
-        // 4) 同一音轨里「长音 + 和弦」同时响：也不能少
         var layered = NoteMapper.MergeVoicesByPriority(new List<(int, RawNote)>
         {
-            (0, MergeNote(48, 0.0, 4.0)),   // 低音长音
+            (0, MergeNote(48, 0.0, 4.0)),   
             (0, MergeNote(60, 1.0, 1.5)),
             (0, MergeNote(64, 1.0, 1.5)),
             (0, MergeNote(67, 1.0, 1.5)),
@@ -682,7 +618,6 @@ internal static partial class GameSelfTest
               && clash.Any(n => n.Pitch == 67 && n.Voice == 1),
               string.Join(" ", clash.Select(n => $"{Music.NoteName(n.Pitch)}→声部{n.Voice}")));
 
-        // 6) 不同声部、不同音高、时值交叠：两条都要完整保留，谁也不许被截断或补尾巴
         var overlap = NoteMapper.MergeVoicesByPriority(new List<(int, RawNote)>
         {
             (0, MergeNote(60, 0.0, 1.0)),
@@ -695,7 +630,6 @@ internal static partial class GameSelfTest
               longOne != null && Math.Abs(longOne.Start) < 1e-9 && Math.Abs(longOne.End - 2.0) < 1e-9,
               longOne == null ? "67 号音不见了" : $"{longOne.Start:F4}~{longOne.End:F4}");
 
-        // 6b) 不同声部同一个音高、同一刻：这是真正的一个音，只留一次
         var unison = NoteMapper.MergeVoicesByPriority(new List<(int, RawNote)>
         {
             (0, MergeNote(64, 1.0, 2.0)),
@@ -707,7 +641,6 @@ internal static partial class GameSelfTest
         Check("合奏：同刻同音留下的是优先级高的声部",
               unison.Count == 1 && unison[0].Voice == 0, $"声部 {unison.FirstOrDefault()?.Voice}");
 
-        // 6c) 不同声部同一个音高但起音错开：这是两个音（先后各弹一次）
         var sequential = NoteMapper.MergeVoicesByPriority(new List<(int, RawNote)>
         {
             (0, MergeNote(64, 0.0, 1.0)),
@@ -715,7 +648,6 @@ internal static partial class GameSelfTest
         });
         Check("合奏：错开的同音高两个声部都保留", sequential.Count == 2, $"实际 {sequential.Count} 个音");
 
-        // 6d) 同一个声部里同一个音高重复起音（键还没松开又按一次）：丢掉重复的那次
         var retrigger = NoteMapper.MergeVoicesByPriority(new List<(int, RawNote)>
         {
             (0, MergeNote(64, 0.0, 2.0)),
@@ -724,7 +656,6 @@ internal static partial class GameSelfTest
         Check("合奏：同一个声部里同音高未松开就重复起音，只留一次",
               retrigger.Count == 1, $"实际 {retrigger.Count} 个音");
 
-        // 7) 整条导入链路：写一份带和弦的 MIDI，解析后按界面口径（每行一个 Rank）合并
         string path = Path.Combine(Path.GetTempPath(), "midikey-chord-selftest.mid");
         try
         {
@@ -746,18 +677,16 @@ internal static partial class GameSelfTest
                   atZero.SequenceEqual(new[] { 60, 64, 67 }),
                   string.Join(",", atZero.Select(Music.NoteName)));
 
-            // 单声部演奏时合并不许丢音：出来的音数必须与原谱一样多
             int rawCount = parsed.Candidates.Sum(c => c.Notes.Count);
             Check("和弦保留：合并后的音数与原谱一致", merged.Count == rawCount,
                   $"原谱 {rawCount} 个音，合并后 {merged.Count} 个音");
         }
         finally
         {
-            try { File.Delete(path); } catch { /* 临时文件删不掉不影响结论 */ }
+            try { File.Delete(path); } catch { }
         }
     }
 
-    /// <summary>自检用：造一个音符（合并用例只关心音高、时刻与声部归属）。</summary>
     private static RawNote MergeNote(int pitch, double start, double end) => new()
     {
         Pitch = pitch,
@@ -776,7 +705,6 @@ internal static partial class GameSelfTest
         };
         foreach (int p in new[] { 60, 64, 67 })
             events.Add(new NoteOnEvent((SevenBitNumber)p, (SevenBitNumber)90) { Channel = (FourBitNumber)0 });
-        // 和弦一起按下，一起抬起：长度 480 刻 = 一个四分音符（默认 480 刻/四分）
         for (int i = 0; i < 3; i++)
         {
             var off = new NoteOffEvent((SevenBitNumber)new[] { 60, 64, 67 }[i], (SevenBitNumber)0)
@@ -792,7 +720,6 @@ internal static partial class GameSelfTest
         file.Write(path, overwriteFile: true);
     }
 
-    /// <summary>自检用：扫事件流求"同时按住的音键"峰值（同一时刻先算抬起、再算按下）。</summary>
     private static int MaxHeldKeyCount(List<PlaybackEngine.ScheduledEvent> evs)
     {
         int held = 0, max = 0;
@@ -807,11 +734,8 @@ internal static partial class GameSelfTest
         return max;
     }
 
-    // ================= 声部识别 =================
-
     private static void TestTrackRoles()
     {
-        // 音色表必须满 128 条，而且都要有名字：少一条就说明抄表时漏了行
         int named = 0;
         for (int p = 0; p < 128; p++)
             if (GmInstrument.ProgramName(p).Length > 0) named++;
@@ -819,14 +743,12 @@ internal static partial class GameSelfTest
         Check("GM 音色表越界取名为空", GmInstrument.ProgramName(-1).Length == 0
                                         && GmInstrument.ProgramName(-2).Length == 0);
         Check("GM 0 = 大钢琴", GmInstrument.ProgramName(0) == "大钢琴", GmInstrument.ProgramName(0));
-        // 音效组（121 起）是分段音色表里最容易错位的一段，钉住首尾与中间两条
         Check("GM 121 = 吉他品丝声", GmInstrument.ProgramName(120) == "吉他品丝声", GmInstrument.ProgramName(120));
         Check("GM 124 = 鸟鸣", GmInstrument.ProgramName(123) == "鸟鸣", GmInstrument.ProgramName(123));
         Check("GM 128 = 枪声", GmInstrument.ProgramName(127) == "枪声", GmInstrument.ProgramName(127));
         Check("GM 表里没有「鼓组」这一条（127 是音效组末尾）",
             GmInstrument.ProgramName(127) == "枪声", GmInstrument.ProgramName(127));
 
-        // 角色映射：每组抽查一个号，边界取首尾
         var cases = new (int Program, TrackRole Role, string Tag)[]
         {
             (0,   TrackRole.Piano,           "键盘"),
@@ -849,10 +771,10 @@ internal static partial class GameSelfTest
             (88,  TrackRole.SynthPad,        "铺底"),
             (96,  TrackRole.Effects,         "效果"),
             (47,  TrackRole.Drums,           "鼓"),
-            (117, TrackRole.Drums,           "鼓"),   // 太鼓 / 旋律鼓 / 合成鼓 / 反镲
+            (117, TrackRole.Drums,           "鼓"),   
             (119, TrackRole.Drums,           "鼓"),
-            (120, TrackRole.Effects,         "效果"), // 吉他品丝声，音效组开头
-            (127, TrackRole.Effects,         "效果"), // 枪声，音效组末尾
+            (120, TrackRole.Effects,         "效果"), 
+            (127, TrackRole.Effects,         "效果"), 
         };
         int wrong = 0;
         string first = "";
@@ -876,7 +798,6 @@ internal static partial class GameSelfTest
         }
         Check("声部标牌的字", tagWrong == 0, tagWrong == 0 ? $"{cases.Length} 条" : badTag);
 
-        // 标牌最长三个字：列表那一列按它定宽，超了会被截断
         int tooLong = 0;
         string longTag = "";
         foreach (TrackRole r in Enum.GetValues<TrackRole>())
@@ -888,14 +809,12 @@ internal static partial class GameSelfTest
         }
         Check("声部标牌不超过三个字", tooLong == 0, tooLong == 0 ? "" : longTag);
 
-        // 取色分组：四类不能混，未知不上色
         Check("取色分组：鼓=节奏", GmInstrument.ToneOf(TrackRole.Drums) == RoleTone.Rhythm);
         Check("取色分组：贝斯=低音", GmInstrument.ToneOf(TrackRole.Bass) == RoleTone.Low);
         Check("取色分组：电吉他=和声", GmInstrument.ToneOf(TrackRole.ElectricGuitar) == RoleTone.Harmony);
         Check("取色分组：人声=旋律", GmInstrument.ToneOf(TrackRole.Vocals) == RoleTone.Lead);
         Check("取色分组：未知=不上色", GmInstrument.ToneOf(TrackRole.Unknown) == RoleTone.Neutral);
 
-        // 没有音色号时的推断：通道 10 恒为鼓，其余按音域与节奏
         Check("推断：通道 10 恒为鼓",
             GmInstrument.Infer(9, "Track 1", MakeNotes(60, 40, 0.5)) == TrackRole.Drums);
         Check("推断：轨名写了「鼓」也算鼓",
@@ -909,7 +828,6 @@ internal static partial class GameSelfTest
         Check("推断：又短又不动 → 鼓",
             GmInstrument.Infer(0, "Track 5", MakeNotes(38, 40, 0.06)) == TrackRole.Drums);
 
-        // 通用轨名识别：这些名字要换成识别出的乐器名，说得清的名字原样保留
         var generic = new[] { "", "   ", "Track 1", "track 10", "声道 3", "声部 2", "Part 4", "Channel 7", "Piano 2" };
         var specific = new[] { "主旋律", "钢琴", "Piano", "贝斯", "电吉他", "鼓组", "和弦 1" };
         int genericMiss = 0;
@@ -932,11 +850,8 @@ internal static partial class GameSelfTest
         Check("说得清的轨名不算通用", specificHit == 0, specificHit == 0 ? $"{specific.Length} 条" : hitName);
     }
 
-    // ================= 歌单与连播（v1.1.21） =================
-
     private static void TestPlaylistAdvance()
     {
-        // —— 模式名与切换 ——
         Check("演奏模式有五种", PlayModeNames.All.Length == 5 && PlayModeNames.Short.Length == 5,
             string.Join(" / ", PlayModeNames.All));
 
@@ -948,12 +863,10 @@ internal static partial class GameSelfTest
         Check("越界的模式号夹回顺序播放",
             PlayModeNames.Clamp(-1) == PlayMode.Sequential && PlayModeNames.Clamp(99) == PlayMode.Sequential);
 
-        // —— 关闭：放完这一首就停 ——
         var off = PlayAdvance.AfterFinish(PlayMode.Off, 3, 0);
         Check("关闭：放完这一首就停", off.Kind == PlayAdvance.Move.Stop, off.Reason);
         Check("关闭：放不出来也不换歌", PlayAdvance.NextAfterFailure(PlayMode.Off, 4, 1) == -1);
 
-        // —— 顺序播放：一首接一首，到底就停 ——
         var seq1 = PlayAdvance.AfterFinish(PlayMode.Sequential, 3, 0);
         Check("顺序播放：第 1 首之后放第 2 首",
             seq1.Kind == PlayAdvance.Move.Play && seq1.Index == 1, seq1.Reason);
@@ -963,7 +876,6 @@ internal static partial class GameSelfTest
         var seqEnd = PlayAdvance.AfterFinish(PlayMode.Sequential, 3, 2);
         Check("顺序播放：最后一首放完就停", seqEnd.Kind == PlayAdvance.Move.Stop, seqEnd.Reason);
 
-        // —— 列表循环：到底回绕 ——
         var loopEnd = PlayAdvance.AfterFinish(PlayMode.ListLoop, 3, 2);
         Check("列表循环：最后一首之后回到第 1 首",
             loopEnd.Kind == PlayAdvance.Move.Play && loopEnd.Index == 0, loopEnd.Reason);
@@ -971,7 +883,6 @@ internal static partial class GameSelfTest
         Check("列表循环：中间照常往后走",
             loopMid.Kind == PlayAdvance.Move.Play && loopMid.Index == 1, loopMid.Reason);
 
-        // —— 随机播放：不挑自己 ——
         var rng = new Random(20260928);
         bool shuffleOk = true;
         string shuffleBad = "";
@@ -987,11 +898,9 @@ internal static partial class GameSelfTest
         Check("随机播放：列表只有一首时不前进",
             PlayAdvance.PickShuffle(1, 0) == -1);
 
-        // —— 单曲循环：引擎自己重播，连播不动 ——
         var rep = PlayAdvance.AfterFinish(PlayMode.RepeatOne, 3, 1);
         Check("单曲循环：连播不做前进", rep.Kind == PlayAdvance.Move.Stop, rep.Reason);
 
-        // —— 边界 ——
         Check("空列表不前进",
             PlayAdvance.AfterFinish(PlayMode.ListLoop, 0, 0).Kind == PlayAdvance.Move.Stop);
         Check("只有一首的列表不前进",
@@ -999,7 +908,6 @@ internal static partial class GameSelfTest
         Check("越界的当前下标被当成故障",
             PlayAdvance.AfterFinish(PlayMode.Sequential, 3, 5).Kind == PlayAdvance.Move.Fault);
 
-        // —— 放不出来：跳过，连败 3 次就停 ——
         Check("连败上限是 3 次", PlayAdvance.MaxConsecutiveFailures == 3);
         Check("连败 1 次还继续跳", PlayAdvance.ShouldKeepSkipping(1));
         Check("连败 2 次还继续跳", PlayAdvance.ShouldKeepSkipping(2));
@@ -1009,7 +917,6 @@ internal static partial class GameSelfTest
         Check("放不出来时最后一首回绕到第 1 首",
             PlayAdvance.NextAfterFailure(PlayMode.Sequential, 4, 3) == 0);
 
-        // —— 歌单顺序：上移、下移、拖放三条路走同一个函数 ——
         var order = new List<string> { "A", "B", "C" };
         Check("上移：B 挪到 A 前面",
             PlaylistModel.MoveUp(order, 1) && string.Join("", order) == "BAC", string.Join("", order));
@@ -1039,7 +946,6 @@ internal static partial class GameSelfTest
         Check("拖放：C 拖到 A 上变成 CAB",
             PlaylistModel.MoveOnto(order, 2, 0) && string.Join("", order) == "CAB", string.Join("", order));
 
-        // —— 挑音轨：歌单预设优先，其次上一首的声部身份 ——
         var cands = new List<MidiCandidate>
         {
             MakeCandidate(0, 9, TrackRole.Drums, "鼓"),
@@ -1070,7 +976,6 @@ internal static partial class GameSelfTest
         Check("挑音轨：一首没有候选行时挑不出来",
             !PlaylistModel.Pick(new List<MidiCandidate>()).Found);
 
-        // —— 同名多个同声部的行：取轨道号最小的那个 ——
         var twins = new List<MidiCandidate>
         {
             MakeCandidate(5, 0, TrackRole.Melody, "后一条"),
@@ -1080,8 +985,6 @@ internal static partial class GameSelfTest
         Check("挑音轨：同声部取轨道号最小的",
             pickTwin.Found && pickTwin.Candidate!.TrackIndex == 1, pickTwin.Reason);
     }
-
-    // ================= 歌单存盘（v1.1.23） =================
 
     private static void TestPlaylistStore()
     {
@@ -1127,14 +1030,12 @@ internal static partial class GameSelfTest
             Check("歌单：单行字段只写第一行",
                 json.Contains("\"track\"") && json.Contains("\"trackIndex\": 1"), "");
 
-            // v1.1.24 及以前只写一个 track 字段。读回来必须落进 Tracks，不能丢。
             File.WriteAllText(path, json.Replace("\"nameHint\": \"女声部\",", "\"nameHint\": \"女声部\", \"label\": \"轨道 2 / 声道 1\","), new UTF8Encoding(false));
             var legacy = PlaylistStore.Load("回归歌单");
             Check("歌单：旧文件里多出来的 label 字段不挡读盘",
                 legacy?.Count == 2 && legacy.Entries[0].Tracks.Count == 2,
                 legacy == null ? "读回来是 null" : $"实得 {legacy.Count} 首 / {legacy.Entries[0].Tracks.Count} 行");
 
-            // 只带单行字段的老文件
             File.WriteAllText(path, """
                 {
                   "name": "回归歌单",
@@ -1168,7 +1069,6 @@ internal static partial class GameSelfTest
         }
     }
 
-    /// <summary>造一个候选行，供挑音轨用例使用（不走 MIDI 解析，直接给结论）。</summary>
     private static MidiCandidate MakeCandidate(int track, int channel, TrackRole role, string name) =>
         new()
         {
@@ -1179,7 +1079,6 @@ internal static partial class GameSelfTest
             Notes = MakeNotes(60, 4, 0.5),
         };
 
-    /// <summary>造一段等长的测试音符：全部同一个音高，间隔固定（只在声部推断用例里用）。</summary>
     private static List<RawNote> MakeNotes(int pitch, int count, double seconds)
     {
         var list = new List<RawNote>(count);
@@ -1190,8 +1089,6 @@ internal static partial class GameSelfTest
         }
         return list;
     }
-
-    // ================= 断言 =================
 
     private static void Check(string name, bool ok, string detail = "")
     {

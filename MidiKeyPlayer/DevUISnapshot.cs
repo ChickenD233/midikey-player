@@ -34,7 +34,6 @@ internal static class DevSnapshotMode
         foreach (string name in Known)
             if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(name))) return true;
 
-        // 兜底：以后加了新的 MIDIKEY_UI_SNAPSHOT_* 而忘了加进上面那张表时，仍然认。
         try
         {
             foreach (System.Collections.DictionaryEntry item in Environment.GetEnvironmentVariables())
@@ -45,7 +44,7 @@ internal static class DevSnapshotMode
                     return true;
             }
         }
-        catch { /* 遍历失败不影响第 1 步的结果 */ }
+        catch { }
         return false;
     }
 }
@@ -74,7 +73,6 @@ public partial class MainWindow
 
         window.Opened += (_, _) =>
         {
-            // 无控制台时也能留证据：把诊断写到临时目录
             try
             {
                 System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "midikey-snap.log"),
@@ -101,7 +99,6 @@ public partial class MainWindow
                     Log($"已设主窗尺寸：{ow}x{oh}");
                 }
             }
-            // 载入 MIDI 与勾选合奏都在拍图之前做完：截图看到的就是用户操作后的真实状态
             if (!string.IsNullOrWhiteSpace(midiPath))
             {
                 bool ok = window.LoadMidiFile(midiPath!);
@@ -126,7 +123,6 @@ public partial class MainWindow
                 Log($"浮层快照场景：{overlayMode}");
             }
 
-            // 文件夹曲目卡换歌回归场景：这条链路自己收尾并退出，不跟快照计时器混在一起
             if (!string.IsNullOrWhiteSpace(folderProbe))
             {
                 RunFolderClickProbe(window, folderProbe!,
@@ -134,31 +130,26 @@ public partial class MainWindow
                 return;
             }
 
-            // 高级设置窗口快照：先按「高级设置…」把内容搬过去，再拍那个窗口
             if (!string.IsNullOrWhiteSpace(advancedPath))
             {
                 CaptureAdvanced(window, advancedPath!);
                 return;
             }
-            // 赞助页快照：设置窗口的第三页，内容不多，直接切过去拍
             if (!string.IsNullOrWhiteSpace(sponsorPath))
             {
                 CaptureSponsor(window, sponsorPath!);
                 return;
             }
-            // 实验功能页快照：设置窗口的第四页（远程同演）
             if (!string.IsNullOrWhiteSpace(syncPath))
             {
                 CaptureSync(window, syncPath!);
                 return;
             }
-            // 歌单窗口快照：真建一份歌单（用 示例MIDI 里的曲目），再开歌单窗口拍一张
             if (!string.IsNullOrWhiteSpace(playlistPath))
             {
                 CapturePlaylist(window, playlistPath!, playlistDir);
                 return;
             }
-            // 等布局就绪，900ms 是实测够用的值
             var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
             timer.Tick += (_, _) =>
             {
@@ -168,7 +159,6 @@ public partial class MainWindow
                     ReportRowHeights(window);
                     if (!string.IsNullOrWhiteSpace(reportPath)) WriteColorReport(window, reportPath!);
 
-                    // “快速上手”浮层会盖住主界面：先关掉拍主界面，再开它拍浮层
                     if (!string.IsNullOrWhiteSpace(path))
                     {
                         if (window.StartupOverlay != null)
@@ -232,7 +222,6 @@ public partial class MainWindow
             Line($"目录：{dir}");
             Line($"列表行数：{window.FolderList.Items.Count}（含子文件夹与占位行）");
 
-            // 只取 MIDI 文件行（子文件夹行单击不载入，要双击才进）
             var fileRows = new List<ListBoxItem>();
             foreach (var o in window.FolderList.Items)
                 if (o is ListBoxItem it && it.Tag is FolderRow row && !row.IsDir)
@@ -258,7 +247,7 @@ public partial class MainWindow
             {
                 string want = wanted[step];
                 var target = fileRows[step];
-                window.FolderList.SelectedItem = target;   // 等价于用户点这一行
+                window.FolderList.SelectedItem = target;   
                 await Task.Delay(900);
                 done++;
 
@@ -266,13 +255,12 @@ public partial class MainWindow
                 bool switched = string.Equals(actual, want, StringComparison.OrdinalIgnoreCase);
                 if (!switched) bad++;
 
-                // 每一步之后重新取行对象：列表每次重建，旧对象已经不在 Items 里
                 fileRows = new List<ListBoxItem>();
                 foreach (var o in window.FolderList.Items)
                     if (o is ListBoxItem it && it.Tag is FolderRow row && !row.IsDir)
                         fileRows.Add(it);
 
-                bool alive = fileRows.Count == initial;      // 列表还能点：行数没塌
+                bool alive = fileRows.Count == initial;      
                 if (!alive) bad++;
                 Line($"第 {step + 1} 次：点「{Path.GetFileName(want)}」→ 实际「{Path.GetFileName(actual)}」"
                      + $" {(switched ? "换过去了" : "没换过去")}；剩下可点 {fileRows.Count}/{initial} 首"
@@ -309,17 +297,16 @@ public partial class MainWindow
             owner.DevCleanUpForExit();
             Environment.Exit(1);
         }
-        win.SelectPageForDev(0);   // 常规页
+        win.SelectPageForDev(0);   
 
         if (Environment.GetEnvironmentVariable("MIDIKEY_UI_SNAPSHOT_ADVANCED_BOTTOM") == "1")
             owner.TxtQqCopied?.BringIntoView();
 
-        // 与键位页快照同一个做法：计时器里拍照再退出；另配一个兜底计时器
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(800) };
         timer.Tick += (_, _) =>
         {
             timer.Stop();
-            ShotVisual(win!, path);   // 拍窗口本体：拍 Content 会把搬过来的控件画重影
+            ShotVisual(win!, path);   
             owner.DevCleanUpForExit();
             Environment.Exit(0);
         };
@@ -345,7 +332,6 @@ public partial class MainWindow
             : dir!;
         if (!System.IO.Directory.Exists(folder))
         {
-            // 往回找两级：publish 出来的 exe 旁边没有示例目录，仓库根目录下有
             string up = System.IO.Path.GetFullPath(
                 System.IO.Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "示例MIDI"));
             if (System.IO.Directory.Exists(up)) folder = up;
@@ -366,7 +352,6 @@ public partial class MainWindow
             Environment.Exit(1);
         }
 
-        // 与设置窗口快照同一个做法：计时器里拍照再退出；另配一个兜底计时器
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(800) };
         timer.Tick += (_, _) =>
         {
@@ -388,7 +373,6 @@ public partial class MainWindow
         guard.Start();
     }
 
-    /// <summary>把任意可视化元素渲染成 PNG（按元素自身尺寸）。</summary>
     private static void ShotVisual(Visual visual, string path)
     {
         try
@@ -405,9 +389,7 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>【开发用】按目录扫描并刷新曲目卡（回归场景用）。</summary>
     internal void ScanMidiFolderForDev(string dir) => ScanMidiFolder(dir);
-    /// <summary>【开发用】当前已载入的文件路径。没载入就是空串。</summary>
     internal string ParsedPathForDev => _parsed?.FilePath ?? "";
 
     internal void MixAllPlayableTracksForDev()
@@ -464,7 +446,6 @@ public partial class MainWindow
             int v = window.Roll.VoiceOfNote(n);
             string hex = inRange ? HexOf(ResourceBrush("BrushVoice" + Music.Mod(v, PianoRoll.VoiceCount)))
                                  : "灰(#C8D0D9)";
-            // 这个音同时落在哪些声轨的音符区间里 = 颜色归属本来就有歧义
             var owners = new List<string>();
             for (int k = 0; k < active.Count; k++)
                 foreach (var c in active[k].Candidate.Notes)
@@ -596,7 +577,6 @@ public partial class MainWindow
 
     private static void CaptureKeymap(MainWindow owner, string path)
     {
-        // 键位页现在是设置窗口的第二页：打开设置，切到「键位」，再拍整窗。
         owner.OpenSettingsForDev();
         var win = owner.SettingsWindowForDev;
         if (win == null)
@@ -605,7 +585,7 @@ public partial class MainWindow
             owner.DevCleanUpForExit();
             Environment.Exit(1);
         }
-        win.SelectPageForDev(1);   // 键位页
+        win.SelectPageForDev(1);   
         Log($"设置窗口已打开 IsVisible={win.IsVisible}，当前页 = 键位");
 
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) };
@@ -613,20 +593,19 @@ public partial class MainWindow
         {
             timer.Stop();
             Log("键位页快照计时器触发");
-            ShotVisual(win, path);   // 拍窗口本体：拍 Content 会把搬过来的控件画重影
-            owner.DevCleanUpForExit();   // A19：退出前走一遍显式清理
+            ShotVisual(win, path);   
+            owner.DevCleanUpForExit();   
             Environment.Exit(0);
         };
         timer.Start();
 
-        // 双保险：万一 700ms 那个没跑到，1.5s 这个也要落盘并退出
         var guard = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
         guard.Tick += (_, _) =>
         {
             guard.Stop();
             Log("兜底计时器触发");
             ShotVisual(win, path);
-            owner.DevCleanUpForExit();   // A19：退出前走一遍显式清理
+            owner.DevCleanUpForExit();   
             Environment.Exit(0);
         };
         guard.Start();
@@ -642,7 +621,7 @@ public partial class MainWindow
             owner.DevCleanUpForExit();
             Environment.Exit(1);
         }
-        win.SelectPageForDev(2);   // 赞助页
+        win.SelectPageForDev(2);   
         Log("设置窗口已打开，当前页 = 赞助");
 
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) };
@@ -706,7 +685,6 @@ public partial class MainWindow
         guard.Start();
     }
 
-    /// <summary>把任意窗口渲染成 PNG。</summary>
     private static void Shot(Window win, string path)    {
         try
         {
@@ -728,7 +706,6 @@ public partial class MainWindow
     private static string LogPath() =>
         System.IO.Path.Combine(System.IO.Path.GetTempPath(), "midikey-snap.log");
 
-    /// <summary>无控制台（WinExe）时把诊断写进临时目录的日志文件。</summary>
     private static void Log(string line)
     {
         try { System.IO.File.AppendAllText(LogPath(), line + "\n"); } catch { }

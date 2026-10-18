@@ -5,15 +5,15 @@ namespace MidiKeyPlayer.Engine;
 
 public sealed class MidiPreview : IDisposable
 {
-    private const uint MidiMapper = 0xFFFFFFFF;   // 选默认设备
-    private const uint NoteOnBase = 0x90;         // 通道 0
+    private const uint MidiMapper = 0xFFFFFFFF;   
+    private const uint NoteOnBase = 0x90;         
     private const uint NoteOffBase = 0x80;
     private const uint ProgramChangeBase = 0xC0;
     private const uint ControlChangeBase = 0xB0;
-    private const uint CcAllSoundOff = 120;       // 立刻静音（跳转/停止时最硬的保证）
-    private const uint CcAllNotesOff = 123;       // 放开所有音
+    private const uint CcAllSoundOff = 120;       
+    private const uint CcAllNotesOff = 123;       
     private const int Channels = 16;
-    private const int ProgramPiano = 0;           // 0 = Acoustic Grand Piano
+    private const int ProgramPiano = 0;           
 
     private readonly object _gate = new();
     private IntPtr _handle = IntPtr.Zero;
@@ -27,20 +27,15 @@ public sealed class MidiPreview : IDisposable
     private long _noteOnCount;
     private long _noteOffCount;
 
-    /// <summary>设备是否可用。false 时所有方法都安全地什么都不做。</summary>
     public bool IsAvailable { get; private set; }
 
-    /// <summary>不可用时的原因（写进日志用）。</summary>
     public string LastError { get; private set; } = "";
 
-    /// <summary>当前正在响的音高个数（我们发出去、还没收回的 note-on 数）。诊断用。</summary>
     public int SoundingCount { get { lock (_gate) { return _sounding.Count; } } }
 
-    /// <summary>累计发出的 note-on / note-off 条数。清音验证用（winmm 没有"查询合成器在发声数"的接口）。</summary>
     public long NoteOnCount => Interlocked.Read(ref _noteOnCount);
     public long NoteOffCount => Interlocked.Read(ref _noteOffCount);
 
-    /// <summary>发送失败次数（句柄为空、抛异常或 MMRESULT!=0）。</summary>
     public long SendFailureCount =>
         Interlocked.Read(ref _sendFailureCount) + Interlocked.Read(ref _handleEmptyCount);
 
@@ -63,14 +58,12 @@ public sealed class MidiPreview : IDisposable
     [DllImport("winmm.dll", ExactSpelling = true)]
     private static extern uint timeEndPeriod(uint uPeriod);
 
-    /// <summary>把系统定时器精度提到 1ms（进入播放前调用）。返回 true = 已生效，退出时要复原。</summary>
     internal static bool TryRaiseTimerResolution(uint milliseconds)
     {
         try { return timeBeginPeriod(milliseconds) == 0; }
         catch { return false; }
     }
 
-    /// <summary>复原系统定时器精度（退出播放时调用）。</summary>
     internal static void RestoreTimerResolution(uint milliseconds)
     {
         try { timeEndPeriod(milliseconds); } catch { }
@@ -88,7 +81,6 @@ public sealed class MidiPreview : IDisposable
             }
             _handle = h;
             IsAvailable = true;
-            // 选钢琴音色：试听旋律比默认音色清楚
             Send(ProgramChangeBase | (uint)ProgramPiano);
         }
         catch (Exception ex)
@@ -103,7 +95,6 @@ public sealed class MidiPreview : IDisposable
         NoteOn(pitch, velocity);
         if (!autoRelease) return;
 
-        // 自动放开。用一次性定时器而不是 Sleep，避免阻塞 UI 线程。
         System.Threading.Timer? t = null;
         t = new System.Threading.Timer(_ =>
         {
@@ -114,7 +105,6 @@ public sealed class MidiPreview : IDisposable
         lock (_gate) { _timers.Add(t); }
     }
 
-    /// <summary>发一个 note-on（同音高已经在响时先放开，保证重新触发）。</summary>
     public void NoteOn(int pitch, int velocity = 96)
     {
         if (!IsAvailable || _disposed) return;
@@ -129,7 +119,6 @@ public sealed class MidiPreview : IDisposable
         }
     }
 
-    /// <summary>放开某个音高（整曲试听时由调度线程按谱面时间调用）。</summary>
     public void StopNote(int pitch)
     {
         if (!IsAvailable || _disposed) return;
@@ -138,7 +127,6 @@ public sealed class MidiPreview : IDisposable
 
     public void StopAll() => AllNotesOff();
 
-    /// <summary>同 <see cref="StopAll"/>：清掉全部发声，保证不留残音。</summary>
     public void AllNotesOff()
     {
         if (!IsAvailable || _disposed) return;
@@ -160,13 +148,11 @@ public sealed class MidiPreview : IDisposable
         _sounding.Remove(pitch);
     }
 
-    /// <summary>发一条消息并计数。</summary>
     private void Send(uint message)
     {
         SendRaw(message);
     }
 
-    /// <summary>真正调 winmm：检查句柄与返回码，失败写日志但不中断播放。</summary>
     private void SendRaw(uint message)
     {
         IntPtr h = _handle;
@@ -191,7 +177,6 @@ public sealed class MidiPreview : IDisposable
         }
     }
 
-    /// <summary>失败不中断播放，但写日志。限流：前 5 次全写，之后每 500 次写一条。</summary>
     private void LogThrottled(string what)
     {
         long n = Interlocked.Increment(ref _loggedCount);
@@ -229,12 +214,12 @@ public sealed class MidiPreviewSequencer : IDisposable
     private readonly ManualResetEventSlim _wake = new(false);
 
     private double[] _time = Array.Empty<double>();
-    private sbyte[] _down = Array.Empty<sbyte>();      // 1 = note-on，0 = note-off
+    private sbyte[] _down = Array.Empty<sbyte>();      
     private int[] _pitch = Array.Empty<int>();
     private (double S, double E, int Pitch)[] _spans = Array.Empty<(double, double, int)>();
 
     private int _index;
-    private long _baseTicks;            // 单调时钟基准：位置 = (现在 - 基准) / 频率
+    private long _baseTicks;            
     private volatile bool _stopRequested;
     private volatile bool _finished;
     private volatile bool _running;
@@ -243,13 +228,10 @@ public sealed class MidiPreviewSequencer : IDisposable
     private bool _periodRaised;
     private Thread? _thread;
 
-    /// <summary>前瞻窗口（毫秒）：一轮最多派发这么远以内的事件。15～30 之间比较合适。</summary>
     public int LookaheadMs { get; set; } = 20;
 
-    /// <summary>最后一段自旋等待的长度（毫秒）：Sleep 精度不够，留 2ms 自旋。</summary>
     public int SpinMs { get; set; } = 2;
 
-    /// <summary>note-on 力度。</summary>
     public int Velocity { get; set; } = 96;
 
     public double TotalSeconds { get; private set; }
@@ -258,7 +240,6 @@ public sealed class MidiPreviewSequencer : IDisposable
     public bool IsRunning => _running;
     public bool IsFinished => _finished;
 
-    /// <summary>当前播放位置（秒）。UI 线程直接读，无需加锁。</summary>
     public double PositionSeconds
     {
         get
@@ -275,7 +256,7 @@ public sealed class MidiPreviewSequencer : IDisposable
     {
         if (_running) throw new InvalidOperationException("播放中不能重建事件表");
         double sp = Math.Max(0.1, speed);
-        const double gap = 0.02;   // 同音高重复时留出断开，否则不会重新触发
+        const double gap = 0.02;   
 
         int n = spans.Count;
         var buf = new (double T, sbyte Down, int Pitch)[n * 2];
@@ -285,15 +266,12 @@ public sealed class MidiPreviewSequencer : IDisposable
             var s = spans[i];
             double on = s.Start / sp;
             double end = s.End / sp;
-            // 音符比断开间隙还短时，off 绝不能越过本音自己的结束点：
-            // 否则会落到下一个同音高音符的 on 之后，把那个音提前关掉。
             double off = end - on < gap ? Math.Min(on + 0.03, end)
                                         : Math.Max(on + 0.03, end - gap);
             buf[i * 2] = (on, 1, s.Pitch);
             buf[i * 2 + 1] = (off, 0, s.Pitch);
             built[i] = (on, off, s.Pitch);
         }
-        // 先按时间，再让同一时刻的 note-off 排在 note-on 前面（否则同音高会自己把自己关掉）
         Array.Sort(buf, (a, b) =>
         {
             int c = a.T.CompareTo(b.T);
@@ -313,7 +291,6 @@ public sealed class MidiPreviewSequencer : IDisposable
         NoteCount = n;
     }
 
-    /// <summary>从某个位置开始播放（起新线程）。</summary>
     public void Start(double atSeconds)
     {
         Stop();
@@ -322,7 +299,6 @@ public sealed class MidiPreviewSequencer : IDisposable
         _index = FirstIndexAtOrAfter(t);
         _stopRequested = false;
         _finished = false;
-        // 起播位置也走"跳转"那一套：先清音，再把正在响的音补上（从谱面中间开播不会是哑的）
         _seekPending = true;
         _seekTarget = t;
         _wake.Reset();
@@ -338,7 +314,6 @@ public sealed class MidiPreviewSequencer : IDisposable
         _thread.Start();
     }
 
-    /// <summary>跳转到某个秒数：先清音，再挪时间基准、移游标，并把"跳进去正在响的音"补上。</summary>
     public void Seek(double seconds)
     {
         double t = Math.Clamp(seconds, 0, TotalSeconds);
@@ -356,7 +331,6 @@ public sealed class MidiPreviewSequencer : IDisposable
         _wake.Set();
     }
 
-    /// <summary>停止：唤醒线程、等它退出、复原定时器精度，最后再清一次音（保证 note-off 一定发出）。</summary>
     public void Stop()
     {
         _stopRequested = true;
@@ -418,7 +392,6 @@ public sealed class MidiPreviewSequencer : IDisposable
                 if (_stopRequested || _seekPending) continue;
                 if (_index >= _time.Length) { _finished = true; break; }
 
-                // 下一个事件还在前瞻窗口之外：粗睡到"该事件时刻 - 前瞻窗口"，睡眠可被跳转/停止打断
                 if (!sentAny)
                 {
                     double waitUntil = _time[_index] - LookaheadMs / 1000.0;
@@ -433,7 +406,7 @@ public sealed class MidiPreviewSequencer : IDisposable
         finally
         {
             _running = false;
-            _out.AllNotesOff();   // 线程退出兜底：不留残音
+            _out.AllNotesOff();   
         }
     }
 
@@ -446,11 +419,10 @@ public sealed class MidiPreviewSequencer : IDisposable
             target = _seekTarget;
             _seekPending = false;
         }
-        _out.AllNotesOff();                     // 跳转前先清音
+        _out.AllNotesOff();                     
         Volatile.Write(ref _baseTicks, Stopwatch.GetTimestamp() - (long)(target * Stopwatch.Frequency));
         _index = FirstIndexAtOrAfter(target);
 
-        // 跳进音符中间时补上正在进行的声音（同一音高只补一次）
         var seen = new HashSet<int>();
         foreach (var s in _spans)
         {
@@ -459,7 +431,6 @@ public sealed class MidiPreviewSequencer : IDisposable
         PreviewJitterProbe.Note($"跳转到 {target:F3}s：已清音并补上 {seen.Count} 个在响的音");
     }
 
-    /// <summary>精确等到某个时刻：先可打断地睡，最后 2ms 自旋。返回 false = 被停止/跳转打断。</summary>
     private bool WaitUntil(double targetSeconds)
     {
         double spin = Math.Max(0, SpinMs) / 1000.0;
@@ -484,7 +455,6 @@ public sealed class MidiPreviewSequencer : IDisposable
         }
     }
 
-    /// <summary>粗睡到某个时刻之前（最多 50ms 醒一次，便于响应停止/跳转）。</summary>
     private void WaitCoarse(double targetSeconds)
     {
         while (!_stopRequested && !_seekPending)
@@ -515,10 +485,10 @@ internal static class PreviewJitterProbe
         !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("MIDIKEY_PREVIEW_PROBE"));
 
     private static readonly object Gate = new();
-    private static readonly List<double> Dev = new();     // 偏差（毫秒，正数 = 晚发）
-    private static readonly List<double> Send = new();    // midiOutShortMsg 自身耗时（毫秒）
+    private static readonly List<double> Dev = new();     
+    private static readonly List<double> Send = new();    
     private static readonly List<string> Notes = new();
-    private static readonly List<double> Ui = new();      // 界面定时器相对理想节拍的滞后（毫秒）
+    private static readonly List<double> Ui = new();      
     private static int _batchRounds, _batchMax, _batchSum, _batchBig;
     private static int _maxIndex = -1;
     private static double _maxValue;
@@ -539,7 +509,6 @@ internal static class PreviewJitterProbe
         }
     }
 
-    /// <summary>记一轮派发里发了几条消息（判断"一次性突发"）。</summary>
     internal static void Batch(int count)
     {
         if (!Enabled || count <= 0) return;
@@ -552,14 +521,12 @@ internal static class PreviewJitterProbe
         }
     }
 
-    /// <summary>记一次界面定时器节拍的滞后（毫秒，判断 UI 线程是否被派发阻塞）。</summary>
     internal static void UiTick(double lateMs)
     {
         if (!Enabled) return;
         lock (Gate) { Ui.Add(lateMs); }
     }
 
-    /// <summary>记一条派发：计划时刻、实际发出时刻（同一单调时钟，秒）、发这条消息自身的耗时（毫秒）。</summary>
     internal static void Record(double plannedSeconds, double actualSeconds, double sendMs)
     {
         if (!Enabled) return;
@@ -581,7 +548,6 @@ internal static class PreviewJitterProbe
     private static string ReportPath =>
         Environment.GetEnvironmentVariable("MIDIKEY_PREVIEW_PROBE_OUT") ?? "";
 
-    /// <summary>把统计追加写进报告文件（没设 MIDIKEY_PREVIEW_PROBE_OUT 就什么都不写）。</summary>
     internal static void WriteReport()
     {
         if (!Enabled) return;

@@ -13,41 +13,33 @@ using MidiKeyPlayer.Persist;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-// Avalonia.Input 也有 KeyBinding（手势绑定），这里给键位方案的绑定起个别名，避免歧义
 using KeyBinding = MidiKeyPlayer.Engine.KeyBinding;
 
 namespace MidiKeyPlayer;
 
 public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
 {
-    /// <summary>把改动交回主窗：saved 表示刚保存的方案，message 是要记进主窗日志的中文说明。</summary>
     private readonly Action<KeymapProfile?, string> _applyPath;
-    /// <summary>换方案前：先把当前速度 / 移调 / 输入档位写回旧方案名。</summary>
     private readonly Action _rememberSettings;
-    /// <summary>换方案后：读新方案的速度 / 移调 / 输入档位并应用，返回展示用的说明；null = 没换方案。</summary>
     private readonly Func<KeymapProfile, string?> _applyProfileSettings;
 
     private KeymapProfile _keymap = KeymapProfile.Default;
-    private bool _loading;              // 铺值中，忽略 *Changed
+    private bool _loading;              
 
     private readonly ObservableCollection<RowVM> _rows = new();
-    /// <summary>按键绑定区的内容：按八度分行，一行一串键帽。</summary>
     private readonly ObservableCollection<KeymapRowGroup> _groups = new();
     private readonly ObservableCollection<FuncRowVM> _funcs = new();
-    private RowVM? _row;                // 正在等待按键的主键行
-    private FuncRowVM? _func;           // 正在等待按键的功能键行
-    private RowVM? _pending;            // 刚加出来、还没落地的键帽（没按键就撤掉）
-    private bool _schemeUsesRows;       // 这套方案写了行号；false = 老方案，退回按物理键盘的排分组
+    private RowVM? _row;                
+    private FuncRowVM? _func;           
+    private RowVM? _pending;            
+    private bool _schemeUsesRows;       
 
-    /// <summary>单独按一下修饰键再松开就算绑上，这个窗口的时长是 400 毫秒。</summary>
     private const int ModifierTapMs = 400;
     private readonly DispatcherTimer _modTimer;
-    private string _modCandidate = "";  // 已经按下、还没松开的修饰键名（"" = 没有）
+    private string _modCandidate = "";  
 
-    /// <summary>自然音阶一行七个音的偏移（相对本行第一个音）。</summary>
     private static readonly int[] MajorSteps = { 0, 2, 4, 5, 7, 9, 11 };
 
-    /// <summary>「加一行」按这个顺序给新键帽挑还没被占用的键，正好是键盘上自然音阶的三排。</summary>
     private static readonly string[][] PreferredRowKeys =
     {
         new[] { "Z", "X", "C", "V", "B", "N", "M" },
@@ -55,7 +47,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         new[] { "Q", "W", "E", "R", "T", "Y", "U" },
     };
 
-    /// <summary>无参构造只给设计器与 XAML 加载用；实际使用走带回调的那个重载。</summary>
     public SettingsWindow() : this(KeymapProfile.Current ?? KeymapProfile.Default, null, null, null)
     {
     }
@@ -89,24 +80,17 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         KeyDown += Window_KeyDown;
         KeyUp += Window_KeyUp;
         InitUi();
-        InitSyncPage();   // 「实验功能」页：接上两个列表、恢复上次的成员名（见 SettingsWindow.Experimental.cs）
+        InitSyncPage();   
     }
 
-    // ================= 绑定给界面的属性 =================
-
-    /// <summary>底部常驻统计行。</summary>
     public string StatsText { get; private set; } = "";
 
-    /// <summary>一条绑定都没有时的灰字提示。</summary>
     public bool ShowEmptyHint => _rows.Count == 0;
 
-    /// <summary>隐藏 <see cref="AvaloniaObject.PropertyChanged"/>：这里报的是窗口自己的两个绑定属性。</summary>
     public new event PropertyChangedEventHandler? PropertyChanged;
 
     private void Notify(string name) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
-
-    // ================= 初始化 =================
 
     private void InitUi()
     {
@@ -150,7 +134,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
             string octaveLine = json.Split('\n').FirstOrDefault(l => l.Contains("octaveUp", StringComparison.Ordinal)) ?? "(没找到)";
             W($"4) 写进 keymap.json 的那一行：{octaveLine.Trim()}");
 
-            // 绑定区两条主路径：加一行再按一个键、点方块换绑
             int keysBefore = _keymap.Keys.Count;
             RowAddRow_Click(null, new RoutedEventArgs());
             var pending = _pending;
@@ -163,13 +146,11 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
             W($"6) 按 Q：绑定 {_keymap.Keys.Count} 条，键盘表最后一项 = {_keymap.Keys[^1]}；"
               + $"新键帽 = 「{pending?.KeyCapText}」，等待中 = {pending?.Waiting}");
 
-            // 错位核对：屏上每一颗键帽的键名，必须等于它自己 Source 那条键位写在方案里的键名
             int mismatched = _rows.Count(r => !string.Equals(
                 r.KeyText, DisplayKey(r.Source), StringComparison.Ordinal));
             W($"7) 键帽与方案的对应：{_rows.Count} 颗键帽，键名对不上的有 {mismatched} 颗；"
               + $"屏幕第 1 行 = 「{string.Join(" ", _groups.FirstOrDefault()?.Cells.Select(c => c.KeyText) ?? Array.Empty<string>())}」");
 
-            // 收尾：把探针加的这条拆掉，方案回到原样（脚本还会再还原一次 keymap.json）
             RowRemove_Click(new Button { DataContext = pending }, new RoutedEventArgs());
             W($"8) 收尾：绑定 {_keymap.Keys.Count} 条，行数 {_groups.Count}");
         }
@@ -226,7 +207,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         }
     }
 
-    /// <summary>整窗铺一次：方案行、按键绑定行、三个功能键、统计行。</summary>
     private void RefreshUi()
     {
         if (BindRows == null) return;
@@ -246,7 +226,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         RebuildRows();
     }
 
-    /// <summary>方案下拉：内置预设 + `schemes` 目录里的用户方案，由引擎统一列出。</summary>
     private void FillSchemeCombo()
     {
         var items = new List<string>(KeymapProfile.ListSchemeNames());
@@ -296,13 +275,11 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         var waiting = ActiveRow();
         if (waiting != null) waiting.Waiting = true;
 
-        // 先算出每颗键帽属于哪一行（键帽自带 Source，所以键位表变了它跟着变）。
         bool schemeHasRows = _schemeUsesRows = SchemeHasRows();
         var pairs = _rows
             .Select(r => (Cell: r, Row: schemeHasRows ? SchemeRowOf(r) : PhysicalRowOf(r.Source?.Key)))
             .ToList();
 
-        // 行号大的显示在上面：Row 2 在最上、Row 0 在最下。
         var groups = pairs.GroupBy(p => p.Row).OrderByDescending(g => g.Key).ToList();
 
         _groups.Clear();
@@ -320,7 +297,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
                 c.Parent = group;
                 group.Cells.Add(c);
             }
-            // 标签按分组后的实际内容算，不看物理排
             group.Label = RowLabelOf(cells, displayNo, groups.Count);
             _groups.Add(group);
             displayNo++;
@@ -332,13 +308,12 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
     private bool SchemeHasRows()
         => _keymap.Keys.Any(k => k != null && k.Row != 0);
 
-    /// <summary>键帽所在方案的行号。</summary>
     private static int SchemeRowOf(RowVM cell) => cell.Source?.Row ?? 0;
 
     private static int PhysicalRowOf(string? key)
     {
         string name = KeymapProfile.CanonicalKeyName(key);
-        if (name.Length != 1) return 4;          // 鼠标键、F 键这类：没有排，放最后
+        if (name.Length != 1) return 4;          
         char c = name[0];
         if ("1234567890-=".Contains(c)) return 0;
         if ("QWERTYUIOP[]\\".Contains(c)) return 1;
@@ -347,7 +322,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         return 4;
     }
 
-    /// <summary>一行的标题：第几行、几个键、这一行弹什么到什么。跨八度时带上八度点，例如 1(do) ~ 1˙(do)。</summary>
     private static string RowLabelOf(IReadOnlyList<RowVM> cells, int index, int total)
     {
         int lo = cells.Min(c => c.Pitch);
@@ -366,7 +340,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
 
     private int PitchOf(KeyBinding kb) => Math.Clamp(_keymap.BaseNote + kb.Offset, 0, 127);
 
-    /// <summary>刷新底部统计行与空列表提示。</summary>
     private void RaiseStats()
     {
         StatsText = BuildStats();
@@ -374,16 +347,11 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         Notify(nameof(ShowEmptyHint));
     }
 
-    // ================= 显示名 =================
-
-    /// <summary>音高文字：简谱数字加唱名，八度用上下点。例如 1(do)、#4(fa)、1˙(do)。</summary>
     internal static string NoteLabelOf(int pitch)
         => $"{Music.SolfegeName(pitch)}({SyllableOf(pitch)})";
 
-    /// <summary>音高的唱名。简谱带升号时用本位音的唱名，例如 #4 写 fa。</summary>
     private static string SyllableOf(int pitch) => Syllables[Music.Mod(pitch, 12)];
 
-    /// <summary>十二个半音各自的唱名（升号与它的本位音同名）。</summary>
     private static readonly string[] Syllables =
         { "do", "do", "re", "re", "mi", "fa", "fa", "sol", "sol", "la", "la", "si" };
 
@@ -413,7 +381,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         _ => key,
     };
 
-    /// <summary>键名太长时方块里塞不下，提示气泡里用它补一句人话。</summary>
     internal static string LongNameOf(string key) => key switch
     {
         "," => "，逗号",
@@ -451,12 +418,9 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
     private void Window_Closed(object? sender, EventArgs e)
     {
         EndWaiting(false);
-        // 关窗要把远程同演的会话收掉，否则窗口关了还在连代理、还在按掩码过滤声部。
         CloseSyncSession();
-        OnSettingsClosed();   // 把「常规」页的内容还回主窗（见 SettingsWindow.axaml.cs）
+        OnSettingsClosed();   
     }
-
-    // ================= 等待按键 =================
 
     private RowVM? ActiveRow() => _rows.FirstOrDefault(r => r.Waiting);
     private FuncRowVM? ActiveFuncRow() => _funcs.FirstOrDefault(f => f.Waiting);
@@ -471,7 +435,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
 
         if (source == null)
         {
-            // 这一格还没落键（「+」刚加出来的）：重建后它已经不在列表里
             if (!_rows.Contains(row))
             {
                 Say("界面已经刷新，请再点一次。");
@@ -491,7 +454,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         BeginWait(row);
     }
 
-    /// <summary>点功能键的键帽：进入等待。</summary>
     private void FuncKey_Click(object? sender, RoutedEventArgs e)
     {
         if (sender is not Control c || c.DataContext is not FuncRowVM row) return;
@@ -517,7 +479,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         Say($"正在等按键：按一个键就作为「{row.Label}」。按 Esc 取消。Shift、Ctrl、Alt 单独按一下再松开也行。");
     }
 
-    /// <summary>退出等待。commit = true 表示这一条已经落地，不用回滚。</summary>
     private void EndWaiting(bool commit)
     {
         var row = _row;
@@ -530,7 +491,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
 
         if (row != null) row.Waiting = false;
         if (func != null) func.Waiting = false;
-        // 「+」加出来、还没按任何键就点别处：这个键帽直接撤掉
         if (!commit && pending != null && ReferenceEquals(pending, row) && pending.Source == null)
         {
             _rows.Remove(pending);
@@ -538,8 +498,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
             RebuildRows();
         }
     }
-
-    // ================= 单独按修饰键 =================
 
     private static string? ModifierNameOf(KeyEventArgs e)
     {
@@ -559,7 +517,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         key is Key.LeftShift or Key.RightShift or Key.LeftCtrl or Key.RightCtrl
             or Key.LeftAlt or Key.RightAlt or Key.System;
 
-    /// <summary>按下修饰键：先记下来，等松开。期间按了别的键就当组合键，不算绑定。</summary>
     private void ArmModifierTap(string name)
     {
         _modCandidate = name;
@@ -574,7 +531,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         _modTimer.Stop();
     }
 
-    /// <summary>松开修饰键：这一下如果没有夹着别的键，就把它绑上。</summary>
     private void Window_KeyUp(object? sender, KeyEventArgs e)
     {
         if (_modCandidate.Length == 0) return;
@@ -587,7 +543,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         e.Handled = true;
     }
 
-    /// <summary>窗口级按键录入。只有在等待态才处理。</summary>
     private void Window_KeyDown(object? sender, KeyEventArgs e)
     {
         if (ActiveRow() == null && ActiveFuncRow() == null) return;
@@ -600,7 +555,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        // Shift / Ctrl / Alt：单独按一下再松开也算一个键，先记下，等松开再绑
         string? mod = ModifierNameOf(e);
         if (mod != null)
         {
@@ -609,13 +563,11 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        // 按了别的键：刚才那个修饰键是组合键的一部分，取消掉
         CancelModifierTap();
 
         string? label = KeyLabelOf(e.Key);
         if (label == null) return;
 
-        // 这个键已经被另一个功能键占用了：说清楚，不写错地方
         foreach (var f in _funcs)
         {
             if (f == _func) continue;
@@ -645,20 +597,16 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         };
         if (label == null) return;
 
-        // 鼠标一点，之前按下的修饰键就不算「单独按一下」了
         CancelModifierTap();
 
-        // 点在按钮上：不是「按了一个鼠标键」，由那个按钮自己的 Click 处理
         if (IsInsideButton(e.Source as Visual)) return;
 
         CommitKey(label);
     }
 
-    /// <summary>点在任意按钮内部（键帽方块、功能键按钮、解绑「✕」、加音「+」）时为真。</summary>
     private static bool IsInsideButton(Visual? source)
         => source != null && source.FindAncestorOfType<Button>(true) is not null;
 
-    /// <summary>落下这个键：主键行写 Key，功能键行写 up / down / sharp。</summary>
     private void CommitKey(string label)
     {
         string canonical = KeymapProfile.CanonicalKeyName(label);
@@ -689,13 +637,11 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
 
         if (row == null) return;
 
-        // 同一个键在别的行上已经用过：按需求允许并存，只给提示，不阻止保存
         var same = _rows.Where(r => r != row && string.Equals(r.Source?.Key, canonical, StringComparison.OrdinalIgnoreCase)).ToList();
 
         var source = row.Source;
         if (source == null)
         {
-            // 老方案整份退回物理排分组时不能只给新键写行号，否则一按就跳成「有行号」的方案。
             source = new KeyBinding
             {
                 Key = canonical,
@@ -715,9 +661,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
               + (same.Count > 0 ? "。这个键还绑在别的音上，两个音都会响。" : "。"));
     }
 
-    // ================= 主键方块：音高 / 解绑 / 加音 / 加行 =================
-
-    /// <summary>行尾的「+」：在这一行末尾加一个音（列）。</summary>
     private void RowAddCell_Click(object? sender, RoutedEventArgs e)
     {
         if (sender is not Control c || c.DataContext is not KeymapRowGroup group) return;
@@ -746,7 +689,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
             + "没按就点别处，这一格会撤掉。");
     }
 
-    /// <summary>最后一行下面的「+」：新增一行，音高比上一行高一个八度，行号 = 当前最大行号 + 1。</summary>
     private void RowAddRow_Click(object? sender, RoutedEventArgs e)
     {
         e.Handled = true;
@@ -765,16 +707,13 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
             ? Math.Clamp(_keymap.BaseNote, 0, 127)
             : Math.Clamp(_rows.Max(r => r.Pitch) + 12, 0, 127);
 
-        // 新行固定按自然音阶排：do re mi fa sol la si 七个音。
         var pitches = new List<int>();
         foreach (int d in MajorSteps)
             pitches.Add(Math.Clamp(start + d, 0, 127));
 
-        // 给这一行挑还没被占用的键，顺便把这七条写进方案：按钮上直接就能看到键名。
         var keys = NextFreeKeys(pitches.Count);
         if (keys.Count < pitches.Count)
         {
-            // 可用键用尽：一条都不写。写空键名会让 keymap.json 整份读不回来（FromJson 会拒收）。
             Say($"可用键已用完，请先解绑一些键。这一行要 {pitches.Count} 个键，现在只剩 {keys.Count} 个。");
             return;
         }
@@ -797,7 +736,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         }
 
         RebuildRows();
-        // 走 Apply 而不是 Say：这七条键位也属于「方案的改动」，要立刻落盘（含自定义方案的方案文件）
         Apply($"加了一行「{_groups[0].Label}」：新的一行在最上面，键名已经自动填上（{string.Join(" ", keys)}）。"
               + "点某一格的下半块可以改成别的键。");
     }
@@ -830,11 +768,9 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
             if (picked.Count >= count) break;
             Take(ch.ToString());
         }
-        // 池子用尽：少给几个，由调用方提示并中止这一次操作
         return picked;
     }
 
-    /// <summary>新键帽：还没绑键、音高已经定好。</summary>
     private RowVM NewPendingCell(int pitch) => new()
     {
         RowNo = _rows.Count + 1,
@@ -842,7 +778,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         Source = null,
     };
 
-    /// <summary>一行里相邻两格最小的正间隔；只有一格时按 1 个半音。</summary>
     private static int RowStepOf(KeymapRowGroup group)
     {
         var ordered = group.Cells.OrderBy(x => x.Pitch).Select(x => x.Pitch).ToList();
@@ -855,7 +790,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         return step;
     }
 
-    /// <summary>点右上角的「✕」：解绑。与右键菜单的「解绑这个键」走同一条。</summary>
     private void RowRemove_Click(object? sender, RoutedEventArgs e)
     {
         if (sender is not Control c || c.DataContext is not RowVM row) return;
@@ -876,8 +810,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         row.Parent?.Cells.Remove(row);
         RebuildRows();
     }
-
-    // ================= 键帽右键菜单：改音高 / 解绑 =================
 
     private void CapBlock_ContextRequested(object? sender, ContextRequestedEventArgs e)
     {
@@ -918,10 +850,9 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         {
             ItemsSource = choices,
             MinWidth = 130,
-            MaxHeight = 260,     // 列表长时滚动，不撑出屏幕
+            MaxHeight = 260,     
             FontSize = 12.5,
         };
-        // 先铺当前值、再挂事件：反过来的话「铺值」这一次选择会被当成用户选中，一弹开就把音高改了
         int current = choices.IndexOf(NoteLabelOf(row.Pitch));
         if (current >= 0) list.SelectedIndex = current;
 
@@ -936,7 +867,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
             flyout.Hide();
             ApplyPitch(row, label);
         };
-        // 等这一轮输入走完再弹列表：菜单项点完 ContextMenu 才关，立刻弹会被它一起收掉
         Dispatcher.UIThread.Post(() => flyout.ShowAt(target), DispatcherPriority.Background);
     }
 
@@ -962,7 +892,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         Apply($"{DisplayKeyText(source.Key)} 的音高已改到 {Music.SolfegeName(pitch)}。");
     }
 
-    /// <summary>把列表里的「1(do)」换回音高数字。认不出来就保持原值。</summary>
     private static int PitchOfLabel(string label, int fallback)
     {
         int i = label.IndexOf('(');
@@ -971,8 +900,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
             if (string.Equals(Music.SolfegeNames[p], name, StringComparison.Ordinal)) return p;
         return fallback;
     }
-
-    // ================= 功能键开关 =================
 
     private void Modifiers_Changed(object? sender, RoutedEventArgs e)
     {
@@ -983,13 +910,11 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         EndWaiting(false);
         _keymap.ModifiersEnabled = on;
         FuncPanel.IsEnabled = on;
-        RebuildRows();   // 音域跟着变，行分组与统计都要重算
+        RebuildRows();   
         Apply(on
             ? "功能键已启用：八度键与半音键照方案里的绑定生效。"
             : "功能键已关闭：四个功能键都不生效，超出键位范围的音直接不发声。");
     }
-
-    // ================= 功能键 =================
 
     private void FuncClear_Click(object? sender, RoutedEventArgs e)
     {
@@ -998,7 +923,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         e.Handled = true;
     }
 
-    /// <summary>把一个功能键设成「未设置」并写盘。</summary>
     private void ClearFuncKey(FuncRowVM row)
     {
         if (ReferenceEquals(_func, row)) EndWaiting(false);
@@ -1014,8 +938,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         Apply($"「{row.Label}」已设为未绑。");
     }
 
-    // ================= 方案管理 =================
-
     private void KeymapCombo_Changed(object? sender, SelectionChangedEventArgs e)
     {
         if (_loading) return;
@@ -1026,7 +948,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         var found = KeymapProfile.LoadByName(name);
         if (found == null)
         {
-            // 文件被删掉或读不动了：把下拉拉回当前方案，别让界面停在一个不存在的方案上
             Say($"读不到方案「{name}」，已保持当前方案。");
             FillSchemeCombo();
             return;
@@ -1036,7 +957,7 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         string oldName = _keymap.Name;
         _keymap = found;
         KeymapProfile.Current = _keymap;
-        try { _keymap.Save(); } catch { /* 保存失败由主窗日志告知 */ }
+        try { _keymap.Save(); } catch { }
         string? extra = _applyProfileSettings(_keymap);
         RefreshUi();
         string msg = $"已换方案：{oldName} → {_keymap.Name}（主键 {BindCount()} 个）"
@@ -1075,8 +996,8 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
             copy.Name = final;
             _keymap = copy;
             KeymapProfile.Current = _keymap;
-            _keymap.Save();           // 活动方案仍然只写 keymap.json
-            WriteSchemeFile(final);   // 另存的那一份写进 schemes 目录，重启后还能选到
+            _keymap.Save();           
+            WriteSchemeFile(final);   
             RefreshUi();
             Apply($"已新建方案「{final}」（键位照抄「{from}」）。以后用「改名…」改名字。");
         }
@@ -1086,7 +1007,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         }
     }
 
-    /// <summary>新方案的默认名字：以当前名字为底加「副本」，重名就往后排数字。</summary>
     private string SuggestNewSchemeName()
     {
         string baseName = (_keymap.Name ?? "").Trim();
@@ -1128,10 +1048,10 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
             string oldPath = KeymapProfile.SchemeFilePath(oldName);
             _keymap.Name = final;
             KeymapProfile.Current = _keymap;
-            _keymap.Save();            // 活动方案：名字换了，keymap.json 跟着变
-            WriteSchemeFile(final);    // 新名字的文件
+            _keymap.Save();            
+            WriteSchemeFile(final);    
             if (!string.Equals(oldPath, KeymapProfile.SchemeFilePath(final), StringComparison.OrdinalIgnoreCase))
-                TryDeleteFile(oldPath); // 旧名字的文件删掉
+                TryDeleteFile(oldPath); 
             RefreshUi();
             Apply($"方案已改名：{oldName} → {final}。");
         }
@@ -1164,7 +1084,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
                 return;
             }
 
-            // 活动方案换成默认内置方案
             _keymap = KeymapProfile.PresetByName(KeymapProfile.DefaultName)?.Clone() ?? KeymapProfile.Default;
             KeymapProfile.Current = _keymap;
             _keymap.Save();
@@ -1217,8 +1136,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         ToolTip.SetTip(BtnRenameScheme, fixedScheme ? "内置方案不能改，可以先新建一份" : "给这套方案换个名字");
         ToolTip.SetTip(MiSchemeDelete, fixedScheme ? "内置方案不能改，可以先新建一份" : "删掉这套方案");
     }
-
-    // ================= 导入 / 导出 =================
 
     private async void KeymapExport_Click(object? sender, RoutedEventArgs e)
     {
@@ -1286,11 +1203,10 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
             if (!string.Equals(oldName, _keymap.Name, StringComparison.Ordinal))
                 msg += $"。方案名已变：{oldName} → {_keymap.Name}";
             if (!string.IsNullOrEmpty(extra)) msg += "。" + extra;
-            // 名字撞上内置方案时，这一份会覆盖内置方案在 schemes 目录里的用户版本（名字只有一个）
             if (KeymapProfile.IsBuiltInSchemeName(_keymap.Name))
                 msg += "。注意：这是内置方案名，导入的键位会当成这套方案的改动存进 schemes 目录，"
                      + "「恢复默认设置」可以退回内置键位。要另存一份请先「新建方案…」再导入。";
-            Apply(msg);   // Apply 会把任何方案都写回 schemes\<方案名>.json，切走再切回来还在
+            Apply(msg);   
         }
         catch (Exception ex)
         {
@@ -1298,7 +1214,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         }
     }
 
-    /// <summary>把方案名整理成能当文件名的样子：去掉两端空格与非法字符。</summary>
     private static string SanitizeSchemeName(string? want)
     {
         string safe = (want ?? "").Trim();
@@ -1306,7 +1221,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         return safe.Trim();
     }
 
-    /// <summary>把当前方案写进 schemes\&lt;名字&gt;.json。写不动就返回 false 并给出中文原因。</summary>
     private bool WriteSchemeFile(string name, out string error)
     {
         error = "";
@@ -1336,8 +1250,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
     {
         try { if (File.Exists(path)) File.Delete(path); } catch { }
     }
-
-    // ================= 统计 =================
 
     private int BindCount() =>
         _keymap.Keys.Count(k => k != null && !string.IsNullOrWhiteSpace(k.Key));
@@ -1378,9 +1290,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
                + $"其中 {MissingInRange()} 个音还没有绑键。（{mods}）";
     }
 
-    // ================= 重复绑定提示 =================
-
-    /// <summary>同一个物理键绑到多个音：涉及的键帽都描红边，但不阻止保存。</summary>
     private void ApplyDuplicates()
     {
         static string IdOf(KeyBinding? kb)
@@ -1403,9 +1312,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         }
     }
 
-    // ================= 键盘录入 =================
-
-    /// <summary>按键 → 键名。返回 null 表示不绑定这个键。</summary>
     private static string? KeyLabelOf(Key key)
     {
         if (key is >= Key.A and <= Key.Z) return ((char)('A' + (key - Key.A))).ToString();
@@ -1442,8 +1348,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
             _ => null
         };
     }
-
-    // ================= 小对话框 =================
 
     private async Task<string?> PromptName(string title, string okText, string initial)
     {
@@ -1529,9 +1433,6 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
         return await dlg.ShowDialog<bool>(this);
     }
 
-    // ================= 快照用诊断 =================
-
-    /// <summary>只在拍快照时打印布局尺寸，便于核对三块是否清楚、有没有溢出。</summary>
     private void ReportLayout()
     {
         try
@@ -1567,36 +1468,28 @@ public sealed partial class SettingsWindow : Window, INotifyPropertyChanged
     }
 }
 
-// ================= 视觉模型 =================
-
 internal abstract class KeyCapRow : INotifyPropertyChanged
 {
     private string _keyText = "";
     private bool _waiting;
 
-    /// <summary>按钮上平时显示的键名。空串 = 这条还没设置。</summary>
     public string KeyText { get => _keyText; set => Set(ref _keyText, value); }
 
-    /// <summary>是否正在等用户按一个键。</summary>
     public bool Waiting { get => _waiting; set => Set(ref _waiting, value); }
 
-    /// <summary>没设置（方案里是空字符串）。</summary>
     public bool IsEmpty => !Waiting && _keyText.Length == 0;
 
-    /// <summary>键帽上的按键文字：等待 → 提示语，未设置 → 灰字「未绑」，有值 → 键名。</summary>
     public string KeyCapText =>
         Waiting ? "按一个键…" :
         _keyText.Length > 0 ? _keyText :
         "未绑";
 
-    /// <summary>未设置的键帽用次要文字色，一眼能看出「这里还没绑」。</summary>
     public IBrush? KeyCapForeground => FindBrush(IsEmpty ? "BrushTextMuted" : "BrushText");
 
     public string CapTip
     {
         get
         {
-            // 右键菜单没有可见入口，把它的存在写进提示气泡里
             const string rightMenu = "右键这个方块可以改音高，也可以解绑。";
             if (_keyText.Length == 0) return $"点这个方块，再按一个键，就把这个键绑到这个音。{rightMenu}";
             string extra = SettingsWindow.LongNameOf(_keyText);
@@ -1606,10 +1499,8 @@ internal abstract class KeyCapRow : INotifyPropertyChanged
         }
     }
 
-    /// <summary>等待态描边加粗一档。</summary>
     public Thickness WaitBorderThickness => Waiting ? new Thickness(2) : new Thickness(0);
 
-    /// <summary>等待态描边色。取现有主题资源，不自造配色。</summary>
     public IBrush? WaitBorderBrush => Waiting ? FindBrush("BrushAccent") : null;
 
     protected static IBrush? FindBrush(string key) => ThemeSwitch.BrushOf(key);
@@ -1622,7 +1513,6 @@ internal abstract class KeyCapRow : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    /// <summary>子类改自己的字段也走这里。返回 true 表示值真的变了。</summary>
     protected bool Set<T>(ref T field, T value, [CallerMemberName] string? name = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value)) return false;
@@ -1631,7 +1521,6 @@ internal abstract class KeyCapRow : INotifyPropertyChanged
         return true;
     }
 
-    /// <summary>字段变了之后要通知哪些属性。派生类可以补充。</summary>
     protected virtual void OnSet(string? name)
     {
         Raise(name);
@@ -1645,7 +1534,6 @@ internal abstract class KeyCapRow : INotifyPropertyChanged
         }
     }
 
-    /// <summary>事件只能从这里发：声明 PropertyChanged 的类才允许触发它。</summary>
     protected void Raise(string? name) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
@@ -1655,11 +1543,9 @@ internal sealed class RowVM : KeyCapRow
     public KeyBinding? Source { get; set; }
     public int RowNo { get; set; }
 
-    /// <summary>这颗键帽属于哪一行。解绑与撤销时要从行里摘掉。</summary>
     public KeymapRowGroup? Parent { get; set; }
 
     private int _pitch;
-    /// <summary>这个键弹出的音高（MIDI 编号）。</summary>
     public int Pitch
     {
         get => _pitch;
@@ -1670,14 +1556,11 @@ internal sealed class RowVM : KeyCapRow
         }
     }
 
-    /// <summary>方块上的大字：简谱音高，例如 1 或 1˙。数字上下的点表示八度。</summary>
     public string PitchName => Music.SolfegeName(_pitch);
 
-    /// <summary>报告与诊断用的音高文字，形如「1(do)」。方块里不再显示唱名。</summary>
     public string PitchLabel => SettingsWindow.NoteLabelOf(_pitch);
 
     private bool _duplicate;
-    /// <summary>同一个物理键绑到了多个音：方块描红边提醒。</summary>
     public bool IsDuplicate
     {
         get => _duplicate;
@@ -1689,13 +1572,11 @@ internal sealed class RowVM : KeyCapRow
         }
     }
 
-    /// <summary>方块描边：等待按键 → 品牌绿加粗；重复绑定 → 红边；平时 → 一像素灰边。</summary>
     public IBrush? BlockBorderBrush =>
         Waiting ? FindBrush("BrushAccent")
         : IsDuplicate ? FindBrush("BrushDanger")
         : FindBrush("BrushBorderStrong");
 
-    /// <summary>方块描边粗细。等待态加粗一档。</summary>
     public Thickness BlockBorderThickness =>
         Waiting ? new Thickness(2) : IsDuplicate ? new Thickness(1.5) : new Thickness(1);
 
@@ -1709,7 +1590,6 @@ internal sealed class RowVM : KeyCapRow
         }
     }
 
-    /// <summary>换皮肤之后方块描边也要重取（等待态是品牌绿、重复绑定是红）。</summary>
     public override void RefreshThemeBrushes()
     {
         base.RefreshThemeBrushes();
@@ -1719,16 +1599,13 @@ internal sealed class RowVM : KeyCapRow
 
 internal sealed class KeymapRowGroup : INotifyPropertyChanged
 {
-    /// <summary>这一行的键帽。行尾的「+」不在这里。</summary>
     public ObservableCollection<RowVM> Cells { get; } = new();
 
-    /// <summary>从 1 数起，第一行（行号最大那排）在最上面。</summary>
     public int RowNumber { get; set; }
 
     public int SchemeRow { get; set; }
 
     private string _label = "";
-    /// <summary>行标题，例如「第 1 行（共 3 行）· 7 个键 · 1(do) ~ 7(si)」。</summary>
     public string Label { get => _label; set => Set(ref _label, value); }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -1741,7 +1618,6 @@ internal sealed class KeymapRowGroup : INotifyPropertyChanged
     }
 }
 
-/// <summary>一行功能键。绑法与键帽一样：点一下，再按一个键。</summary>
 internal sealed class FuncRowVM : KeyCapRow
 {
     public string Tag { get; set; } = "";

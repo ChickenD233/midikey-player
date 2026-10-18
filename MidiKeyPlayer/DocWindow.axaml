@@ -7,7 +7,6 @@
         Background="{DynamicResource BrushCanvas}"
         FontFamily="{DynamicResource FontUi}">
   <Grid RowDefinitions="*,Auto" Margin="16">
-    <!-- 只读可选中：内容能复制，不能改 -->
     <TextBox Grid.Row="0" x:Name="TxtDoc" IsReadOnly="True" AcceptsReturn="True"
              TextWrapping="Wrap" VerticalContentAlignment="Top"
              Background="Transparent" BorderThickness="0" FontSize="{DynamicResource FontBody}"/>

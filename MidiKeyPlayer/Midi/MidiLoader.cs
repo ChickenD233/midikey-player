@@ -4,19 +4,16 @@ using Melanchall.DryWetMidi.Common;
 
 namespace MidiKeyPlayer.Midi;
 
-/// <summary>导入各种标准 MIDI 文件（格式 0/1/2），按 (轨道, 声道) 拆出旋律候选并换算为秒。</summary>
 public static class MidiLoader
 {
     static MidiLoader()
     {
-        // 支持 GBK/GB2312 等旧编码（国内老 MIDI 轨道名常用）
         try { System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance); }
         catch { }
     }
 
     public static ParsedMidi Parse(string path)
     {
-        // 先整体读入内存再解析：避免 iCloud/网络盘“占位文件”、文件占用等导致解析与读取互相干扰
         byte[] data = File.ReadAllBytes(path);
 
         if (data.Length == 0)
@@ -25,7 +22,6 @@ public static class MidiLoader
         string sig = System.Text.Encoding.ASCII.GetString(data, 0, Math.Min(4, data.Length));
         if (sig == "RIFF")
         {
-            // .rmi：RIFF 包装的 MIDI，尝试取出内部 MThd 再解析
             int p = IndexOf(data, new byte[] { (byte)'M', (byte)'T', (byte)'h', (byte)'d' }, 12);
             if (p < 0)
                 throw new InvalidDataException("是 RIFF(.rmi) 格式但内部找不到 MIDI 数据，文件可能损坏。");
@@ -36,14 +32,11 @@ public static class MidiLoader
             throw new InvalidDataException($"不是标准 MIDI 文件：开头是“{sig}”。可能文件已损坏、被改名，或根本不是 MIDI（如其实是其它格式）。");
 
         using var stream = new MemoryStream(data);
-        // 文本解码：优先 UTF-8；解码不出则回退 GBK（DecodeTextCallback）
         var settings = new ReadingSettings
         {
             TextEncoding = System.Text.Encoding.UTF8,
             DecodeTextCallback = DecodeTextSmart,
             NotEnoughBytesPolicy = NotEnoughBytesPolicy.Ignore,
-            // 网上 MIDI 常带脏数据（如调号/通道事件非法参数值），一律就近纠正而不中断，
-            // 保证能载入；这些元事件对演奏无影响。
             InvalidMetaEventParameterValuePolicy =
                 Melanchall.DryWetMidi.Core.InvalidMetaEventParameterValuePolicy.SnapToLimits,
             InvalidChannelEventParameterValuePolicy =
@@ -59,7 +52,6 @@ public static class MidiLoader
         catch (Exception ex) when (ex is Melanchall.DryWetMidi.Core.NotEnoughBytesException
                                 || ex is Melanchall.DryWetMidi.Core.InvalidChunkSizeException)
         {
-            // 终极兜底：裁掉"最后一个完整轨道之后"的残缺字节，再重新解析
             byte[]? trimmed = TryTrimToCompleteChunks(data);
             if (trimmed == null)
                 throw new InvalidDataException(
@@ -79,8 +71,6 @@ public static class MidiLoader
         }
         var tempoMap = file.GetTempoMap();
 
-        // 卷帘标尺画小节线用：取文件第一处速度与拍号。带变速/变拍的曲子会有偏差，
-        // 这里只做视觉网格，不参与任何时序计算。
         double secPerBeat = 0.5;
         int beatsPerBar = 4;
         try
@@ -92,7 +82,7 @@ public static class MidiLoader
             if (tsChange != null && tsChange.Value.Numerator >= 1)
                 beatsPerBar = tsChange.Value.Numerator;
         }
-        catch { /* 元事件异常时用 120bpm 4/4 */ }
+        catch { }
 
         string divisionLabel;
         switch (file.TimeDivision)
@@ -117,7 +107,6 @@ public static class MidiLoader
             string trackName = chunk.Events.OfType<SequenceTrackNameEvent>()
                                       .FirstOrDefault()?.Text ?? "";
 
-            // 这条轨各个声道用的 GM 音色号：声部识别的主要证据（见 GmInstrument）。
             var programs = ReadPrograms(chunk);
 
             var allNotes = chunk.GetNotes().ToList();
@@ -129,7 +118,7 @@ public static class MidiLoader
                 {
                     double s = TicksToSeconds(tempoMap, n.Time);
                     double e = TicksToSeconds(tempoMap, n.EndTime);
-                    if (e - s < 0.02) e = s + 0.02; // 极短音保证至少 20ms
+                    if (e - s < 0.02) e = s + 0.02; 
 
                     notes.Add(new RawNote
                     {
@@ -149,7 +138,6 @@ public static class MidiLoader
                 bool guessed;
                 if (grp.Key == 9)
                 {
-                    // 通道 10 按 MIDI 规范就是打击乐，与音色号无关
                     role = TrackRole.Drums;
                     guessed = false;
                 }
@@ -161,7 +149,6 @@ public static class MidiLoader
                 else
                 {
                     role = GmInstrument.Infer(grp.Key, trackName, notes);
-                    // 轨名里明写了「鼓 / drum / 打击」，那是文件里的信息，不算猜
                     bool nameSaysDrums = trackName.Contains("鼓") || trackName.Contains("打击")
                                          || trackName.ToLowerInvariant().Contains("drum")
                                          || trackName.ToLowerInvariant().Contains("perc");
@@ -200,7 +187,6 @@ public static class MidiLoader
     private static string DecodeTextSmart(byte[] raw, ReadingSettings settings)
     {
         if (raw == null || raw.Length == 0) return "";
-        // 1) 优先严格 UTF-8
         try
         {
             var utf8 = new System.Text.UTF8Encoding(false, true);
@@ -208,7 +194,6 @@ public static class MidiLoader
             if (!s.Contains('\uFFFD')) return s;
         }
         catch { }
-        // 2) 回退 GBK（936），国内老 MIDI 常用
         try
         {
             return System.Text.Encoding.GetEncoding(936).GetString(raw);
@@ -276,14 +261,14 @@ public static class MidiLoader
                     data[i + 2] != (byte)'r' || data[i + 3] != (byte)'k') break;
                 long size = BE32(data, i + 4);
                 long end = (long)i + 8 + size;
-                if (end > data.Length) break;          // 最后一块不完整 → 丢弃其后
+                if (end > data.Length) break;          
                 chunks.Add(data[i..(int)end]);
                 i = (int)end;
             }
             if (chunks.Count == 0) return null;
 
             byte[] head = data[..headerTotal];
-            head[10] = (byte)(chunks.Count >> 8);      // 修正 ntrks
+            head[10] = (byte)(chunks.Count >> 8);      
             head[11] = (byte)(chunks.Count & 0xFF);
 
             using var ms = new MemoryStream();

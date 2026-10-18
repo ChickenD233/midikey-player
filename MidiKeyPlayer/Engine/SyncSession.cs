@@ -4,12 +4,10 @@ namespace MidiKeyPlayer.Engine;
 
 internal sealed class SyncSession : IDisposable
 {
-    // ================= 对外事件（后台线程触发） =================
 
     public event Action<SyncConnState>? ConnectionChanged;
     public event Action? RoomChanged;
 
-    /// <summary>到点开演。参数 = 起始位置（秒）。</summary>
     public event Action<double>? StartRequested;
     public event Action? PauseRequested;
     public event Action? ResumeRequested;
@@ -20,26 +18,19 @@ internal sealed class SyncSession : IDisposable
     public event Action<string>? Log;
     public event Action<string>? Faulted;
 
-    // ================= 身份 =================
-
     private readonly SyncRoomInfo _room;
     private readonly string _peerId;
     private readonly string _name;
     private readonly bool _isHost;
 
-    /// <summary>成员名单。服务器推名单时整份替换。</summary>
     private List<SyncPeerInfo> _peers = new();
 
-    /// <summary>自己的声部（显示文本，例如 "2、4"）。</summary>
     private string _selfVoice = "";
 
-    /// <summary>自己的移调（半音）。</summary>
     private int _selfTranspose;
 
-    /// <summary>房主统一规定的移调。null = 没有统一，各人自己管。</summary>
     private int? _unifiedTranspose;
 
-    /// <summary>本轮的演奏状态。</summary>
     private SyncTransport _transport = SyncTransport.Idle;
 
     private double _speed = 1.0;
@@ -47,8 +38,6 @@ internal sealed class SyncSession : IDisposable
 
     private SyncRelay? _relay;
     private int _selfReadyCount;
-
-    // ================= 时间 =================
 
     private SyncAnchor _anchor = SyncAnchor.Idle;
     private double _pausedPosition;
@@ -70,16 +59,12 @@ internal sealed class SyncSession : IDisposable
     internal SyncConnState Connection => _relay?.Connection ?? SyncConnState.Offline;
     internal string InviteText => _room.ToInvite();
 
-    /// <summary>自己的声部显示文本。</summary>
     internal string SelfVoice => _selfVoice;
 
-    /// <summary>自己的移调。房主统一规定时，返回统一值。</summary>
     internal int SelfTranspose => _unifiedTranspose ?? _selfTranspose;
 
-    /// <summary>房主统一规定的移调。null = 没统一。</summary>
     internal int? UnifiedTranspose => _unifiedTranspose;
 
-    /// <summary>倒数秒数（房主可调，随开演命令发给全员）。</summary>
     internal int CountdownSec
     {
         get => _countdownSec;
@@ -96,10 +81,8 @@ internal sealed class SyncSession : IDisposable
         lock (_peers) return _peers.Find(p => p.Id == _peerId);
     }
 
-    /// <summary>当前应有的曲子位置（秒）。没开演就是 0。</summary>
     internal double TargetPositionSec => _anchor.PositionNow();
 
-    /// <summary>从计划开演时刻到现在的剩余毫秒。0 = 已经在演。</summary>
     internal int LeadInMs
     {
         get
@@ -109,9 +92,6 @@ internal sealed class SyncSession : IDisposable
         }
     }
 
-    // ================= 连接 =================
-
-    /// <summary>进房间。voice 是"我的声部"显示文本。</summary>
     internal void Connect(string voice)
     {
         _selfVoice = voice;
@@ -129,7 +109,6 @@ internal sealed class SyncSession : IDisposable
         ConnectionChanged?.Invoke(state);
     }
 
-    /// <summary>退出房间。</summary>
     public void Disconnect()
     {
         var relay = _relay;
@@ -145,8 +124,6 @@ internal sealed class SyncSession : IDisposable
     }
 
     public void Dispose() => Disconnect();
-
-    // ================= 收消息 =================
 
     private void OnMessage(SyncMessage msg)
     {
@@ -214,9 +191,9 @@ internal sealed class SyncSession : IDisposable
 
     internal static int RemainingDelayCore(int delayMs, long sentTickMs, long nowTickMs)
     {
-        if (sentTickMs <= 0) return Math.Max(0, delayMs);   // 没带戳，退回旧口径
+        if (sentTickMs <= 0) return Math.Max(0, delayMs);   
         long transit = nowTickMs - sentTickMs;
-        if (transit < 0) transit = 0;                        // 对端时钟异常，当作没花时间
+        if (transit < 0) transit = 0;                        
         return (int)Math.Max(0, delayMs - transit);
     }
 
@@ -229,9 +206,6 @@ internal sealed class SyncSession : IDisposable
         PauseRequested?.Invoke();
     }
 
-    // ================= 发消息（房主操作） =================
-
-    /// <summary>改自己的声部并报给全房间（名单只在真的变了时才发）。</summary>
     internal void SetSelfVoice(string voice)
     {
         if (voice == _selfVoice) return;
@@ -239,7 +213,6 @@ internal sealed class SyncSession : IDisposable
         _relay?.Send(new SyncMessage { T = SyncKind.Voice, Voice = voice });
     }
 
-    /// <summary>改自己的移调。有统一移调时这条不生效（界面上也会禁用）。</summary>
     internal void SetSelfTranspose(int semitones)
     {
         int t = Math.Clamp(semitones, -24, 24);
@@ -248,7 +221,6 @@ internal sealed class SyncSession : IDisposable
         RoomChanged?.Invoke();
     }
 
-    /// <summary>报自己的就绪态。</summary>
     internal void SetSelfReady(bool ready)
     {
         int want = ready ? 1 : 0;
@@ -257,7 +229,6 @@ internal sealed class SyncSession : IDisposable
         _relay?.Send(new SyncMessage { T = SyncKind.Ready, On = ready });
     }
 
-    /// <summary>房主：统一规定移调。传 null 取消统一。</summary>
     internal void HostSetUnifiedTranspose(int? semitones)
     {
         if (!_isHost) return;
@@ -324,7 +295,6 @@ internal sealed class SyncSession : IDisposable
         StopRequested?.Invoke();
     }
 
-    /// <summary>房主：从暂停处继续。与开演同一条时间线。</summary>
     internal void HostResume(double positionSec)
     {
         if (!_isHost) return;
@@ -347,13 +317,11 @@ internal sealed class SyncSession : IDisposable
         if (!_isHost) return;
         _anchor = SyncAnchor.At(positionSec, _speed);
         _transport = SyncTransport.Playing;
-        // 不填 SentAt：填了收到方会去算传输耗时，这里不需要，越简单越好。
         _relay?.Send(new SyncMessage { T = SyncKind.Start, DelayMs = 0, PositionSec = positionSec });
         RoomChanged?.Invoke();
         SeekRequested?.Invoke(positionSec);
     }
 
-    /// <summary>房主：改速度。</summary>
     internal void HostSetSpeed(double speed)
     {
         if (!_isHost) return;
@@ -363,7 +331,6 @@ internal sealed class SyncSession : IDisposable
         SpeedRequested?.Invoke(_speed);
     }
 
-    /// <summary>全员都点过就绪了吗。人少于两个时也算没就绪：一个人不叫合奏。</summary>
     internal bool AllReady()
     {
         lock (_peers)
@@ -374,7 +341,6 @@ internal sealed class SyncSession : IDisposable
         return true;
     }
 
-    /// <summary>不参与演奏的成员（名单非空时）。界面显示用。</summary>
     internal string DescribeSelf()
     {
         string voice = _selfVoice.Length > 0 ? _selfVoice : "（未选）";
@@ -382,10 +348,9 @@ internal sealed class SyncSession : IDisposable
     }
 }
 
-/// <summary>房间的演奏状态。</summary>
 internal enum SyncTransport
 {
-    Idle = 0,       // 还没开演
+    Idle = 0,       
     Playing = 2,
     Paused = 3,
     Stopped = 4,

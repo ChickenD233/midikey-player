@@ -9,29 +9,25 @@ namespace MidiKeyPlayer;
 
 public partial class OverlayWindow : Window
 {
-    /// <summary>拖动松手后触发：参数是新的窗口位置（供主窗写进设置）。</summary>
     public event Action<int, int>? DragFinished;
 
-    /// <summary>点了浮窗上的 ✕：主窗把悬浮窗开关关掉（等同设置里取消勾选，写进设置）。</summary>
     public event Action? CloseRequested;
 
     private static readonly IBrush NoteBrush = new SolidColorBrush(Color.Parse("#FF4CAF7D"));
-    private const int MaxDrawnNotes = 2000;   // 音符太多时只画前这些，防止控件树爆炸
+    private const int MaxDrawnNotes = 2000;   
 
-    // 滚动窗口：可见 8 秒，播放头固定在 25% 处（左 2 秒已弹过，右 6 秒待弹）
     private const double WindowSec = 8.0;
     private const double PlayheadFrac = 0.25;
 
     private bool _positioned;
-    private double _pxPerSec = 1.0;   // SetNotes 时按窗口宽度算好，ShowProgress 滚动用
+    private double _pxPerSec = 1.0;   
 
-    private double _lastElapsed;      // 最后一次推送的演奏进度（秒）
-    private long _lastPushTicks;      // 最后一次推送的时间戳
-    private double _pushRate = 1.0;   // 实测推进速率（播放速度 400% 时约 4）
+    private double _lastElapsed;      
+    private long _lastPushTicks;      
+    private double _pushRate = 1.0;   
     private bool _paused;
-    private DispatcherTimer? _smoother;   // 30fps 外推定时器
+    private DispatcherTimer? _smoother;   
 
-    /// <summary>卷帘内容层的平移变换（XAML 里声明的那一个）。</summary>
     private TranslateTransform RollShift => (TranslateTransform)RollContent.RenderTransform!;
 
     public OverlayWindow()
@@ -41,13 +37,13 @@ public partial class OverlayWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
-        UnhookRender();   // 关掉后不再占渲染帧回调
+        UnhookRender();   
         base.OnClosed(e);
     }
 
     public void ShowCountdown(int secondsLeft, string nextLabel = "")
     {
-        UnhookRender();   // 倒计时没有卷帘，不用平滑外推
+        UnhookRender();   
         PanelCountdown.IsVisible = true;
         PanelProgress.IsVisible = false;
         TxtCountdown.Text = secondsLeft.ToString();
@@ -99,7 +95,6 @@ public partial class OverlayWindow : Window
         }
     }
 
-    /// <summary>显示演奏进度：内容层向左滚动，播放头固定在 25% 处。</summary>
     public void ShowProgress(double elapsed, double total, int loopCount, bool paused)
     {
         PanelCountdown.IsVisible = false;
@@ -135,7 +130,6 @@ public partial class OverlayWindow : Window
         if (_paused || !IsVisible || !PanelProgress.IsVisible) return;
         double shown = _lastElapsed
                        + _pushRate * (Stopwatch.GetTimestamp() - _lastPushTicks) / (double)Stopwatch.Frequency;
-        // 外推最多比最后一次推送多 0.4 秒：推送万一断流（掉帧、卡顿），卷帘原地等，不往前冲
         shown = Math.Min(shown, _lastElapsed + 0.4);
         RollShift.X = RollCanvas.Width * PlayheadFrac - shown * _pxPerSec;
     }
@@ -156,7 +150,6 @@ public partial class OverlayWindow : Window
         _smoother = null;
     }
 
-    /// <summary>恢复上次拖到的位置；(-1, -1) 或屏幕外 = 默认屏幕右上角。</summary>
     public void RestorePosition(int x, int y)
     {
         if (_positioned) return;
@@ -164,7 +157,6 @@ public partial class OverlayWindow : Window
 
         if (Screens.Primary?.WorkingArea is not { } wa) return;
 
-        // 先量出内容尺寸：刚 Show 时 Bounds 可能还是 0，用近似值兜底
         double w = Math.Max(Bounds.Width, 120);
         double h = Math.Max(Bounds.Height, 48);
 
@@ -187,7 +179,7 @@ public partial class OverlayWindow : Window
     private void Card_PointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
-            BeginMoveDrag(e);   // 系统级拖动：松手在 PointerReleased 里回报位置
+            BeginMoveDrag(e);   
     }
 
     private void Card_PointerReleased(object? sender, PointerReleasedEventArgs e)

@@ -6,7 +6,6 @@ using System.Text.Json;
 
 namespace MidiKeyPlayer.Engine;
 
-/// <summary>后台静默检查 GitHub 新版本，有新版时界面提示并可跳转 Release 页。</summary>
 public static class AutoUpdate
 {
     private static readonly bool Enabled = true;
@@ -14,31 +13,21 @@ public static class AutoUpdate
     private const string Owner = "ChickenD233";
     private const string Repo = "midikey-player";
 
-    /// <summary>最新 Release 页面（用于跳转下载）。</summary>
     public static string ReleasesUrl => $"https://github.com/{Owner}/{Repo}/releases";
 
-    // ================= 作者链接与免费声明 =================
-
-    /// <summary>作者 B 站主页（点按钮打开的就是这个地址）。</summary>
     public const string AuthorSpaceUrl = "https://space.bilibili.com/28440883?spm_id_from=333.1007.0.0";
 
-    /// <summary>界面上显示用的主页地址：去掉分享带的 ?spm… 尾巴，短一点、不换行。</summary>
     public static string AuthorSpaceUrlShort => AuthorSpaceUrl.Split('?')[0];
 
-    /// <summary>作者的爱发电赞助页（赞助入口；界面按「赞助」而不是「购买」来写）。</summary>
     public const string AfdianUrl = "https://afdian.com/a/chickending";
 
-    /// <summary>界面上显示用的爱发电地址：去掉协议的 https://，短一点、不换行。</summary>
     public static string AfdianUrlShort => AfdianUrl.Replace("https://", "", StringComparison.Ordinal);
 
-    /// <summary>作者的 GitHub 主页（看源码、看 Release 都在这里）。</summary>
     public const string GitHubUrl = "https://github.com/ChickenD233";
     public static string GitHubUrlShort => GitHubUrl.Replace("https://", "", StringComparison.Ordinal);
 
-    /// <summary>反馈 QQ 群号。</summary>
     public const string QqGroupNumber = "1042477909";
 
-    /// <summary>作者在 B 站的名字：第一次使用时的验证题答案。</summary>
     public const string AuthorName = "Chicken丁";
 
     public static bool IsAuthorAnswer(string? text)
@@ -67,7 +56,6 @@ public static class AutoUpdate
         "本程序完全免费、开源。如果你是「购买」的此软件，立刻退款，你被骗了："
         + "到购买平台的订单里申请退款，并举报卖家。";
 
-    /// <summary>验证题下面单列的一行：送给倒卖的。</summary>
     public const string ResellerLine = "祝倒狗冚家富貴=）";
 
     public const string MandatoryMarker = "[强制更新]";
@@ -76,16 +64,13 @@ public static class AutoUpdate
 
     public const string RequiredVersion = "1.0.32";
 
-    /// <summary>当前版本是否低于强制更新线（低 = 必须更新）。</summary>
     public static bool IsRequiredVersion(string current) => IsNewer(RequiredVersion, current);
 
-    /// <summary>允许跳转的地址前缀。只有本仓库的页面才交给系统浏览器打开。</summary>
     private static readonly string[] AllowedUrlPrefixes =
     {
         $"https://github.com/{Owner}/{Repo}/",
     };
 
-    /// <summary>地址是否属于本仓库。不在白名单就退回 <see cref="ReleasesUrl"/>，不交给 shell。</summary>
     private static bool IsAllowedUrl(string url)
     {
         if (string.IsNullOrEmpty(url)) return false;
@@ -100,7 +85,6 @@ public static class AutoUpdate
         {
             var v = Assembly.GetExecutingAssembly().GetName().Version;
             if (v == null) return "0.0.0";
-            // 未显式指定版本时 Build/Revision 可能是 -1，用 Math.Max 兜底
             return $"{Math.Max(0, v.Major)}.{Math.Max(0, v.Minor)}.{Math.Max(0, v.Build)}";
         }
     }
@@ -112,15 +96,12 @@ public static class AutoUpdate
         public string CurrentTag { get; init; } = "";
         public string ReleaseName { get; init; } = "";
         public string ReleaseUrl { get; init; } = "";
-        /// <summary>更新包（zip）直链；找不到或地址不在白名单时为空串，界面退回手动下载。</summary>
         public string AssetUrl { get; init; } = "";
-        public bool Skipped { get; init; }       // 用户选了"跳过这个版本"
-        /// <summary>最新版要求强制更新：说明里带 <see cref="MandatoryMarker"/>，跳过选项不生效。</summary>
+        public bool Skipped { get; init; }       
         public bool Mandatory { get; init; }
-        public string? Error { get; init; }      // 网络失败等（静默处理，不打扰用户）
+        public string? Error { get; init; }      
     }
 
-    /// <summary>查询最新 Release 并与当前版本比较；最新版正好是被跳过的那版则 HasUpdate=false。</summary>
     public static async Task<Result> CheckAsync(string? skippedTag = null,
                                                 CancellationToken ct = default)
     {
@@ -168,7 +149,6 @@ public static class AutoUpdate
             }
 
             bool newer = IsNewer(tag, CurrentVersion);
-            // 强制更新：最新版说明（或标题）里带标记 → 低于它的版本必须更新，跳过选项作废
             bool mandatory = newer && (body.Contains(MandatoryMarker, StringComparison.Ordinal)
                                        || name.Contains(MandatoryMarker, StringComparison.Ordinal));
             return new Result
@@ -187,12 +167,10 @@ public static class AutoUpdate
         }
         catch (Exception ex)
         {
-            // 没网 / 被墙 / 超时都属正常，静默忽略
             return new Result { Error = ex.GetType().Name, CurrentTag = CurrentVersion };
         }
     }
 
-    /// <summary>版本号比较：latest 是否比 current 新（按 x.y.z 逐段数值比较）。</summary>
     public static bool IsNewer(string latest, string current)
     {
         var a = Parse(latest);
@@ -221,7 +199,6 @@ public static class AutoUpdate
         return outv;
     }
 
-    /// <summary>用系统默认浏览器打开链接（跳转到 Release 页面下载）。</summary>
     public static void OpenUrl(string url)
     {
         try
@@ -230,21 +207,15 @@ public static class AutoUpdate
         }
         catch (Exception ex)
         {
-            // 打不开就算了，界面上也会把链接文字显示出来供手动复制；失败原因写日志
             Persist.LogFile.Append($"[更新] 打开链接失败（{url}）：{ex.Message}");
         }
     }
 
-    // ================= 自动下载与替换 =================
-
-    /// <summary>允许下载的更新包地址前缀：只认本仓库的 releases/download/。</summary>
     private static string AssetUrlPrefix => $"https://github.com/{Owner}/{Repo}/releases/download/";
 
-    /// <summary>更新包地址是否合法（白名单前缀，且必须是 https）。</summary>
     private static bool IsAllowedAssetUrl(string url)
         => !string.IsNullOrEmpty(url) && url.StartsWith(AssetUrlPrefix, StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>下载与解包目录：%LOCALAPPDATA%\MidiKeyPlayer\update。</summary>
     private static string UpdateDir => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "MidiKeyPlayer", "update");
@@ -292,7 +263,7 @@ public static class AutoUpdate
         }
         catch (OperationCanceledException)
         {
-            return null;   // 关程序时取消：正常路径，不写日志
+            return null;   
         }
         catch (Exception ex)
         {
@@ -367,7 +338,6 @@ public static class AutoUpdate
                 $"$target = '{Esc(target)}'",
                 $"$new    = '{Esc(newExePath)}'",
                 $"$appPid = {Environment.ProcessId}",
-                // 等主程序退出（保存设置、松按键、注销热键都在退出流程里）
                 "try { Wait-Process -Id $appPid -Timeout 180 -ErrorAction Stop } catch {}",
                 "Start-Sleep -Milliseconds 500",
                 "$tmp = \"$target.tmp\"",
@@ -377,12 +347,10 @@ public static class AutoUpdate
                 "    try { Copy-Item -LiteralPath $new -Destination $tmp -Force -ErrorAction Stop; $ok = $true; break }",
                 "    catch { Start-Sleep -Milliseconds 500 }",
                 "}",
-                // 校验临时文件确实存在且不是残片（小于 10KB 视为复制失败）
                 "if ($ok) {",
                 "    $fi = Get-Item -LiteralPath $tmp",
                 "    if ($null -eq $fi -or $fi.Length -lt 10240) { $ok = $false }",
                 "}",
-                // 替换前先把当前 exe 备份到 .bak：替换失败还能把旧版还原回来
                 "if ($ok) {",
                 "    try { Copy-Item -LiteralPath $target -Destination $bak -Force -ErrorAction Stop } catch { $ok = $false }",
                 "}",
@@ -394,7 +362,7 @@ public static class AutoUpdate
                 "    Remove-Item -LiteralPath $new -Force",
                 "    Start-Process -FilePath $target",
                 "} else {",
-                "    # 失败：清掉临时文件，有备份就把旧 exe 还原，并把旧版重新启动 ——",
+                "    # 失败：清掉临时文件，有备份就把旧 exe 还原，并把旧版重新启动 ，",
                 "    # 别让用户面对一个被关掉又打不开的程序",
                 "    Remove-Item -LiteralPath $tmp -Force",
                 "    if (Test-Path -LiteralPath $bak) {",
@@ -404,7 +372,6 @@ public static class AutoUpdate
                 "}",
                 "Remove-Item -LiteralPath $MyInvocation.MyCommand.Path -Force",
             });
-            // Windows PowerShell 5.1 按 BOM 判断脚本编码：写 UTF-8 BOM，路径里的中文才不乱码
             File.WriteAllText(scriptPath, script, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
 
             Process.Start(new ProcessStartInfo

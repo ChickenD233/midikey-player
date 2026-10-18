@@ -13,19 +13,13 @@ public partial class SettingsWindow
     private readonly ObservableCollection<SyncPeerRow> _syncPeerRows = new();
     private readonly ObservableCollection<SyncVoiceRow> _syncVoiceRows = new();
 
-    /// <summary>名单刷新计时器。只读名单，不发消息。</summary>
     private DispatcherTimer? _syncUiTimer;
 
-    /// <summary>本机曲目指纹（加入房间时算一次，用于核对两边是不是同一份文件）。</summary>
     private string _syncFingerprint = "";
 
-    /// <summary>自己的移调。房主统一规定时以统一值为准。</summary>
     private int _syncTranspose;
 
-    /// <summary>正在按程序改控件，别把这次变化当成用户操作。</summary>
     private bool _syncUiUpdating;
-
-    // ================= 初始化与收尾 =================
 
     private void InitSyncPage()
     {
@@ -46,7 +40,6 @@ public partial class SettingsWindow
         RefreshSyncUi();
     }
 
-    /// <summary>关窗收尾：把会话与计时器收干净。不收的话窗口关了还在连服务器。</summary>
     private void CloseSyncSession()
     {
         _syncUiTimer?.Stop();
@@ -58,8 +51,6 @@ public partial class SettingsWindow
         }
         _mainWindow?.ClearSyncMaskForSettings();
     }
-
-    // ================= 界面刷新 =================
 
     private void RefreshSyncUi()
     {
@@ -98,10 +89,8 @@ public partial class SettingsWindow
                 : $"本机曲目指纹 {local}。请自己确认与其他人是同一份文件。";
         }
 
-        // 演出控制：只按「现在是什么状态」决定按钮与提示，见 ApplySyncTransportUi
         ApplySyncTransportUi(BuildSyncUiState(session, isHost));
 
-        // 统一移调只有房主能按；被别人统一之后，自己的滑块禁用
         if (BtnSyncUnifyTranspose != null) BtnSyncUnifyTranspose.IsVisible = isHost;
         if (BtnSyncClearTranspose != null) BtnSyncClearTranspose.IsVisible = isHost;
         bool locked = session.UnifiedTranspose != null;
@@ -124,8 +113,6 @@ public partial class SettingsWindow
 
         if (TxtSyncSpeed != null)
         {
-            // 倒数报「还剩几秒」，不报设置里那个总数：开演消息已经带回了剩余等待时间，
-            // 报总数会让人以为刚点完开演。
             string state = session.Transport switch
             {
                 SyncTransport.Playing when session.LeadInMs > 0 => $"倒数 {session.LeadInMs / 1000.0:F1} 秒",
@@ -183,7 +170,6 @@ public partial class SettingsWindow
         }
     }
 
-    /// <summary>把 "1、3" 这样的显示文本解析成声部序号。1 起改成 0 起。</summary>
     internal static List<int> ParseVoices(string text)
     {
         var list = new List<int>();
@@ -195,7 +181,6 @@ public partial class SettingsWindow
         return list;
     }
 
-    /// <summary>把声部序号拼成显示文本，例如 0、2 → "1、3"。</summary>
     internal static string FormatVoices(IEnumerable<int> voices)
     {
         var list = new List<int>(voices);
@@ -203,8 +188,6 @@ public partial class SettingsWindow
         list.Sort();
         return string.Join("、", list.ConvertAll(v => (v + 1).ToString()));
     }
-
-    // ================= 建房与加入 =================
 
     private void SyncHost_Click(object? sender, RoutedEventArgs e)
     {
@@ -250,7 +233,6 @@ public partial class SettingsWindow
         StartSyncSession(room, isHost: false);
     }
 
-    /// <summary>开一次会话。房主用界面上填的地址，成员用邀请串里带的地址。</summary>
     private void StartSyncSession(SyncRoomInfo room, bool isHost)
     {
         CloseSyncSession();
@@ -289,7 +271,6 @@ public partial class SettingsWindow
         session.Log += OnSyncLog;
         session.Faulted += OnSyncFaulted;
 
-        // 声部编号全场一致：按文件里的列表顺序编号，各人勾自己那份。
         _mainWindow?.PrepareSyncTracksForSettings();
         _syncFingerprint = _mainWindow?.SyncTrackFingerprintForSettings() ?? "";
 
@@ -330,8 +311,6 @@ public partial class SettingsWindow
         if (TxtSyncCopied != null) TxtSyncCopied.Text = ok ? "已复制" : "复制失败，请手动选中那一行";
     }
 
-    // ================= 事件接线 =================
-
     private void OnSyncConnectionChanged(SyncConnState state)
         => Dispatcher.UIThread.Post(() => { RefreshSyncUi(); PushMaskToMainWindow(); });
 
@@ -371,9 +350,6 @@ public partial class SettingsWindow
     private void OnSyncStopRequested()
         => Dispatcher.UIThread.Post(() => { _mainWindow?.StopSyncPlaybackForSettings(); RefreshSyncUi(); });
 
-    // ================= 声部与移调 =================
-
-    /// <summary>界面上勾了哪几个声部（0 起序号）。</summary>
     private List<int> CurrentVoiceSelection()
     {
         var list = new List<int>();
@@ -400,7 +376,6 @@ public partial class SettingsWindow
         PushMaskToMainWindow();
     }
 
-    /// <summary>房主：把自己当前的移调规定给全场。</summary>
     private void SyncUnifyTranspose_Click(object? sender, RoutedEventArgs e)
     {
         if (_sync is not { IsHost: true }) return;
@@ -408,7 +383,6 @@ public partial class SettingsWindow
         RefreshSyncUi();
     }
 
-    /// <summary>房主：取消统一移调，各人回到自己的设置。</summary>
     private void SyncClearTranspose_Click(object? sender, RoutedEventArgs e)
     {
         if (_sync is not { IsHost: true }) return;
@@ -422,8 +396,6 @@ public partial class SettingsWindow
         _sync.SetSelfReady(ChkSyncReady?.IsChecked == true);
         RefreshSyncUi();
     }
-
-    // ================= 演出控制 =================
 
     private void SyncPrimary_Click(object? sender, RoutedEventArgs e)
     {
@@ -442,7 +414,6 @@ public partial class SettingsWindow
                     SaySync("本机还没载入 MIDI，无法开演。先回主界面导入一首。");
                     return;
                 }
-                // 允许抢开演，但要留一条日志：之后对不上拍时能看出是少人等过。
                 if (!session.AllReady())
                     _mainWindow?.InsertSyncLogForSettings("远程同演：还有人没就绪，房主仍然开演。");
                 session.HostStart(_mainWindow?.SyncProgressSecondsForSettings() ?? 0);
@@ -463,7 +434,6 @@ public partial class SettingsWindow
         RefreshSyncUi();
     }
 
-    /// <summary>一次界面判定要用到的全部状态。</summary>
     private sealed class SyncUiState
     {
         public bool IsHost;
@@ -511,9 +481,9 @@ public partial class SettingsWindow
             };
             BtnSyncPrimary.IsEnabled = s.IsHost && s.Transport switch
             {
-                SyncTransport.Playing => true,      // 播放中：暂停
-                SyncTransport.Paused => true,       // 暂停中：继续
-                _ => s.HasTrack,                    // 空闲 / 已停止：开演，得先载入曲目
+                SyncTransport.Playing => true,      
+                SyncTransport.Paused => true,       
+                _ => s.HasTrack,                    
             };
             Avalonia.Controls.ToolTip.SetTip(BtnSyncPrimary, s.IsHost
                 ? "按当前状态来：没开演就是开演，演奏中就是暂停，暂停中就是继续"
@@ -539,37 +509,33 @@ public partial class SettingsWindow
         switch (s.Transport)
         {
             case SyncTransport.Playing when s.LeadIn:
-                return s.IsHost ? "倒数中 —— 到点全场一起开始。" : "倒数中 —— 到点跟大家一起开始。";
+                return s.IsHost ? "倒数中，到点全场一起开始。" : "倒数中，到点跟大家一起开始。";
             case SyncTransport.Playing:
                 return s.IsHost
-                    ? "演奏中 —— 要停就点「暂停」；要挪位置，先拖主界面的进度条再点「跳转」。"
-                    : "演奏中 —— 暂停 / 继续 / 跳转 / 停止都由房主控制，你不用操作。";
+                    ? "演奏中，要停就点「暂停」；要挪位置，先拖主界面的进度条再点「跳转」。"
+                    : "演奏中，暂停 / 继续 / 跳转 / 停止都由房主控制，你不用操作。";
             case SyncTransport.Paused:
                 return s.IsHost
-                    ? "已暂停 —— 点「▶ 继续」接着弹（会再倒数几秒），或点「停止」结束本轮。"
-                    : "已暂停 —— 等房主点「继续」，你不用操作。";
+                    ? "已暂停，点「▶ 继续」接着弹（会再倒数几秒），或点「停止」结束本轮。"
+                    : "已暂停，等房主点「继续」，你不用操作。";
             case SyncTransport.Stopped:
                 return s.IsHost
-                    ? "已停止 —— 点「重新开演」从当前位置再来一轮。"
-                    : "已停止 —— 等房主重新开演。";
+                    ? "已停止，点「重新开演」从当前位置再来一轮。"
+                    : "已停止，等房主重新开演。";
         }
 
-        // 还没开演
         if (!s.HasTrack) return "主界面还没载入 MIDI。先回主界面导入一首，再回来开演。";
         if (!s.IsHost) return "等房主开演。你先勾好自己的声部，再点「我就绪了」。";
-        if (s.Peers < 2) return "还没有别人进来 —— 点「复制邀请串」把朋友叫进来。";
+        if (s.Peers < 2) return "还没有别人进来，点「复制邀请串」把朋友叫进来。";
         if (s.Ready < s.Peers) return $"还有 {s.Peers - s.Ready} 人没就绪：{s.NotReadyNames}。都就绪后点「开演」。";
-        return "所有人都就绪 —— 点「开演」，倒数结束后全场一起开始。";
+        return "所有人都就绪，点「开演」，倒数结束后全场一起开始。";
     }
 
-    /// <summary>展开 / 收起「怎么看这个功能」那段说明。</summary>
     private void SyncIntro_Click(object? sender, RoutedEventArgs e)
     {
         if (TxtSyncIntro == null) return;
         TxtSyncIntro.IsVisible = !TxtSyncIntro.IsVisible;
     }
-
-    // ================= 小工具 =================
 
     private void SaySync(string message)
     {
@@ -585,7 +551,6 @@ public partial class SettingsWindow
         _syncUiTimer.Start();
     }
 
-    /// <summary>把本机声部与移调推给主窗。</summary>
     private void PushMaskToMainWindow()
     {
         var session = _sync;
@@ -618,7 +583,7 @@ public partial class SettingsWindow
 
         if (SyncConnectCard != null) SyncConnectCard.IsVisible = false;
         if (SyncRoomCard != null) SyncRoomCard.IsVisible = true;
-        if (SyncIntroCard != null) SyncIntroCard.IsVisible = false;   // 与真会话一致：连接后收起
+        if (SyncIntroCard != null) SyncIntroCard.IsVisible = false;   
         if (TxtSyncStatus != null) TxtSyncStatus.Text = "已连接　3 人　2 人就绪";
         if (SyncInviteRow != null) SyncInviteRow.IsVisible = isHost;
         if (TxtSyncInviteShown != null)
@@ -674,7 +639,6 @@ public partial class SettingsWindow
     }
 }
 
-/// <summary>名单的一行。</summary>
 public sealed class SyncPeerRow
 {
     public string Mark { get; init; } = "";
@@ -684,7 +648,6 @@ public sealed class SyncPeerRow
     public string ReadyText { get; init; } = "";
 }
 
-/// <summary>声部勾选表的一行。</summary>
 public sealed class SyncVoiceRow
 {
     public int Index { get; init; }

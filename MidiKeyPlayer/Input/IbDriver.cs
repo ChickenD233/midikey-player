@@ -6,10 +6,9 @@ namespace MidiKeyPlayer.Input;
 
 internal static class IbDriver
 {
-    private const uint SendTypeLogitech = 2;          // LGS / 旧版 G HUB
-    private const uint SendTypeLogitechGHubNew = 6;   // 新版 G HUB
+    private const uint SendTypeLogitech = 2;          
+    private const uint SendTypeLogitechGHubNew = 6;   
 
-    // Send::Error
     private const uint ErrorSuccess = 0;
     private const uint ErrorDeviceNotFound = 6;
     private const uint ErrorDeviceOpenFailed = 7;
@@ -20,7 +19,6 @@ internal static class IbDriver
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
     private delegate void IbSendDestroyDelegate();
 
-    // 注意：C++ bool 是 1 字节，必须按 I1 封送（默认的 4 字节 BOOL 会读错）。
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
     [return: MarshalAs(UnmanagedType.I1)]
     private delegate bool IbSendKeybdDelegate(ushort vk);
@@ -30,10 +28,9 @@ internal static class IbDriver
     private static IbSendKeybdDelegate? _keybdDown;
     private static IbSendKeybdDelegate? _keybdUp;
     private static IbSendDestroyDelegate? _destroy;
-    private static bool _ready;         // TryInit 成功过
-    private static bool _dllMissing;    // 资源或文件出了问题，别再反复试
+    private static bool _ready;         
+    private static bool _dllMissing;    
 
-    /// <summary>资源里嵌的 DLL 释放到哪。与设置文件同目录。</summary>
     private static string DllPath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                      "MidiKeyPlayer", "IbInputSimulator.dll");
@@ -55,7 +52,6 @@ internal static class IbDriver
             if (!EnsureDllExtracted(out error)) { _dllMissing = true; return false; }
             if (!LoadExports(out error)) { _dllMissing = true; return false; }
 
-            // 先试新版 G HUB 后端，再退回 LGS/旧 G HUB。两边设备 GUID 不同，库里分开处理。
             uint err = _init!(SendTypeLogitechGHubNew, 0, IntPtr.Zero);
             if (err != ErrorSuccess)
                 err = _init!(SendTypeLogitech, 0, IntPtr.Zero);
@@ -88,14 +84,12 @@ internal static class IbDriver
         }
     }
 
-    /// <summary>G HUB 代理是否在跑（驱动注入实际由它的虚拟键盘设备承载）。</summary>
     private static bool GHubAgentRunning()
     {
         try { return Process.GetProcessesByName("lghub_agent").Length > 0; }
-        catch { return true; }   // 查不了就别误报
+        catch { return true; }   
     }
 
-    /// <summary>发一次键盘按下/抬起。未初始化或发送失败返回 false（调用方按「注入失败」处理）。</summary>
     public static bool Keybd(bool down, ushort vk)
     {
         if (!_ready) return false;
@@ -110,18 +104,16 @@ internal static class IbDriver
         }
     }
 
-    /// <summary>关掉驱动设备句柄（切回 SendInput 时调用）。之后再用会自动重新 TryInit。</summary>
     public static void Shutdown()
     {
         lock (Gate)
         {
             if (!_ready) return;
-            try { _destroy?.Invoke(); } catch { /* 关句柄失败无碍 */ }
+            try { _destroy?.Invoke(); } catch { }
             _ready = false;
         }
     }
 
-    /// <summary>把 exe 里嵌的 DLL 释放到本地目录；已存在且大小一致就直接用。</summary>
     private static bool EnsureDllExtracted(out string error)
     {
         error = "";

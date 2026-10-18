@@ -60,7 +60,6 @@
     <Setter Property="Foreground" Value="{DynamicResource BrushTextMuted}" />
   </Style>
 
-  <!-- ==================== 文字角色 ==================== -->
   <Style Selector="TextBlock.sectionLabel">
     <Setter Property="FontSize" Value="{DynamicResource FontCaption}" />
     <Setter Property="Foreground" Value="{DynamicResource BrushTextMuted}" />
@@ -80,8 +79,6 @@
     <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
 
-  <!-- ==================== 轨道列表 ==================== -->
-  <!-- 列头做成下沉条，与数据行区分 -->
   <Style Selector="Border.tableHead">
     <Setter Property="Background" Value="{DynamicResource BrushSurfaceSunken}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BrushBorder}" />
@@ -99,7 +96,6 @@
     <Setter Property="Background" Value="{DynamicResource BrushAccentSoft}" />
   </Style>
 
-  <!-- ==================== 日志 ==================== -->
   <Style Selector="ListBox#LogList">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="FontFamily" Value="{DynamicResource FontMono}" />

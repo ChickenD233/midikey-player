@@ -9,7 +9,6 @@
   <Grid RowDefinitions="*,Auto" Margin="14">
     <Grid Grid.Row="0" ColumnDefinitions="220,*">
 
-      <!-- ==================== 左：歌单列表 ==================== -->
       <Border Grid.Column="0" Classes="card" Padding="10">
         <Grid RowDefinitions="Auto,*,Auto">
           <TextBlock Grid.Row="0" Classes="sectionLabel" Text="我的歌单"/>
@@ -26,7 +25,6 @@
         </Grid>
       </Border>
 
-      <!-- ==================== 右：曲目 ==================== -->
       <Border Grid.Column="1" Classes="card" Padding="10" Margin="10,0,0,0">
         <Grid RowDefinitions="Auto,Auto,*,Auto">
 
@@ -42,7 +40,7 @@
             <Button x:Name="BtnAddFiles" Content="加入 MIDI…" Classes="secondary" Padding="12,4"
                     Click="AddFiles_Click" ToolTip.Tip="选一个或多个 MIDI 文件加入当前歌单"/>
             <Button x:Name="BtnAddFolder" Content="整个文件夹…" Classes="secondary" Padding="12,4"
-                    Click="AddFolder_Click" ToolTip.Tip="把一个文件夹里的全部 MIDI 按文件名顺序加入当前歌单"/>
+                    Click="AddFolder_Click" ToolTip.Tip="按文件名顺序加入整个文件夹"/>
             <Button x:Name="BtnRemove" Content="移除" Classes="secondary" Padding="12,4"
                     Click="Remove_Click" ToolTip.Tip="把选中的曲目移出歌单。磁盘上的文件不动"/>
             <Button x:Name="BtnUp" Content="上移" Classes="secondary" Padding="12,4"
@@ -53,7 +51,6 @@
 
           <ListBox Grid.Row="2" x:Name="EntryList" SelectionMode="Single"/>
 
-          <!-- 拖动时的落点线：不说清「会插到哪一行前面」，拖动就没有反馈 -->
           <Border Grid.Row="2" x:Name="DropLine" Height="2" IsHitTestVisible="False" IsVisible="False"
                   HorizontalAlignment="Stretch" VerticalAlignment="Top" ZIndex="10"
                   Background="{DynamicResource BrushAccent}"/>

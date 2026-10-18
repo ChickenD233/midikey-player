@@ -125,7 +125,7 @@ v1.1.8 已移除。
 
 ## 选项
 
-主界面右下角分两张卡。**演奏参数**只改怎么弹，不动谱面。**谱面调整**会改当前谱面，卷帘里看得到。
+主界面右下角是一张「演奏与谱面」卡。上半部分只改怎么弹，不动谱面。下半部分「谱面」那一行会改当前谱面，卷帘里看得到。
 
 - **播放前自检**。常驻在主界面右上方的状态卡：管理员权限与输入法状态，通过打勾、未通过打叉。切换中英文模式后点「刷新」重新检测。不想要就在设置里关掉（默认开）。
 - **合奏**。在左侧勾选多个声部一起演奏。编号 1 最优先。乐器一次只发一个音，冲突时先演奏编号小的。
@@ -592,7 +592,7 @@ Click the "Preview" (试听) button to play the current score with the MIDI synt
 
 ## Options
 
-The bottom right of the main window is split into two cards. **Performance Parameters** (演奏参数) only changes how it plays, without touching the score. **Score Adjustment** (谱面调整) modifies the current score, visible in the piano roll.
+The bottom right of the main window is one "Performance and Score" (演奏与谱面) card. The top half only changes how it plays, without touching the score. The "Score" (谱面) row modifies the current score, visible in the piano roll.
 
 - **Pre-play self-check** (播放前自检). Lives permanently in the status card at the top right of the main window: administrator privilege and input method status, a check mark for pass and a cross for fail. After switching between Chinese and English input modes, click "Refresh" (刷新) to re-test. If you don't want it, turn it off in Settings (default on).
 - **Ensemble** (合奏). Tick multiple parts on the left to perform together. Number 1 has the highest priority. The instrument emits only one note at a time; on conflict the smaller number plays first.

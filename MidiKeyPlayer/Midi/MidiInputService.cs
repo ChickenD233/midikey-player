@@ -10,9 +10,7 @@ public static class MidiInputService
     private static InputDevice? _device;
     private static string _deviceName = "";
 
-    /// <summary>设备送来的音符事件：(音高, 力度, 是否按下)。</summary>
     public static event Action<int, int, bool>? NoteEvent;
-    /// <summary>设备被拔掉、启动失败等异常的说明。</summary>
     public static event Action<string>? Error;
     public static event Action? DeviceLost;
 
@@ -25,7 +23,6 @@ public static class MidiInputService
         Stop();
         if (string.IsNullOrWhiteSpace(deviceName)) return false;
 
-        // 先枚举一次：设备名不在列表里就没必要走启动（也能给出更清楚的提示）
         var names = ListDevices();
         if (!names.Contains(deviceName))
         {
@@ -45,7 +42,6 @@ public static class MidiInputService
             }
             device.EventReceived += OnEventReceived;
             device.ErrorOccurred += OnDeviceError;
-            // 0x90 力度 0 是常见的"音符抬起"写法，按抬起处理
             device.SilentNoteOnPolicy = SilentNoteOnPolicy.NoteOff;
             device.StartEventsListening();
         }
@@ -64,7 +60,6 @@ public static class MidiInputService
         return true;
     }
 
-    /// <summary>停止监听并释放设备。</summary>
     public static void Stop()
     {
         InputDevice? device;
@@ -84,7 +79,6 @@ public static class MidiInputService
         }
         catch (Exception ex)
         {
-            // 设备已经拔掉时释放会抛异常：不影响使用，但写一条日志便于排查（A09）
             LogFile.Append($"[MIDI] 释放设备失败（已忽略）：{ex.Message}");
         }
     }
@@ -105,7 +99,6 @@ public static class MidiInputService
         }
     }
 
-    /// <summary>系统里的 MIDI 输入设备名列表。没有设备时返回空列表。</summary>
     public static List<string> ListDevices()
     {
         var list = new List<string>();

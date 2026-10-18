@@ -17,47 +17,35 @@ public partial class PlaylistWindow : Window
     private readonly List<Playlist> _lists = new();
     private Playlist? _current;
 
-    /// <summary>正在铺界面。铺的过程里会改选中项，那几次不是用户点的。</summary>
     private bool _syncing;
 
     private string _query = "";
 
-    /// <summary>正展开行内音轨清单的曲目下标；-1 = 没有展开的。</summary>
     private int _pickFor = -1;
 
-    /// <summary>解析过的候选行，按文件路径缓存。展开音轨清单时不必再读一遍文件。</summary>
     private readonly Dictionary<string, List<MidiCandidate>> _candCache = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>拖动状态：按下时的行下标、起点、是否已经越过阈值、当前落点。</summary>
     private int _dragFrom = -1;
     private Point _dragStart;
     private bool _dragging;
     private (int Row, bool After)? _dropAt;
 
-    /// <summary>拖动阈值（像素）。太小会和「点一下选中」打架。</summary>
     private const double DragThreshold = 12;
 
-    /// <summary>曲目列表的行数上限。超过就只显示前 N 行，歌单上千首时界面不至于卡住。</summary>
     private const int MaxRows = 400;
 
-    /// <summary>双击某一行：把这一首交回主窗口载入。</summary>
     public event Action<string>? EntryActivated;
 
-    /// <summary>歌单存过盘。主窗口据此刷新左栏那张卡。</summary>
     public event Action? Changed;
 
-    /// <summary>用户在左栏选了一份歌单。主窗口据此记成「当前歌单」，下次启动才回得来。</summary>
     public event Action<string>? ActiveChanged;
 
-    /// <summary>主窗口正在播放的那首曲子的路径，用来在列表里打标记。</summary>
     public string PlayingPath { get; set; } = "";
 
     public event Action<string, IReadOnlyList<TrackRef>>? PreviewTracks;
 
-    /// <summary>结束预览：主窗口把刚才那份谱面放回卷帘。</summary>
     public event Action? PreviewEnded;
 
-    /// <summary>预览去抖：连续勾几行时不必每一勾都重解析一遍。</summary>
     private DispatcherTimer? _previewDeb;
 
     public PlaylistWindow()
@@ -72,20 +60,16 @@ public partial class PlaylistWindow : Window
         LoadAll();
     }
 
-    /// <summary>打开后默认选中的歌单名。窗口构造完、Show 之前设。</summary>
     public string ActiveName { get; set; } = "";
 
-    /// <summary>窗口里当前选中的歌单名；一份都没选是空串。关窗时主窗口拿它收尾。</summary>
     public string ActiveNameNow => _current?.Name ?? "";
 
-    /// <summary>【开发用】重新列一遍歌单并按名字选中（探针要切到自己刚建的歌单上）。</summary>
     internal void SelectByNameForDev(string name)
     {
         LoadAll();
         SelectByName(name);
     }
 
-    /// <summary>【开发用】拖动状态 + 某个坐标算出来的落点，供回归探针判断拖放在哪一步断掉。</summary>
     internal string DragStateForDev(Point p)
     {
         var t = DropTargetAt(p);
@@ -93,13 +77,10 @@ public partial class PlaylistWindow : Window
                $"落点={(t is { } v ? $"{v.Row}{(v.After ? "下" : "上")}" : "无")} count={EntryList.ItemCount}";
     }
 
-    /// <summary>【开发用】替快照展开第 <paramref name="index"/> 行的音轨清单，拍图才拍得到这一态。</summary>
     internal void OpenTrackPickerForDev(int index) => ToggleTrackPicker(index);
 
-    /// <summary>【开发用】替快照勾一发候选，走的是用户点勾选框同一条代码路径。</summary>
     internal void PickTrackForDev(int entryIndex, int candIndex) => ToggleTrack(entryIndex, candIndex);
 
-    /// <summary>构造之后调一次：按 <see cref="ActiveName"/> 选中对应的歌单。</summary>
     public void SelectInitial()
     {
         int idx = _lists.FindIndex(p =>
@@ -113,8 +94,6 @@ public partial class PlaylistWindow : Window
             Say("还没有歌单。点「新建」建一份，再用「加入 MIDI…」放歌。");
         }
     }
-
-    // ================= 载入与保存 =================
 
     private void LoadAll()
     {
@@ -149,7 +128,6 @@ public partial class PlaylistWindow : Window
         return item;
     }
 
-    /// <summary>把当前歌单存盘；没有当前歌单时什么都不做。</summary>
     private bool SaveCurrent(string what)
     {
         if (_current == null) return false;
@@ -162,8 +140,6 @@ public partial class PlaylistWindow : Window
         Changed?.Invoke();
         return true;
     }
-
-    // ================= 歌单：新建 / 改名 / 删除 =================
 
     private async void PlaylistNew_Click(object? sender, RoutedEventArgs e)
     {
@@ -245,7 +221,6 @@ public partial class PlaylistWindow : Window
         ActiveChanged?.Invoke(p.Name);
     }
 
-    /// <summary>按名字选中左侧歌单，并把它当成当前歌单。</summary>
     private void SelectByName(string name)
     {
         for (int i = 0; i < PlaylistList.Items.Count; i++)
@@ -273,8 +248,6 @@ public partial class PlaylistWindow : Window
         }
         return baseName;
     }
-
-    // ================= 曲目：加入 / 移除 =================
 
     private async void AddFiles_Click(object? sender, RoutedEventArgs e)
     {
@@ -334,7 +307,6 @@ public partial class PlaylistWindow : Window
         catch (Exception ex) { Say($"读文件夹失败：{ex.GetType().Name}: {ex.Message}"); }
     }
 
-    /// <summary>把一个文件夹里的 MIDI 按文件名顺序整批加入歌单。</summary>
     public void AddFolderPaths(string dir)
     {
         if (_current == null) { Say("先选一份歌单。"); return; }
@@ -351,7 +323,6 @@ public partial class PlaylistWindow : Window
         foreach (var path in paths)
         {
             if (added.Any(x => string.Equals(x.Path, path, StringComparison.OrdinalIgnoreCase))) continue;
-            // 不预设：没勾过 = 这一首全部音轨都弹。要挑，点行里的按钮自己勾。
             added.Add(new PlaylistEntry { Path = path });
         }
         if (added.Count == 0) { Say("这些文件已经在这次要加入的清单里了。"); return; }
@@ -381,7 +352,6 @@ public partial class PlaylistWindow : Window
 
     private void Down_Click(object? sender, RoutedEventArgs e) => Nudge(+1);
 
-    /// <summary>上移 / 下移一格。逻辑走 PlaylistModel，和拖放共用。</summary>
     private void Nudge(int delta)
     {
         if (_current == null) { Say("先选一份歌单。"); return; }
@@ -400,9 +370,6 @@ public partial class PlaylistWindow : Window
         Say($"第 {idx + 1} 首挪到了第 {to + 1} 位。");
     }
 
-    // ================= 拖动改顺序 =================
-
-    /// <summary>指针落在第几行。越过最后一行下沿时算最后一行，指针在列表上下外面才算没有行。</summary>
     private int RowAt(Point p)
     {
         int count = EntryList.ItemCount;
@@ -429,7 +396,6 @@ public partial class PlaylistWindow : Window
         return count - 1;
     }
 
-    /// <summary>落点在第几行、插在这行的上面还是下面。</summary>
     private (int Row, bool After)? DropTargetAt(Point p)
     {
         int row = RowAt(p);
@@ -437,11 +403,9 @@ public partial class PlaylistWindow : Window
         if (EntryList.ContainerFromIndex(row) is not Control c) return null;
         var top = c.TranslatePoint(new Point(0, 0), EntryList);
         if (top == null) return null;
-        // 落在下半格 = 插到这一行后面；落在上半格 = 插到这一行前面
         return (row, p.Y > top.Value.Y + c.Bounds.Height / 2);
     }
 
-    /// <summary>把落点线画到该插的位置上。</summary>
     private void ShowDropLine((int Row, bool After) target)
     {
         if (EntryList.ContainerFromIndex(target.Row) is not Control c) { HideDropLine(); return; }
@@ -481,7 +445,6 @@ public partial class PlaylistWindow : Window
             _dragging = true;
         }
 
-        // 拖动中：只画落点线，真正挪动等松开那一刻
         _dropAt = DropTargetAt(now);
         if (_dropAt is { } t) ShowDropLine(t);
         else HideDropLine();
@@ -506,14 +469,12 @@ public partial class PlaylistWindow : Window
         EndDrag();
     }
 
-    /// <summary>指针捕获丢了：不算落点。还按着左键时不清状态（拖动中会丢一次捕获）。</summary>
     private void EntryList_PointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
     {
         if (_dragging) return;
         EndDrag();
     }
 
-    /// <summary>拖动收尾：清状态、收落点线。松开、丢捕获、取消都走这里。</summary>
     private void EndDrag()
     {
         _dragFrom = -1;
@@ -521,8 +482,6 @@ public partial class PlaylistWindow : Window
         _dropAt = null;
         HideDropLine();
     }
-
-    // ================= 卷帘预览 =================
 
     private void PreviewChanged()
     {
@@ -532,7 +491,6 @@ public partial class PlaylistWindow : Window
             return;
         }
 
-        // 去抖：连勾几行时只解析最后一次
         _previewDeb ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(180) };
         _previewDeb.Stop();
         _previewDeb.Tick -= PreviewDeb_Tick;
@@ -552,14 +510,12 @@ public partial class PlaylistWindow : Window
         PreviewTracks?.Invoke(entry.Path, entry.Tracks.ToList());
     }
 
-    /// <summary>收起清单、换歌单、关窗之前都要收掉预览，别把卷帘留在别人的谱面上。</summary>
     private void StopPreview()
     {
         _previewDeb?.Stop();
         PreviewEnded?.Invoke();
     }
 
-    /// <summary>从被点的控件往上找它所在的那一行，返回歌单下标；不在任何一行上返回 -1。</summary>
     private static int RowIndexOf(object? source)
     {
         var v = source as Visual;
@@ -570,8 +526,6 @@ public partial class PlaylistWindow : Window
         }
         return -1;
     }
-
-    // ================= 预先选音轨 =================
 
     private void ToggleTrackPicker(int index)
     {
@@ -605,11 +559,10 @@ public partial class PlaylistWindow : Window
 
         _pickFor = index;
         SyncEntryList(selectAfter: index);
-        PreviewChanged();   // 展开就把这一首勾的行画到卷帘上，边看边勾
+        PreviewChanged();   
         Say($"「{name}」弹哪几行？勾上要弹的。");
     }
 
-    /// <summary>点了候选清单里的一个勾选框：勾上或去掉这一行。</summary>
     private void ToggleTrack(int entryIndex, int candIndex)
     {
         if (_current == null || entryIndex < 0 || entryIndex >= _current.Entries.Count) return;
@@ -623,7 +576,6 @@ public partial class PlaylistWindow : Window
 
         if (existing != null)
         {
-            // 最后一行不许取消：一个都不勾等于「全部」，勾选框会全空，看着像没设过
             if (entry.Tracks.Count <= 1) { Say("至少留一行。想全都要，把每一行都勾上。"); return; }
             entry.Tracks.Remove(existing);
             Say($"「{name}」不再弹「{Describe(c)}」，还剩 {entry.Tracks.Count} 行。");
@@ -636,16 +588,13 @@ public partial class PlaylistWindow : Window
 
         if (!SaveCurrent("保存音轨选择")) return;
 
-        // 清单不收起：还有别的行要勾。重铺会把勾选框一起换掉，所以放到下一个循环再铺。
         Dispatcher.UIThread.Post(() => SyncEntryList(selectAfter: entryIndex));
-        PreviewChanged();   // 勾一轨，卷帘立刻换成这一轨的音符
+        PreviewChanged();   
     }
 
-    /// <summary>候选行上的说明：轨号 / 声道 / 声部 / 音域 / 音数。</summary>
     private static string Describe(MidiCandidate c) =>
         $"轨道 {c.TrackIndex + 1} / 声道 {c.Channel + 1}「{c.Name}」{c.RoleTag} {c.RangeLabel} {c.NoteCount} 音";
 
-    /// <summary>一行候选：勾选框 + 说明。点整行都能勾。</summary>
     private Control BuildCandidateRow(int entryIndex, int candIndex, MidiCandidate c, bool isChecked)
     {
         var box = new CheckBox
@@ -661,8 +610,6 @@ public partial class PlaylistWindow : Window
         box.Click += (_, _) => ToggleTrack(entryIndex, candIndex);
         return box;
     }
-
-    // ================= 铺曲目列表 =================
 
     private void Search_Changed(object? sender, TextChangedEventArgs e)
     {
@@ -752,7 +699,6 @@ public partial class PlaylistWindow : Window
                         : $"弹：{entry.Tracks[0].Label}")
                     : $"弹 {entry.Tracks.Count} 行（合奏）";
 
-        // 按钮上直接写当前勾了几行，不用展开就能看见
         string trackText = entry.Tracks.Count == 0 ? "全部 ▾" : $"共 {entry.Tracks.Count} 行 ▾";
 
         var track = new Button
@@ -765,8 +711,6 @@ public partial class PlaylistWindow : Window
             IsEnabled = !missing,
         };
         ToolTip.SetTip(track, "勾这一首弹哪几行，可以勾多个");
-        // 点按钮只管展开清单：行的下标直接问按钮自己，不按坐标猜
-        // （按坐标猜会落到行与行之间的缝里，那时整个点击就成了没反应）
         track.Click += (_, _) =>
         {
             int i = RowIndexOf(track);
@@ -807,7 +751,6 @@ public partial class PlaylistWindow : Window
 
         Control content = grid;
 
-        // 这一行正展开着音轨清单：把候选直接铺在行下面，勾哪几行就是哪几行
         if (_pickFor == entryIndex && _candCache.TryGetValue(entry.Path, out var cands))
         {
             var panel = new StackPanel { Spacing = 2 };
@@ -844,10 +787,8 @@ public partial class PlaylistWindow : Window
         {
             Content = content,
             Tag = entryIndex,
-            // 文件不在的曲目：整行压暗。不写死灰色 —— 灰值在深色皮肤下会看不清。
             Opacity = missing ? 0.55 : 1.0,
         };
-        // 附加属性，必须走 SetTip，不能当普通属性赋值
         ToolTip.SetTip(item, entry.Path + (dir.Length > 0 ? $"\n{dir}" : ""));
         item.DoubleTapped += (_, _) =>
         {
@@ -869,14 +810,12 @@ public partial class PlaylistWindow : Window
         BtnDown.IsEnabled = has && idx >= 0 && _current != null && idx < _current.Count - 1;
     }
 
-    /// <summary>当前选中行对应的歌单下标；没选中返回 -1。</summary>
     private int SelectedEntryIndex()
     {
         if (EntryList.SelectedItem is ListBoxItem it && it.Tag is int i) return i;
         return -1;
     }
 
-    /// <summary>主窗口换歌之后刷新这一行标记。</summary>
     public void RefreshPlayingMark()
     {
         SyncEntryList();
@@ -892,16 +831,12 @@ public partial class PlaylistWindow : Window
 
     private void Close_Click(object? sender, RoutedEventArgs e) => Close();
 
-    /// <summary>关窗一定要收掉预览：卷帘不能留在别人的谱面上。</summary>
     protected override void OnClosed(EventArgs e)
     {
         StopPreview();
         base.OnClosed(e);
     }
 
-    // ================= 两个小对话框 =================
-
-    /// <summary>问一个名字。取消返回 null。</summary>
     private async Task<string?> PromptNameAsync(string title, string label, string initial)
     {
         var box = new TextBox { Text = initial, Width = 260 };
@@ -948,7 +883,6 @@ public partial class PlaylistWindow : Window
         return string.IsNullOrWhiteSpace(result) ? null : result.Trim();
     }
 
-    /// <summary>问一句要不要。取消返回 false。</summary>
     private async Task<bool> ConfirmAsync(string title, string body, string okText)
     {
         var ok = new Button { Content = okText, Classes = { "accent" }, Padding = new Thickness(18, 6) };

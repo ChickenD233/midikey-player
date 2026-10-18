@@ -11,7 +11,6 @@
         Closed="Window_Closed">
 
   <Window.Styles>
-    <!-- 与主窗同一套文字色规则：避免系统深色 / 高对比主题下白字白底看不见 -->
     <Style Selector="Window">
       <Setter Property="Foreground" Value="{DynamicResource BrushText}"/>
     </Style>
@@ -44,15 +43,12 @@
       <Setter Property="Cursor" Value="Hand"/>
     </Style>
 
-    <!-- 键帽方块：整块就是一个按钮，左键点哪里都是「改这个键的绑定」。
-         改音高放在右键菜单里，不切方块、不占左键面积。 -->
     <Style Selector="Button.capBlock">
       <Setter Property="HorizontalContentAlignment" Value="Left"/>
       <Setter Property="VerticalContentAlignment" Value="Top"/>
       <Setter Property="Padding" Value="6,3,16,0"/>
       <Setter Property="Cursor" Value="Hand"/>
     </Style>
-    <!-- 平时不画底色，只有悬停 / 按下时给一点提示；虚线描边由按钮自己承担 -->
     <Style Selector="Button.capBlock /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="Transparent"/>
       <Setter Property="BorderThickness" Value="0"/>
@@ -104,7 +100,6 @@
 
   <DockPanel>
 
-    <!-- 底部：一句话说明 + 关闭。设置即时生效，没有「应用」按钮 -->
     <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right"
                 Spacing="10" Margin="14,8,14,12">
       <TextBlock Classes="caption" VerticalAlignment="Center"
@@ -127,7 +122,6 @@
                   HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
       <StackPanel Margin="14,12,14,8" Spacing="8">
 
-        <!-- ============ 1. 方案行 ============ -->
         <Border Classes="card">
           <StackPanel Spacing="4">
             <StackPanel Orientation="Horizontal" Spacing="8">
@@ -168,10 +162,8 @@
           </StackPanel>
         </Border>
 
-        <!-- ============ 2. 按键绑定：一行一行排，行内不换行 ============ -->
         <Border Classes="card">
           <StackPanel Spacing="6">
-            <!-- 标题右边一句说明：键帽上不再写唱名，八度只靠上下点表示 -->
             <StackPanel Orientation="Horizontal" Spacing="10">
               <TextBlock Text="按键绑定" Classes="sectionLabel" FontWeight="SemiBold"
                          VerticalAlignment="Center"/>
@@ -179,7 +171,6 @@
                          Text="数字上方的点 = 高音，下方的点 = 低音。左键点键帽 = 改绑按键，右键键帽 = 改音高或解绑"/>
             </StackPanel>
 
-            <!-- 一条绑都没有时的灰字说明。加行按钮只留下面那一个（曾经这里还有一个「+ 新建第一行」，与它重复） -->
             <TextBlock Classes="caption" TextWrapping="Wrap" IsVisible="{Binding ShowEmptyHint}"
                        Text="还没有绑任何键。点下面的「+ 加一行」开始：一行从左到右是 do re mi fa sol la si，键名会自动填好。"/>
 
@@ -188,8 +179,6 @@
                 <DataTemplate>
                   <StackPanel Spacing="2" Margin="0,0,0,6">
                     <TextBlock Text="{Binding Label}" Classes="caption"/>
-                    <!-- 一行键帽 + 行尾「+」：横向滚动，绝不换行。
-                         「+」就在最后一个键帽的正右边（同一个横向容器里），不是另起一列。 -->
                     <ScrollViewer HorizontalScrollBarVisibility="Auto"
                                   VerticalScrollBarVisibility="Disabled">
                       <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
@@ -222,7 +211,6 @@
                                                    Foreground="{Binding KeyCapForeground}"/>
                                       </Grid>
                                     </Button>
-                                    <!-- 右上角：解绑 -->
                                     <Button Classes="capClose" Content="✕" Click="RowRemove_Click"
                                             Width="16" Height="16" Padding="0" FontSize="10"
                                             HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,2,2,0"
@@ -234,7 +222,6 @@
                             </DataTemplate>
                           </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <!-- 行尾「+」：在这一行末尾加一个音（列），紧跟在最后一个键帽右边 -->
                         <Button Classes="rowPlus" Width="34" Height="58" Margin="2,0,0,0"
                                 Content="+" Click="RowAddCell_Click"
                                 ToolTip.Tip="在这一行末尾加一个音（列）"/>
@@ -245,7 +232,6 @@
               </ItemsControl.ItemTemplate>
             </ItemsControl>
 
-            <!-- 最后一行下面的「+」：新增一行，音高比上一行高一个八度。整个方框都是点击区 -->
             <StackPanel x:Name="AddRowPanel" Orientation="Horizontal" Spacing="8">
               <Button Classes="rowPlus rowPlusWide" Width="110" Height="32"
                       Content="+ 加一行" Click="RowAddRow_Click"
@@ -256,7 +242,6 @@
           </StackPanel>
         </Border>
 
-        <!-- ============ 3. 功能键（带启用开关） ============ -->
         <Border Classes="card">
           <StackPanel Spacing="6">
             <Grid ColumnDefinitions="Auto,*">
@@ -265,7 +250,7 @@
               <CheckBox Grid.Column="1" x:Name="ChkModifiers" Content="启用功能键"
                         FontSize="{DynamicResource FontSmall}" HorizontalAlignment="Right"
                         VerticalAlignment="Center" IsChecked="True" Click="Modifiers_Changed"
-                        ToolTip.Tip="不勾时：下面三个键都不生效，超出键位范围的音直接不发声，不做八度折叠"/>
+                        ToolTip.Tip="不勾时三个功能键都不生效"/>
             </Grid>
             <StackPanel x:Name="FuncPanel" Spacing="4">
               <ItemsControl x:Name="FuncRows">
@@ -274,7 +259,6 @@
                     <Grid ColumnDefinitions="Auto,*" Margin="0,1">
                       <TextBlock Grid.Column="0" Width="78" Text="{Binding Label}"
                                  Classes="label" VerticalAlignment="Center"/>
-                      <!-- 绑法与键帽一样：点一下，再按一个键。不再有「选键名」下拉 -->
                       <Grid Grid.Column="1" ColumnDefinitions="Auto,Auto">
                         <Border Grid.Column="0" CornerRadius="{DynamicResource RadiusControl}"
                                 BorderThickness="{Binding WaitBorderThickness}"
@@ -284,7 +268,7 @@
                                   Content="{Binding KeyCapText}"
                                   Foreground="{Binding KeyCapForeground}"
                                   Click="FuncKey_Click"
-                                  ToolTip.Tip="点一下，再按一个键，就把这个功能绑到这个键。Shift、Ctrl、Alt 单独按一下再松开也行"/>
+                                  ToolTip.Tip="点一下，再按一个键完成绑定"/>
                         </Border>
                         <Button Grid.Column="1" Content="✕" Width="24" Margin="6,0,0,0"
                                 Padding="0" FontSize="{DynamicResource FontMicro}"
@@ -301,7 +285,6 @@
       </StackPanel>
     </ScrollViewer>
 
-    <!-- 常驻统计行 -->
     <Border Grid.Row="1" Padding="12,6" Background="{DynamicResource BrushSurface}"
             BorderBrush="{DynamicResource BrushBorder}" BorderThickness="0,1,0,0">
       <TextBlock Text="{Binding StatsText}" Classes="caption" TextWrapping="Wrap"/>
@@ -313,7 +296,6 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
           <StackPanel Margin="14,12,14,10" Spacing="10">
 
-            <!-- 爱发电。整块是暖色底，一眼就看到 -->
             <Border Background="{DynamicResource BrushWarnSoft}"
                     BorderBrush="{DynamicResource BrushWarnBorder}" BorderThickness="1"
                     CornerRadius="10" Padding="16,14">
@@ -336,7 +318,6 @@
               <StackPanel Spacing="8">
                 <TextBlock Text="作者的其它地方" Classes="sectionLabel" FontWeight="SemiBold"
                            FontSize="{DynamicResource FontSmall}"/>
-                <!-- 三个按钮一行：B 站、GitHub、复制群号。地址不进正文，鼠标停在按钮上看 -->
                 <StackPanel Orientation="Horizontal" Spacing="8">
                   <Button x:Name="BtnSponsorBili" Content="B 站主页"
                           FontSize="{DynamicResource FontSmall}" Padding="12,5"
@@ -377,11 +358,10 @@
                 </StackPanel>
                 <TextBlock x:Name="TxtSyncIntro" TextWrapping="Wrap" LineHeight="18"
                            FontSize="{DynamicResource FontMicro}" Classes="caption" IsVisible="False"
-                           Text="每个人先自己导入一首 MIDI，再进同一个房间。房主填房间名与密码，点「创建房间」，把邀请串发给朋友；朋友粘进「加入房间」就进来了。声部各人选自己的。房主点「开演」时，全场倒数几秒之后同时开始 —— 倒数是在等各人的电脑收到信号，网络快的人等得久一点，所以大家落在同一拍上。不需要对时，也不需要公网 IP。"/>
+                           Text="每个人先自己导入一首 MIDI，再进同一个房间。房主填房间名与密码，点「创建房间」，把邀请串发给朋友；朋友粘进「加入房间」就进来了。声部各人选自己的。房主点「开演」时，全场倒数几秒之后同时开始，倒数是在等各人的电脑收到信号，网络快的人等得久一点，所以大家落在同一拍上。不需要对时，也不需要公网 IP。"/>
               </StackPanel>
             </Border>
 
-            <!-- ===== 未连接：建房 / 加入 ===== -->
             <Border Classes="card" x:Name="SyncConnectCard">
               <StackPanel Spacing="8">
                 <TextBlock Text="连接" Classes="sectionLabel" FontWeight="SemiBold"
@@ -395,7 +375,7 @@
                   <TextBlock Text="倒数" Classes="label" VerticalAlignment="Center"/>
                   <ComboBox x:Name="CmbSyncCountdown" Width="86" FontSize="{DynamicResource FontSmall}"
                             SelectionChanged="SyncCountdown_Changed"
-                            ToolTip.Tip="房主点开演之后等几秒开始。这几秒是用来等各人的电脑收到信号的">
+                            ToolTip.Tip="开演前的等待秒数">
                     <ComboBoxItem Content="2 秒"/>
                     <ComboBoxItem Content="3 秒"/>
                     <ComboBoxItem Content="5 秒"/>
@@ -412,7 +392,7 @@
                   <TextBlock Text="密码" Classes="label" VerticalAlignment="Center"/>
                   <TextBox x:Name="TxtSyncPass" Width="140" FontSize="{DynamicResource FontSmall}"
                            Watermark="自己定" PasswordChar="●"
-                           ToolTip.Tip="自己定一个。第一次创建房间时用哪个密码，以后进这个房间就得用哪个"/>
+                           ToolTip.Tip="本房间固定密码"/>
                   <Button x:Name="BtnSyncHost" Content="创建房间" Classes="accent"
                           FontSize="{DynamicResource FontSmall}" Padding="16,6"
                           Click="SyncHost_Click"/>
@@ -425,7 +405,7 @@
                     <TextBox x:Name="TxtSyncInvite" FontSize="{DynamicResource FontSmall}"
                              AcceptsReturn="False" TextWrapping="NoWrap"
                              Watermark="把朋友发来的邀请串粘在这里（一整行）"
-                             ToolTip.Tip="邀请串形如 mkp://中转站|房间名|密码。一次粘贴，三样都带上"/>
+                             ToolTip.Tip="mkp://中转站|房间名|密码"/>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                       <Button x:Name="BtnSyncJoin" Content="加入" Classes="secondary"
                               FontSize="{DynamicResource FontSmall}" Padding="16,5"
@@ -436,12 +416,11 @@
                   </StackPanel>
                 </Border>
 
-                <!-- 中转站地址。默认收起：发布版会内置一个，用户不用管 -->
                 <Expander Header="高级：中转站地址" FontSize="{DynamicResource FontSmall}">
                   <StackPanel Spacing="6" Margin="0,6,0,0">
                     <TextBox x:Name="TxtSyncBroker" FontSize="{DynamicResource FontSmall}"
                              Watermark="midikeyplayer-sync.你的名字.workers.dev"
-                             ToolTip.Tip="你自己部署的 Cloudflare Worker 地址。开头不用写 https://，结尾不用写斜杠"/>
+                             ToolTip.Tip="Worker 地址，不写 https://"/>
                     <TextBlock TextWrapping="Wrap" LineHeight="18" Classes="caption"
                                FontSize="{DynamicResource FontMicro}"
                                Text="这是房主创建房间时用的地址。加入房间时以邀请串里带的地址为准，这里的填写不影响。"/>
@@ -453,7 +432,6 @@
               </StackPanel>
             </Border>
 
-            <!-- ===== 已连接：房间状态 ===== -->
             <Border Classes="card" x:Name="SyncRoomCard" IsVisible="False">
               <StackPanel Spacing="8">
                 <Grid ColumnDefinitions="Auto,*,Auto">
@@ -479,11 +457,9 @@
                              FontSize="{DynamicResource FontMicro}"/>
                 </StackPanel>
 
-                <!-- 曲目指纹：只做本机提示，不做联网核对 -->
                 <TextBlock x:Name="TxtSyncTrack" Classes="caption" TextWrapping="Wrap"
                            FontSize="{DynamicResource FontMicro}"/>
 
-                <!-- 成员表 -->
                 <Border BorderBrush="{DynamicResource BrushBorder}" BorderThickness="0,1,0,0"
                         Padding="0,8,0,0">
                   <StackPanel Spacing="4">
@@ -511,7 +487,6 @@
                   </StackPanel>
                 </Border>
 
-                <!-- 我的声部：各人选自己的，程序不做占用检查 -->
                 <Border BorderBrush="{DynamicResource BrushBorder}" BorderThickness="0,1,0,0"
                         Padding="0,8,0,0">
                   <StackPanel Spacing="6">
@@ -538,7 +513,6 @@
                   </StackPanel>
                 </Border>
 
-                <!-- 我的移调 -->
                 <Border BorderBrush="{DynamicResource BrushBorder}" BorderThickness="0,1,0,0"
                         Padding="0,8,0,0">
                   <StackPanel Spacing="6">
@@ -573,11 +547,11 @@
                       <Button x:Name="BtnSyncPrimary" Content="开演" Classes="accent"
                               FontSize="{DynamicResource FontSmall}" Padding="18,5"
                               Click="SyncPrimary_Click"
-                              ToolTip.Tip="按当前状态来：没开演就是开演，演奏中就是暂停，暂停中就是继续"/>
+                              ToolTip.Tip="按当前状态开演或暂停"/>
                       <Button x:Name="BtnSyncSeek" Content="跳转" Classes="secondary"
                               FontSize="{DynamicResource FontMicro}" Padding="12,4"
                               Click="SyncSeek_Click"
-                              ToolTip.Tip="跳到本机进度条当前的位置，全场一起跳。先拖主界面的进度条定位置"/>
+                              ToolTip.Tip="跳到本机当前进度"/>
                       <Button x:Name="BtnSyncStop" Content="停止" Classes="secondary"
                               FontSize="{DynamicResource FontMicro}" Padding="12,4"
                               Click="SyncStop_Click"

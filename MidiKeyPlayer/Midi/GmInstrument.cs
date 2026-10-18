@@ -2,18 +2,18 @@ namespace MidiKeyPlayer.Midi;
 
 public enum TrackRole
 {
-    Unknown = 0,   // 文件里没写 GM 音色，也推不出来
-    Drums,         // 鼓组（通道 10，或音色名说是鼓）
-    Bass,          // 贝斯 / 合成贝斯
+    Unknown = 0,   
+    Drums,         
+    Bass,          
     ElectricGuitar,
     AcousticGuitar,
-    Melody,        // 推出来的旋律（没有 GM 音色时）
-    Accompaniment, // 推出来的伴奏铺底（没有 GM 音色时）
+    Melody,        
+    Accompaniment, 
     Piano,
     Organ,
     Strings,
-    Ensemble,      // 合奏 / 人声合唱 → 界面标「和声」
-    Vocals,        // GM 人声类音色 → 界面标「人声」
+    Ensemble,      
+    Vocals,        
     Brass,
     Wind,
     SynthLead,
@@ -24,12 +24,12 @@ public enum TrackRole
 
 public enum RoleTone
 {
-    Neutral,   // 未知：不上色
-    Rhythm,    // 鼓
-    Low,       // 贝斯
-    Harmony,   // 吉他 / 键盘 / 弦乐 / 和声 / 铺底
-    Lead,      // 旋律 / 主音 / 人声
-    Other,     // 铜管 / 管乐 / 效果
+    Neutral,   
+    Rhythm,    
+    Low,       
+    Harmony,   
+    Lead,      
+    Other,     
 }
 
 public static class GmInstrument
@@ -56,34 +56,30 @@ public static class GmInstrument
         "鼓组",
     };
 
-    /// <summary>音色名：越界（-1 或 &gt;=128）给空串。</summary>
     public static string ProgramName(int program) =>
         program >= 0 && program < Names.Length ? Names[program] : "";
 
-    /// <summary>按 GM 音色号给声部角色。0..127 之外当作未知。</summary>
     public static TrackRole RoleOfProgram(int program)
     {
         if (program < 0 || program >= 128) return TrackRole.Unknown;
         if (program <= 7) return TrackRole.Piano;
         if (program <= 15) return TrackRole.Chromatic;
         if (program <= 23) return TrackRole.Organ;
-        if (program <= 27) return TrackRole.AcousticGuitar;   // 尼龙弦 / 钢弦 / 爵士电吉他
-        if (program <= 31) return TrackRole.ElectricGuitar;   // 清音 / 闷音 / 过载 / 失真 / 泛音
+        if (program <= 27) return TrackRole.AcousticGuitar;   
+        if (program <= 31) return TrackRole.ElectricGuitar;   
         if (program <= 39) return TrackRole.Bass;
-        if (program == 47) return TrackRole.Drums;            // 定音鼓算节奏
-        if (program <= 46) return TrackRole.Strings;          // 小提琴…拨奏弦乐
-        if (program <= 51) return TrackRole.Strings;          // 弦乐合奏 / 合成弦乐
-        if (program <= 55) return TrackRole.Vocals;           // 人声「啊」「噢」/ 合成人声
+        if (program == 47) return TrackRole.Drums;            
+        if (program <= 46) return TrackRole.Strings;          
+        if (program <= 51) return TrackRole.Strings;          
+        if (program <= 55) return TrackRole.Vocals;           
         if (program <= 63) return TrackRole.Brass;
         if (program <= 79) return TrackRole.Wind;
         if (program <= 87) return TrackRole.SynthLead;
         if (program <= 95) return TrackRole.SynthPad;
-        // 117..120 是太鼓 / 旋律鼓 / 合成鼓 / 反镲，也算节奏
         if (program >= 116 && program <= 119) return TrackRole.Drums;
-        return TrackRole.Effects;                             // 96..127 其余
+        return TrackRole.Effects;                             
     }
 
-    /// <summary>列表里那个短标牌的字。宽度最多三个字，列表列宽按它定。</summary>
     public static string TagOf(TrackRole role) => role switch
     {
         TrackRole.Drums => "鼓",
@@ -106,7 +102,6 @@ public static class GmInstrument
         _ => "未标注",
     };
 
-    /// <summary>标牌取色分组。</summary>
     public static RoleTone ToneOf(TrackRole role) => role switch
     {
         TrackRole.Drums => RoleTone.Rhythm,
@@ -124,21 +119,19 @@ public static class GmInstrument
         if (LooksLikeDrums(name)) return TrackRole.Drums;
         if (notes == null || notes.Count == 0) return TrackRole.Unknown;
 
-        // 音域重心用中位数：比平均值抗离群（一个八度外的错音不会带偏整条轨）
         var pitches = new List<int>(notes.Count);
         foreach (var n in notes) pitches.Add(n.Pitch);
         pitches.Sort();
         int median = pitches[pitches.Count / 2];
 
-        // 又短又快、音高几乎不动的轨：更像打击乐或效果，不猜旋律
         double span = 0;
         foreach (var n in notes) span += Math.Max(0, n.End - n.Start);
         double perNote = span / notes.Count;
         if (perNote < 0.12 && pitches[^1] - pitches[0] <= 12) return TrackRole.Drums;
 
-        if (median <= 47) return TrackRole.Bass;                          // 重心在 B2 以下 → 低音
-        if (median >= 67 && notes.Count <= 400) return TrackRole.Melody;   // 高音区、不太密 → 旋律
-        return TrackRole.Accompaniment;                                    // 其余 → 伴奏铺底
+        if (median <= 47) return TrackRole.Bass;                          
+        if (median >= 67 && notes.Count <= 400) return TrackRole.Melody;   
+        return TrackRole.Accompaniment;                                    
     }
 
     public static bool IsGenericTrackName(string? name)
@@ -150,7 +143,6 @@ public static class GmInstrument
             || low.StartsWith("通道") || low.StartsWith("声部") || low.StartsWith("未命名")
             || low.StartsWith("part") || low.StartsWith("channel") || low.StartsWith("ch ")) return true;
 
-        // 通篇只有 ASCII 字母、空格与数字，而且带数字：基本是「Track 1」「Piano 2」这类占位名
         bool hasDigit = false;
         foreach (char c in t)
         {

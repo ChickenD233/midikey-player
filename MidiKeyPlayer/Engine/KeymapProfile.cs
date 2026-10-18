@@ -13,10 +13,8 @@ public enum MissingNoteMode { Skip, Up, Down }
 [JsonConverter(typeof(KeyBindingConverter))]
 public sealed class KeyBinding
 {
-    /// <summary>键名。单字符键写 "Z"、","、"1"；命名键写 "PageUp"、"MouseLeft"。</summary>
     public string Key { get; set; } = "";
 
-    /// <summary>相对 <see cref="KeymapProfile.BaseNote"/> 的半音偏移。</summary>
     public int Offset { get; set; }
 
     public int Row { get; set; }
@@ -27,7 +25,6 @@ public sealed class KeyBinding
         => $"{Key}{(Shift ? "+Shift" : "")}{(Offset >= 0 ? "+" : "")}{Offset}@第{Row}行";
 }
 
-/// <summary>方案 JSON 读不动时的异常。消息是给人看的中文。</summary>
 public sealed class KeymapFormatException : Exception
 {
     public KeymapFormatException(string message) : base(message) { }
@@ -38,7 +35,6 @@ public sealed class KeymapProfile
 {
     public const string DefaultName = "8 键半音";
 
-    /// <summary>当前格式版本。读到更大的版本号就是不认识的格式。</summary>
     public const int CurrentVersion = 1;
 
     public int Version { get; set; } = CurrentVersion;
@@ -57,27 +53,22 @@ public sealed class KeymapProfile
 
     public int? MinNote { get; set; }
 
-    /// <summary>【兼容字段】老文件里写过音域上限。含义同 <see cref="MinNote"/>。</summary>
     public int? MaxNote { get; set; }
 
-    /// <summary>【兼容字段】超出可弹范围的音固定不弹，这个字段不再影响行为。</summary>
     public OutOfRangeMode OutOfRange { get; set; } = OutOfRangeMode.Drop;
 
     [JsonIgnore]
     public MissingNoteMode MissingNote
     {
         get => MissingNoteMode.Skip;
-        set { /* 老调用点写进来的值一律忽略：行为固定为跳过 */ }
+        set { }
     }
-
-    // ================= 位置与活动方案 =================
 
     internal static string? DirPathForDev { get; set; }
 
     private static string DirPath =>
         DirPathForDev ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MidiKeyPlayer");
 
-    /// <summary>方案文件路径：%LOCALAPPDATA%\MidiKeyPlayer\keymap.json。</summary>
     public static string FilePath => Path.Combine(DirPath, "keymap.json");
 
     private static KeymapProfile? _current;
@@ -88,13 +79,10 @@ public sealed class KeymapProfile
         set => _current = value ?? BuildDefault();
     }
 
-    // ================= 内置预设 =================
-
     private static IReadOnlyList<KeymapProfile>? _presets;
 
     public static IReadOnlyList<KeymapProfile> Presets => _presets ??= BuildPresets();
 
-    /// <summary>默认方案（第 1 套，v1.0.17 起是「8 键半音」）。每次取都是新副本，改它不影响内置预设。</summary>
     public static KeymapProfile Default => BuildChromatic8();
 
     private static KeymapProfile BuildDefault() => BuildNatural21();
@@ -130,7 +118,6 @@ public sealed class KeymapProfile
                             new[] { "A", "S", "D", "F", "G", "H", "J" },
                             new[] { "Q", "W", "E", "R", "T", "Y", "U" } };
         int[] degrees = { 0, 2, 4, 5, 7, 9, 11 };
-        // 行距 12：下排（Row 0）低一个八度，中排（Row 1）是本八度，上排（Row 2）高一个八度。
         for (int r = 0; r < rows.Length; r++)
             for (int c = 0; c < degrees.Length; c++)
                 keys.Add(new KeyBinding { Key = rows[r][c], Offset = 12 * (r - 1) + degrees[c], Row = r });
@@ -153,7 +140,6 @@ public sealed class KeymapProfile
 
     private static KeymapProfile BuildChromatic36()
     {
-        // 每排 12 个键，从 DO 到 XI 依次加一个半音。行距 = 12。
         string[] low = { ",", "L", ".", ";", "/", "I", "9", "O", "0", "P", "-", "[" };
         string[] mid = { "Z", "S", "X", "D", "C", "V", "G", "B", "H", "N", "J", "M" };
         string[] high = { "Q", "2", "W", "3", "E", "R", "5", "T", "6", "Y", "7", "U" };
@@ -180,7 +166,6 @@ public sealed class KeymapProfile
     private static KeymapProfile BuildChromatic8()
     {
         var keys = new List<KeyBinding>();
-        // 一排八个键：自然音 do re mi fa sol la si，再加高音 do。行号都是 0。
         string[] row = { "Z", "X", "C", "V", "B", "N", "M", "," };
         int[] offsets = { 0, 2, 4, 5, 7, 9, 11, 12 };
         for (int c = 0; c < row.Length; c++)
@@ -203,12 +188,11 @@ public sealed class KeymapProfile
     private static KeymapProfile BuildHandpan()
     {
         var keys = new List<KeyBinding>();
-        // (行号, 该行的键, 该行第一个音的偏移)：行内从左到右按音高升序。
         foreach (var (row, rowKeys, offsets) in new (int, string[], int[])[]
         {
-            (0, new[] { "B" }, new[] { -3 }),                        // 低音 la
-            (1, new[] { "F", "G", "H", "J", "K" }, new[] { 4, 5, 7, 9, 11 }),   // 中音 mi..si
-            (2, new[] { "T", "Y", "U" }, new[] { 12, 14, 16 }),      // 高音 do re mi
+            (0, new[] { "B" }, new[] { -3 }),                        
+            (1, new[] { "F", "G", "H", "J", "K" }, new[] { 4, 5, 7, 9, 11 }),   
+            (2, new[] { "T", "Y", "U" }, new[] { 12, 14, 16 }),      
         })
             for (int c = 0; c < rowKeys.Length; c++)
                 keys.Add(new KeyBinding { Key = rowKeys[c], Offset = offsets[c], Row = row });
@@ -229,24 +213,22 @@ public sealed class KeymapProfile
     private static KeymapProfile BuildRobloxPiano()
     {
         var keys = new List<KeyBinding>();
-        // (行号, 该行的白键, 该行第一个白键相对 C4 的偏移)：行内从左到右按音高升序。
         (int Row, string[] Whites, int[] Offsets)[] rows =
         {
             (0, new[] { "1", "2", "3", "4", "5", "6", "7", "8", "9", "0" },
-                new[] { -24, -22, -20, -19, -17, -15, -13, -12, -10, -8 }),      // C2..E3
+                new[] { -24, -22, -20, -19, -17, -15, -13, -12, -10, -8 }),      
             (1, new[] { "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P" },
-                new[] { -7, -5, -3, -1, 0, 2, 4, 5, 7, 9 }),                      // F3..A4
+                new[] { -7, -5, -3, -1, 0, 2, 4, 5, 7, 9 }),                      
             (2, new[] { "A", "S", "D", "F", "G", "H", "J", "K", "L" },
-                new[] { 11, 12, 14, 16, 17, 19, 21, 23, 24 }),                    // B4..C6
+                new[] { 11, 12, 14, 16, 17, 19, 21, 23, 24 }),                    
             (3, new[] { "Z", "X", "C", "V", "B", "N", "M" },
-                new[] { 26, 28, 29, 31, 33, 35, 36 }),                            // D6..C7
+                new[] { 26, 28, 29, 31, 33, 35, 36 }),                            
         };
 
         foreach (var (row, whites, offsets) in rows)
             for (int c = 0; c < whites.Length; c++)
             {
                 keys.Add(new KeyBinding { Key = whites[c], Offset = offsets[c], Row = row });
-                // 这个白键上面还有黑键时，补一条「同一个键 + Shift」的黑键键位（最高音 C7 上面没有黑键）。
                 int pitch = 60 + offsets[c];
                 if (HasSharpAbove(pitch) && pitch + 1 <= 96)
                     keys.Add(new KeyBinding { Key = whites[c], Offset = offsets[c] + 1, Row = row, Shift = true });
@@ -270,13 +252,12 @@ public sealed class KeymapProfile
     private static KeymapProfile BuildFf14Piano()
     {
         var keys = new List<KeyBinding>();
-        // (行号, 这一行从 do 起按半音往上排的 12 个键)：白键与它上面的黑键轮流出现。
         (int Row, string[] Keys)[] rows =
         {
-            (0, new[] { "Z", "1", "X", "2", "C", "V", "3", "B", "4", "N", "5", "M" }),   // 低八度
-            (1, new[] { "A", "6", "S", "7", "D", "F", "8", "G", "9", "H", "0", "J" }),   // 中八度
-            (2, new[] { "K", "Y", "L", "U", "Q", "W", "I", "E", "O", "R", "P", "T" }),   // 高八度
-            (3, new[] { "," }),                                                          // 最高的 do
+            (0, new[] { "Z", "1", "X", "2", "C", "V", "3", "B", "4", "N", "5", "M" }),   
+            (1, new[] { "A", "6", "S", "7", "D", "F", "8", "G", "9", "H", "0", "J" }),   
+            (2, new[] { "K", "Y", "L", "U", "Q", "W", "I", "E", "O", "R", "P", "T" }),   
+            (3, new[] { "," }),                                                          
         };
 
         foreach (var (row, rowKeys) in rows)
@@ -301,12 +282,11 @@ public sealed class KeymapProfile
     private static KeymapProfile BuildXindong()
     {
         var keys = new List<KeyBinding>();
-        // (行号, 这一行从 do 起按半音往上排的键)：白键与它上面的黑键轮流出现。
         (int Row, string[] Keys)[] rows =
         {
-            (0, new[] { ",", "L", ".", ";", "/", "O", "0", "P", "-", "[", "=", "]" }),   // 低音八度
-            (1, new[] { "Z", "S", "X", "D", "C", "V", "G", "B", "H", "N", "J", "M" }),   // 中音八度
-            (2, new[] { "Q", "2", "W", "3", "E", "R", "5", "T", "6", "Y", "7", "U", "I" }), // 高音八度 + 高音 do
+            (0, new[] { ",", "L", ".", ";", "/", "O", "0", "P", "-", "[", "=", "]" }),   
+            (1, new[] { "Z", "S", "X", "D", "C", "V", "G", "B", "H", "N", "J", "M" }),   
+            (2, new[] { "Q", "2", "W", "3", "E", "R", "5", "T", "6", "Y", "7", "U", "I" }), 
         };
 
         foreach (var (row, rowKeys) in rows)
@@ -334,9 +314,9 @@ public sealed class KeymapProfile
         var keys = new List<KeyBinding>();
         (int Row, string[] Keys)[] rows =
         {
-            (0, new[] { ".", ",", ";", "'", "/", "O", "0", "P", "-", "[", "=", "]" }),   // 低音八度
-            (1, new[] { "Z", "S", "X", "D", "C", "V", "G", "B", "H", "N", "J", "M" }),   // 中音八度
-            (2, new[] { "Q", "1", "W", "2", "E", "R", "4", "T", "5", "Y", "6", "U", "I" }), // 高音八度 + 高音 do
+            (0, new[] { ".", ",", ";", "'", "/", "O", "0", "P", "-", "[", "=", "]" }),   
+            (1, new[] { "Z", "S", "X", "D", "C", "V", "G", "B", "H", "N", "J", "M" }),   
+            (2, new[] { "Q", "1", "W", "2", "E", "R", "4", "T", "5", "Y", "6", "U", "I" }), 
         };
 
         foreach (var (row, rowKeys) in rows)
@@ -362,7 +342,7 @@ public sealed class KeymapProfile
 
     private static readonly Dictionary<string, KeymapProfile> LegacyBuiltInRevisions = new(StringComparer.Ordinal)
     {
-        ["心动小镇"] = BuildXindongV1117(),   // v1.1.17 / v1.1.18 的样子
+        ["心动小镇"] = BuildXindongV1117(),   
     };
 
     public static bool IsUntouchedLegacyCopy(string? name, KeymapProfile? profile)
@@ -372,7 +352,6 @@ public sealed class KeymapProfile
         return string.Equals(KeySignature(old), KeySignature(profile), StringComparison.Ordinal);
     }
 
-    /// <summary>键位 + 说明的签名：每条键位拍成「键名/偏移/行号/Shift」，末尾接上说明全文。</summary>
     private static string KeySignature(KeymapProfile profile)
     {
         var parts = new List<string>();
@@ -385,7 +364,6 @@ public sealed class KeymapProfile
         return string.Join(";", parts);
     }
 
-    /// <summary>这个音高上面有没有黑键：C D F G A 有，E 与 B 没有。参数是 MIDI 音高（非负）。</summary>
     private static bool HasSharpAbove(int pitch) => pitch % 12 is 0 or 2 or 5 or 7 or 9;
 
     public static string SchemeNameOf(KeymapProfile profile)
@@ -394,7 +372,6 @@ public sealed class KeymapProfile
         return $"{keys} 键 {RowCountOf(profile)} 排 {OctaveCountOf(profile)} 个八度";
     }
 
-    /// <summary>这些键在物理键盘上占几排。认不出排的键（鼠标、命名键）不计数。</summary>
     private static int RowCountOf(KeymapProfile profile)
     {
         var rows = new HashSet<int>();
@@ -407,7 +384,6 @@ public sealed class KeymapProfile
         return Math.Max(1, rows.Count);
     }
 
-    /// <summary>键名 → 物理排号：0 数字排、1 QWERTY 排、2 ASDF 排、3 ZXCV 排；-1 表示认不出。</summary>
     private static int PhysicalRowOf(string? key)
     {
         string name = CanonicalKeyName(key);
@@ -442,14 +418,14 @@ public sealed class KeymapProfile
     {
         var list = new List<KeymapProfile>
         {
-            Preset(BuildChromatic8(), DefaultName),           // 第 1 套 = 默认方案：一排 8 键 do..高音 do + 鼠标三键
-            Preset(BuildDefault(), "21 键自然音"),             // 第 2 套：中 / 高 / 高高，三行七列自然音
-            Preset(BuildChromatic21(), "21 键半音"),           // 第 3 套：低 / 中 / 高三个八度 + Shift 升 / Ctrl 降半音
-            Preset(BuildChromatic36(), "第五人格键位"),         // 第 4 套：三排各 12 个半音
-            Preset(BuildHandpan(), "洛克王国手碟"),             // 第 5 套：手碟键位（T Y U / F G H J K / B）
-            Preset(BuildRobloxPiano(), "Roblox 钢琴键位"),       // 第 6 套：Roblox 虚拟钢琴 61 键（四排白键 + Shift 黑键）
-            Preset(BuildFf14Piano(), "FF14 钢琴键位"),           // 第 7 套：FF14 演奏模式 37 键（三排各 12 个半音）
-            Preset(BuildXindong(), "心动小镇"),                  // 第 8 套：心动小镇 37 键（三排各一个八度，白键 7 + 7 + 8）
+            Preset(BuildChromatic8(), DefaultName),           
+            Preset(BuildDefault(), "21 键自然音"),             
+            Preset(BuildChromatic21(), "21 键半音"),           
+            Preset(BuildChromatic36(), "第五人格键位"),         
+            Preset(BuildHandpan(), "洛克王国手碟"),             
+            Preset(BuildRobloxPiano(), "Roblox 钢琴键位"),       
+            Preset(BuildFf14Piano(), "FF14 钢琴键位"),           
+            Preset(BuildXindong(), "心动小镇"),                  
         };
         if (!string.Equals(list[0].Name, DefaultName, StringComparison.Ordinal))
             LogFile.Append($"[键位] 默认方案名是「{list[0].Name}」，与常量「{DefaultName}」不同，请同步。");
@@ -462,7 +438,6 @@ public sealed class KeymapProfile
         return profile;
     }
 
-    /// <summary>按方案名找内置预设。找不到返回 null。老名字（改名前 / 已删掉）先过一次别名表。</summary>
     public static KeymapProfile? PresetByName(string? name)
     {
         if (string.IsNullOrWhiteSpace(name)) return null;
@@ -476,16 +451,12 @@ public sealed class KeymapProfile
         return null;
     }
 
-    // ================= 老方案名（升级用） =================
-
     private static readonly Dictionary<string, string> LegacyPresetAlias = new(StringComparer.Ordinal)
     {
-        // 上一版由 SchemeNameOf 算出来的名字 → 现在的直白名字（键位没变，只是换了称呼）
         ["21 键 3 排 3 个八度"] = "21 键自然音",
         ["21 键 3 排 2 个八度"] = "21 键半音",
         ["36 键 4 排 3 个八度"] = "第五人格键位",
         ["36 键 3 排 3 个八度"] = "第五人格键位",
-        // 第 3 套改名：老名字 → 现在的名字。键位一字未动
         ["36 键半音三排"] = "第五人格键位",
         ["8 键单排（含高八度 do，默认）"] = "8 键半音",
         ["8 键 1 排 3 个八度"] = "8 键半音",
@@ -494,27 +465,22 @@ public sealed class KeymapProfile
 
     private static readonly HashSet<string> RemovedPresetNames = new(StringComparer.Ordinal)
     {
-        // 旧的自然音方案（7 键 / 15 键 / 23 键）
         "7 键 1 排 1 个八度",
         "7 键单排自然音阶",
         "15 键 3 排 2 个八度",
         "15 键三排",
         "23 键 3 排 3 个八度",
         "23 键三排自然音阶",
-        // 旧的半音阶方案（12 键 / 24 键）
         "12 键 2 排 1 个八度",
         "24 键 2 排 2 个八度",
         "12 键半音阶双排",
-        // 更早删掉的
         "5 键极简",
         "宽音域 8 八度折叠",
     };
 
-    /// <summary>老名字对应的新名字（改过名的那几套）。不是老名字就返回 null。</summary>
     public static string? AliasOf(string? name)
         => !string.IsNullOrWhiteSpace(name) && LegacyPresetAlias.TryGetValue(name!, out string? now) ? now : null;
 
-    /// <summary>这个名字是不是「已经删掉的预设」。</summary>
     public static bool IsRemovedPresetName(string? name)
         => !string.IsNullOrWhiteSpace(name) && RemovedPresetNames.Contains(name!);
 
@@ -540,12 +506,9 @@ public sealed class KeymapProfile
         return profile;
     }
 
-    // ================= 方案库（内置 + 用户自己存的文件） =================
-
     public static string SchemesDir =>
         Path.Combine(DirPath, "schemes");
 
-    /// <summary>某个方案名对应的文件路径。名字里的非法字符换成下划线。</summary>
     public static string SchemeFilePath(string? name)
     {
         string safe = (name ?? "").Trim();
@@ -554,7 +517,6 @@ public sealed class KeymapProfile
         return Path.Combine(SchemesDir, safe + ".json");
     }
 
-    /// <summary>schemes 目录下已有的方案文件名（不含扩展名）。目录不在或读不动就返回空。</summary>
     private static List<string> SchemeFiles()
     {
         var list = new List<string>();
@@ -591,7 +553,6 @@ public sealed class KeymapProfile
 
     public static bool IsBuiltInSchemeName(string? name) => PresetByName(name) != null;
 
-    /// <summary>这个名字已经被某个方案占用（内置或用户文件）。</summary>
     public static bool SchemeNameExists(string? name)
     {
         if (string.IsNullOrWhiteSpace(name)) return false;
@@ -671,8 +632,6 @@ public sealed class KeymapProfile
         }
     }
 
-    // ================= 读盘 / 写盘 =================
-
     public static KeymapProfile Load()
     {
         try
@@ -683,7 +642,6 @@ public sealed class KeymapProfile
                 if (!string.IsNullOrWhiteSpace(loaded.Name))
                 {
                     var fixedUp = UpgradeLegacyName(loaded, out string note);
-                    // 活动方案同样可能是旧版内置键位留下的（老版本把它写进了 keymap.json），一起迁移。
                     var use = fixedUp;
                     if (FreshBuiltInForStaleCopy(fixedUp) is KeymapProfile fresh)
                     {
@@ -694,7 +652,7 @@ public sealed class KeymapProfile
                     if (note.Length > 0)
                     {
                         LogFile.Append(note);
-                        try { use.Save(); } catch { /* 存不动只影响下次启动 */ }
+                        try { use.Save(); } catch { }
                     }
                     return use;
                 }
@@ -727,7 +685,6 @@ public sealed class KeymapProfile
         return BuildDefault();
     }
 
-    /// <summary>把当前方案写回 keymap.json。失败只写日志，不抛异常。</summary>
     public void Save()
     {
         try
@@ -748,7 +705,6 @@ public sealed class KeymapProfile
         File.Move(tmp, path, overwrite: true);
     }
 
-    /// <summary>导出到用户选的路径。返回 false 时 error 里是中文原因。</summary>
     public bool TryExportFile(string path, out string error)
     {
         error = "";
@@ -781,9 +737,6 @@ public sealed class KeymapProfile
         }
     }
 
-    // ================= JSON =================
-
-    /// <summary>序列化成一个 JSON 文本。</summary>
     public string ToJson() => JsonSerializer.Serialize(this, KeymapJson.Default.KeymapProfile);
 
     public static KeymapProfile FromJson(string json)
@@ -838,13 +791,11 @@ public sealed class KeymapProfile
 
         profile.Version = profile.Version <= 0 ? CurrentVersion : profile.Version;
         profile.BaseNote = Math.Clamp(profile.BaseNote, 0, 127);
-        // minNote / maxNote 只做兼容保留：夹一下范围就放着，音域一律由键位推导，不再据此报错。
         if (profile.MinNote.HasValue) profile.MinNote = Math.Clamp(profile.MinNote.Value, 0, 127);
         if (profile.MaxNote.HasValue) profile.MaxNote = Math.Clamp(profile.MaxNote.Value, 0, 127);
         return profile;
     }
 
-    /// <summary>解析一份方案 JSON，失败时用中文说明原因，不抛异常。</summary>
     public static bool TryFromJson(string json, out KeymapProfile profile, out string error)
     {
         try
@@ -867,10 +818,8 @@ public sealed class KeymapProfile
         }
     }
 
-    /// <summary>基准音所在的八度编号（C4 = 4）。</summary>
     public int BaseOctave => BaseNote / 12 - 1;
 
-    /// <summary>本方案能不能用修饰键（八度键与半音键）。总开关关掉就一律按没有处理。</summary>
     public bool CanUseOctaveUp => ModifiersEnabled && !string.IsNullOrWhiteSpace(OctaveUp);
     public bool CanUseOctaveDown => ModifiersEnabled && !string.IsNullOrWhiteSpace(OctaveDown);
     public bool CanUseSharp => ModifiersEnabled && !string.IsNullOrWhiteSpace(Sharp);
@@ -881,13 +830,10 @@ public sealed class KeymapProfile
     public string? SharpKeyToHold
         => !string.IsNullOrWhiteSpace(Sharp) ? Sharp : (HasSelfShiftKeys ? "Shift" : null);
 
-    /// <summary>可演奏最低音：所有键位配上八度键能到的最低音。</summary>
     public int ResolveMinNote() => ReachableExtent().Lo;
 
-    /// <summary>可演奏最高音：所有键位配上八度键与升半音键能到的最高音。</summary>
     public int ResolveMaxNote() => ReachableExtent().Hi;
 
-    /// <summary>能弹范围的上下限（含端点）。一个可用的键都没有时返回基准音。</summary>
     public (int Lo, int Hi) ReachableExtent()
     {
         if (!TryReachableBounds(out int lo, out int hi))
@@ -896,7 +842,6 @@ public sealed class KeymapProfile
         return (Math.Clamp(lo, 0, 127), Math.Clamp(hi, 0, 127));
     }
 
-    /// <summary>把键位、八度键、升半音键铺开，算出能到达的最低与最高音高。</summary>
     private bool TryReachableBounds(out int lo, out int hi)
     {
         lo = 0;
@@ -918,7 +863,6 @@ public sealed class KeymapProfile
                 if (mod < 0 && !canDown) continue;
                 if (mod > 0 && !canUp) continue;
 
-                // 降半音键向下多到一个半音，升半音键向上多到一个半音
                 int baseP = BaseNote + k.Offset + 12 * mod;
                 int low = canFlat ? baseP - 1 : baseP;
                 int high = canSharp ? baseP + 1 : baseP;
@@ -949,7 +893,6 @@ public sealed class KeymapProfile
                 if (mod > 0 && !canUp) continue;
 
                 int low = BaseNote + k.Offset + 12 * mod;
-                // s = 0 原键、+1 升半音、-1 降半音
                 for (int s = -1; s <= 1; s++)
                 {
                     if (s > 0 && !canSharp) continue;
@@ -962,16 +905,12 @@ public sealed class KeymapProfile
         return set.ToList();
     }
 
-    /// <summary>该音高是否在能弹范围内（含端点）。范围是上下限之间的区间；区间之外固定不弹。</summary>
     public bool InRange(int pitch)
     {
         var (lo, hi) = ReachableExtent();
         return pitch >= lo && pitch <= hi;
     }
 
-    // ================= 查表 =================
-
-    /// <summary>某个键名对应的半音偏移（取第一项）。找不到返回 false。</summary>
     public bool TryKeyByName(string keyName, out int semitoneOffset)
     {
         semitoneOffset = 0;
@@ -991,7 +930,6 @@ public sealed class KeymapProfile
     public bool TryKeyOfPitch(int pitch, out string key, out int octaveOffset, out bool sharp)
         => TryKeyOfPitch(pitch, out key, out octaveOffset, out sharp, out _, out _);
 
-    /// <summary>同上，另给出实际发声音高（命中时与入参相同）。</summary>
     public bool TryKeyOfPitch(int pitch, out string key, out int octaveOffset, out bool sharp,
                               out int soundingPitch)
         => TryKeyOfPitch(pitch, out key, out octaveOffset, out sharp, out _, out soundingPitch);
@@ -1005,7 +943,7 @@ public sealed class KeymapProfile
         flat = false;
         soundingPitch = pitch;
         if (Keys.Count == 0) return false;
-        if (!InRange(pitch)) return false;   // 超出能弹范围：固定不弹
+        if (!InRange(pitch)) return false;   
 
         int want = pitch;
         bool canSharp = CanUseSharp;
@@ -1013,7 +951,6 @@ public sealed class KeymapProfile
         bool canUp = CanUseOctaveUp;
         bool canDown = CanUseOctaveDown;
 
-        // 半音键优先级：0 不用、1 升半音、2 降半音（数值小的优先）
         static int RankOf(int s) => s == 0 ? 0 : (s > 0 ? 1 : 2);
 
         bool found = false;
@@ -1035,7 +972,7 @@ public sealed class KeymapProfile
             {
                 var kb = Keys[i];
                 if (kb == null || string.IsNullOrEmpty(kb.Key)) continue;
-                if (KeyCharOf(kb.Key) == '\0') continue;   // 认不出的键名不参与映射
+                if (KeyCharOf(kb.Key) == '\0') continue;   
 
                 int basePitch = BaseNote + kb.Offset + 12 * mod;
                 for (int s = -1; s <= 1; s++)
@@ -1043,7 +980,7 @@ public sealed class KeymapProfile
                     if (s > 0 && !canSharp) continue;
                     if (s < 0 && !canFlat) continue;
                     int p = basePitch + s;
-                    if (p != want) continue;               // 只认精确命中：没键就不发声
+                    if (p != want) continue;               
 
                     int rank = RankOf(s);
                     bool better =
@@ -1071,14 +1008,12 @@ public sealed class KeymapProfile
 
         key = bestKey;
         octaveOffset = bestMod;
-        // 「自带 Shift」的键位（黑键一个键一条）也要按住 Shift，与走功能键升半音的那条路等价。
         sharp = bestS > 0 || bestSelfShift;
         flat = bestS < 0;
         soundingPitch = want;
         return true;
     }
 
-    /// <summary>复制一份（键表也复制），用于编辑内置预设前的拷贝。</summary>
     public KeymapProfile Clone()
     {
         var copy = new KeymapProfile
@@ -1107,7 +1042,6 @@ public sealed class KeymapProfile
 
     private const char NamedKeyBase = '\uE000';
 
-    /// <summary>命名键（非单字符）。下标 + <see cref="NamedKeyBase"/> 就是它的哨兵字符。</summary>
     private static readonly string[] NamedKeys =
     {
         "Space", "Enter", "Tab", "Back", "Escape", "Shift", "Ctrl", "Alt",
@@ -1119,7 +1053,6 @@ public sealed class KeymapProfile
         "MouseLeft", "MouseRight", "MouseMiddle",
     };
 
-    /// <summary>允许出现在方案里的别名（统一按小写比较）。</summary>
     private static readonly Dictionary<string, string> KeyAlias = new(StringComparer.OrdinalIgnoreCase)
     {
         ["Backspace"] = "Back",
@@ -1142,12 +1075,10 @@ public sealed class KeymapProfile
         ["MiddleMouse"] = "MouseMiddle",
     };
 
-    /// <summary>可单独作为键名的标点（与界面能录入的键一致）。</summary>
     private const string SingleCharKeys = ",.;/'\\[]-=`";
 
     public const string SingleCharPool = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" + SingleCharKeys;
 
-    /// <summary>归一化键名：大小写、别名。认不出返回空串。</summary>
     public static string CanonicalKeyName(string? keyName)
     {
         if (string.IsNullOrWhiteSpace(keyName)) return "";
@@ -1168,10 +1099,8 @@ public sealed class KeymapProfile
         return "";
     }
 
-    /// <summary>键名是否可用（单字符键或已知命名键）。</summary>
     public static bool IsKnownKeyName(string? keyName) => CanonicalKeyName(keyName).Length > 0;
 
-    /// <summary>按住 Shift 之后，数字行与标点键出来的字符（与键盘上的实际字符一致）。</summary>
     private static readonly Dictionary<char, char> ShiftedChars = new()
     {
         ['1'] = '!', ['2'] = '@', ['3'] = '#', ['4'] = '$', ['5'] = '%',
@@ -1186,7 +1115,7 @@ public sealed class KeymapProfile
         if (name.Length == 0) return "";
         if (name.Length > 1) return $"Shift+{name}";
         char c = name[0];
-        if (c is >= 'A' and <= 'Z') return c.ToString();                 // 字母：大写就是这个键的上位字符
+        if (c is >= 'A' and <= 'Z') return c.ToString();                 
         if (ShiftedChars.TryGetValue(c, out char shifted)) return shifted.ToString();
         return $"Shift+{name}";
     }
@@ -1205,7 +1134,6 @@ public sealed class KeymapProfile
         return i < 0 ? '\0' : (char)(NamedKeyBase + i);
     }
 
-    /// <summary>单字符 → 键名。哨兵字符还原成命名键；其余按原样返回。</summary>
     public static string NameOfKeyChar(char c)
     {
         if (c == '\0') return "";
@@ -1237,7 +1165,6 @@ internal sealed class OutOfRangeModeConverter : JsonConverter<OutOfRangeMode>
         throw new JsonException($"outOfRange 只能写 drop 或 fold，收到「{s}」。");
     }
 
-    /// <summary>老文件的 fold 保留原值，但新版本固定不弹；写一条日志说明。</summary>
     private static OutOfRangeMode LegacyFold()
     {
         LogFile.Append("[键位] outOfRange 旧值 fold 已停用：超出能弹范围的音固定不弹，不再折八度。");
@@ -1303,7 +1230,6 @@ internal sealed class KeyBindingConverter : JsonConverter<KeyBinding>
             throw new JsonException($"键「{name}」的半音偏移要写整数。");
         }
 
-        // 第三项是行号。老文件没有这一项，读成 0（界面会退回按物理键盘的排分组）。
         if (!reader.Read())
             throw new JsonException("keys 里的项不完整。");
         int row = 0;
@@ -1334,7 +1260,7 @@ internal sealed class KeyBindingConverter : JsonConverter<KeyBinding>
                 throw new JsonException("keys 里的项不完整。");
             while (reader.TokenType != JsonTokenType.EndArray)
             {
-                if (!reader.Read()) throw new JsonException("keys 里的项不完整。");   // 多余项忽略
+                if (!reader.Read()) throw new JsonException("keys 里的项不完整。");   
             }
         }
 
@@ -1347,7 +1273,6 @@ internal sealed class KeyBindingConverter : JsonConverter<KeyBinding>
         writer.WriteStringValue(value.Key);
         writer.WriteNumberValue(value.Offset);
         writer.WriteNumberValue(value.Row);
-        // 第四项只在要按住 Shift 时才写：老方案文件写出来还是三元素，一个字都不变。
         if (value.Shift) writer.WriteBooleanValue(true);
         writer.WriteEndArray();
     }

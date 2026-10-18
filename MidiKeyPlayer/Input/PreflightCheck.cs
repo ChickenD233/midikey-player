@@ -5,7 +5,6 @@ namespace MidiKeyPlayer.Input;
 
 public static class PreflightCheck
 {
-    /// <summary>自检结论。三态：通过 / 提醒 / 不通过。</summary>
     public enum Status { Pass, Warn, Fail }
 
     public sealed record Check(string Name, Status Status, string Detail)
@@ -25,25 +24,19 @@ public static class PreflightCheck
         public bool HasBlocked => Admin.Blocked || Ime.Blocked;
     }
 
-    /// <summary>输入法状态检测结果。</summary>
     public enum ImeMode
     {
-        /// <summary>按键直达目标程序（非中文输入状态）。</summary>
         Direct,
-        /// <summary>中文/假名输入状态，会截走按键。</summary>
         Native,
-        /// <summary>读不到状态。</summary>
         Unknown
     }
 
-    /// <summary>检测过程中收到的证据，用来给用户看得懂的说明，也方便排障。</summary>
     public sealed record ImeProbe(
         ushort WindowLayout, uint FocusedThread,
         bool ImeWndRead, int ImeWndOpen, uint ImeWndConversion,
         int OpenStatus, bool? Alphanumeric, uint RawConversion,
         bool ThreadLayoutRead, ushort ThreadLayout, bool CallerLayoutRead, ushort CallerLayout);
 
-    // ---------------- P/Invoke ----------------
     [StructLayout(LayoutKind.Sequential)]
     private struct GUITHREADINFO
     {
@@ -103,13 +96,11 @@ public static class PreflightCheck
     private const uint TOKEN_QUERY = 0x0008;
     private const int TokenElevation = 20;
 
-    // 输入法状态：WM_IME_CONTROL / IMC_GETOPENSTATUS 可以跨进程查询
     private const uint WM_IME_CONTROL = 0x0283;
     private const int IMC_GETOPENSTATUS = 0x0005;
     private const int IMC_GETCONVERSIONMODE = 0x0001;
     private const uint SMTO_ABORTIFHUNG = 0x0002;
     private const uint SMTO_BLOCK = 0x0001;
-    /// <summary>IME_CMODE_NATIVE：中文/假名（"原生"）输入模式。这个位为 0 才是英文/半角。</summary>
     private const uint IME_CMODE_NATIVE = 0x0001;
     private const uint IME_CMODE_KATAKANA = 0x0002;
     private const uint IME_CMODE_FULLSHAPE = 0x0008;
@@ -141,11 +132,9 @@ public static class PreflightCheck
         return (ushort)(hkl.ToInt64() & 0xFFFF);
     }
 
-    /// <summary>这个 LANGID 是否属于中日韩（需要看输入法开关状态）的语言。</summary>
     public static bool IsCjkLayout(ushort lang) =>
-        lang is 0x0804 or 0x0404 or 0x0411 or 0x0412;   // 简中 / 繁中 / 日文 / 韩文
+        lang is 0x0804 or 0x0404 or 0x0411 or 0x0412;   
 
-    /// <summary>LANGID 的中文名（写日志用）。</summary>
     public static string LayoutName(ushort lang) => lang switch
     {
         0x0804 => "简体中文",
@@ -159,16 +148,14 @@ public static class PreflightCheck
     public static ImeMode Decide(ushort windowLayout, int open, bool? alphanumeric,
                                  ushort focusedThreadLayout = 0)
     {
-        // 只要有一条证据说明布局不是中日韩 → 一定不截键
         if (windowLayout != 0 && !IsCjkLayout(windowLayout)) return ImeMode.Direct;
         if (focusedThreadLayout != 0 && !IsCjkLayout(focusedThreadLayout)) return ImeMode.Direct;
 
-        // 布局读不到时，仍然可以用"输入法关着 / 英文模式"这两条证据放行
         if (open == 0) return ImeMode.Direct;
         if (alphanumeric == true) return ImeMode.Direct;
 
-        if (windowLayout == 0) return ImeMode.Unknown;   // 布局也没读到，无法判断
-        if (open < 0) return ImeMode.Unknown;            // 布局是中日韩，但开关读不到
+        if (windowLayout == 0) return ImeMode.Unknown;   
+        if (open < 0) return ImeMode.Unknown;            
         if (alphanumeric == false) return ImeMode.Native;
         return ImeMode.Unknown;
     }
@@ -188,7 +175,6 @@ public static class PreflightCheck
             windowLayout = (ushort)(hkl.ToInt64() & 0xFFFF);
         }
 
-        // 真正吃键的是"有键盘焦点的那个线程"。顶层窗口的线程不一定等于它。
         uint focused = FocusedGuiThread(tid);
         bool threadRead = false;
         ushort threadLayout = 0;
@@ -207,16 +193,13 @@ public static class PreflightCheck
         bool callerRead = hkl3 != IntPtr.Zero;
         ushort callerLayout = callerRead ? (ushort)(hkl3.ToInt64() & 0xFFFF) : (ushort)0;
 
-        // 证据一：布局不是中日韩 → 一定不截键
         var empty = new ImeProbe(windowLayout, focused, false, -1, 0, -1, null, 0, threadRead, threadLayout, callerRead, callerLayout);
         if ((windowLayout != 0 && !IsCjkLayout(windowLayout)) ||
             (threadRead && !IsCjkLayout(threadLayout)))
             return (ImeMode.Direct, empty);
 
-        // 证据二（最可靠）：默认输入法窗口的开关与转换模式
         var (wndOk, wndOpen, wndConv) = ReadImeWindowState(h);
 
-        // 证据三：直接问前台窗口（有些窗口自己处理 WM_IME_CONTROL）
         int open = ReadOpenStatus(h);
         bool? alnum = open == 1 ? ReadAlphanumeric(h) : null;
         uint rawConv = ReadRawConversion(h);
@@ -234,7 +217,6 @@ public static class PreflightCheck
         return (mode, probe);
     }
 
-    /// <summary>原始转换模式位（跨进程查）。0 = 读不到。写进日志用于排障。</summary>
     private static uint ReadRawConversion(IntPtr hWnd)
     {
         if (hWnd == IntPtr.Zero) return 0;
@@ -247,10 +229,8 @@ public static class PreflightCheck
         catch { return 0; }
     }
 
-    /// <summary>输入法状态（不带检测证据）。</summary>
     public static ImeMode DetectImeMode() => DetectImeModeDetailed().Mode;
 
-    /// <summary>前台窗口线程里获得键盘焦点的 GUI 线程；读不到返回 0。</summary>
     private static uint FocusedGuiThread(uint fallbackThread)
     {
         try
@@ -265,7 +245,7 @@ public static class PreflightCheck
                 }
             }
         }
-        catch { /* 读不到就用回退值 */ }
+        catch { }
         return fallbackThread;
     }
 
@@ -279,7 +259,7 @@ public static class PreflightCheck
                     SMTO_ABORTIFHUNG | SMTO_BLOCK, 150, out IntPtr result);
                 if (r != IntPtr.Zero) return result != IntPtr.Zero ? 1 : 0;
             }
-            catch { /* 目标进程无响应时忽略，退回 ImmGetContext */ }
+            catch { }
         }
 
         IntPtr hImc = IntPtr.Zero;
@@ -293,7 +273,6 @@ public static class PreflightCheck
         finally { if (hImc != IntPtr.Zero) ImmReleaseContext(hWnd, hImc); }
     }
 
-    /// <summary>输入法是否处于英文/半角模式：true 是、false 否、null 读不到。</summary>
     private static bool? ReadAlphanumeric(IntPtr hWnd)
     {
         IntPtr hImc = IntPtr.Zero;
@@ -333,7 +312,6 @@ public static class PreflightCheck
 
     private static bool IsAlphanumeric(uint conversion) => (conversion & IME_CMODE_NATIVE) == 0;
 
-    /// <summary>转换模式是否属于"全角/假名"，这种状态一定会截键。</summary>
     private static bool IsWideOrKana(uint conversion) =>
         (conversion & (IME_CMODE_FULLSHAPE | IME_CMODE_KATAKANA)) != 0;
 
@@ -341,18 +319,16 @@ public static class PreflightCheck
     {
         if (!wndOk)
         {
-            // 没有输入法窗口这条证据，退回前台窗口那一路
             if (open == 0 || alnum == true) return ImeMode.Direct;
             if (open == 1 && alnum == false) return ImeMode.Native;
             return ImeMode.Unknown;
         }
 
-        if (wndOpen == 0) return ImeMode.Direct;      // 输入法关着
-        if (wndConv == 0) return ImeMode.Direct;      // 转换模式 0 = 英文/半角
+        if (wndOpen == 0) return ImeMode.Direct;      
+        if (wndConv == 0) return ImeMode.Direct;      
         return IsAlphanumeric(wndConv) ? ImeMode.Direct : ImeMode.Native;
     }
 
-    /// <summary>给日志用的一行证据。</summary>
     public static string Describe(ImeProbe p) =>
         $"窗口布局=0x{p.WindowLayout:X4} 焦点线程布局={(p.ThreadLayoutRead ? $"0x{p.ThreadLayout:X4}" : "读不到")} " +
         $"IME窗口={(p.ImeWndRead ? $"开={p.ImeWndOpen} 转换模式=0x{p.ImeWndConversion:X4}" : "读不到")} " +

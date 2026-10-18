@@ -5,8 +5,8 @@ namespace MidiKeyPlayer.Input;
 
 public static class GlobalHotkeys
 {
-    public static event Action<int, bool>? KeyState;   // (虚拟键码, 是否按下) 工作线程
-    public static event Action<string>? Status;        // 注册状态/错误（工作线程）
+    public static event Action<int, bool>? KeyState;   
+    public static event Action<string>? Status;        
 
     private static readonly object _sync = new();
     private static readonly HashSet<int> _active = new();
@@ -14,16 +14,15 @@ public static class GlobalHotkeys
     private static volatile bool _running;
     private static readonly Dictionary<int, long> _lastDownTick = new();
     private static uint _winThreadId;
-    private static readonly ManualResetEventSlim _ready = new(false);   // 钩子线程报告"线程 id 已就绪"
+    private static readonly ManualResetEventSlim _ready = new(false);   
 
     public static bool IsAvailable => OperatingSystem.IsWindows();
     public static bool Running => _running;
 
-    /// <summary>F1..F12 的虚拟键码。</summary>
     public static int FunctionKeyCode(int n)
     {
         if (n is < 1 or > 12) return 0;
-        return 0x70 + n - 1;   // VK_F1..VK_F12
+        return 0x70 + n - 1;   
     }
 
     public static void SetActive(IEnumerable<int> codes)
@@ -63,12 +62,10 @@ public static class GlobalHotkeys
     public static void Stop()
     {
         _running = false;
-        // 唤醒阻塞在 GetMessage 的钩子线程
         uint tid = _winThreadId;
         if (tid != 0)
             PostThreadMessageW(tid, WM_QUIT, IntPtr.Zero, IntPtr.Zero);
 
-        // A16：等工作线程真正退出再放掉引用，否则紧接着的 Start() 会再建一个线程与第二个钩子
         Thread? t;
         lock (_sync)
         {
@@ -78,26 +75,24 @@ public static class GlobalHotkeys
         if (t != null && t.IsAlive && !ReferenceEquals(t, Thread.CurrentThread))
             t.Join(300);
 
-        Interlocked.Exchange(ref _winThreadId, 0u);   // A08：复位，避免下次 Stop 对着已经没了的线程 id 发消息
+        Interlocked.Exchange(ref _winThreadId, 0u);   
     }
 
-    // ================= 事件分发（工作线程） =================
     private static void RaiseKey(int code, bool down)
     {
-        if (!down) return;   // 只用按下触发（避免重复/抬起抖动）
+        if (!down) return;   
 
         lock (_sync)
         {
             if (!_active.Contains(code)) return;
             long now = Environment.TickCount64;
-            if (_lastDownTick.TryGetValue(code, out long last) && now - last < 100) return; // 防连发
+            if (_lastDownTick.TryGetValue(code, out long last) && now - last < 100) return; 
             _lastDownTick[code] = now;
         }
         int vk = code;
         Task.Run(() => KeyState?.Invoke(vk, true));
     }
 
-    // ================= 低层键盘钩子 =================
     private const int WH_KEYBOARD_LL = 13;
     private const uint WM_KEYDOWN = 0x0100;
     private const uint WM_QUIT = 0x0012;
@@ -197,13 +192,13 @@ public static class GlobalHotkeys
         finally
         {
             _running = false;
-            if (_winHook != IntPtr.Zero)   // 异常路径也要拆钩子，否则钩子留在系统里
+            if (_winHook != IntPtr.Zero)   
             {
                 UnhookWindowsHookEx(_winHook);
                 _winHook = IntPtr.Zero;
             }
             _winThreadId = 0;
-            _ready.Set();   // 注册前就抛异常时也要放行 Start()
+            _ready.Set();   
         }
     }
 }

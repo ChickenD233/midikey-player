@@ -8,7 +8,6 @@
                 <ResourceInclude Source="avares://MidiKeyPlayer/Styles/Theme.axaml" />
             </ResourceDictionary.MergedDictionaries>
 
-            <!-- 让 Fluent 的滑块/勾选框/焦点框也用品牌绿（原来的 Fluent 蓝跟界面不搭） -->
             <Color x:Key="SystemAccentColor">#2E8B57</Color>
             <Color x:Key="SystemAccentColorDark1">#26784A</Color>
             <Color x:Key="SystemAccentColorDark2">#1F6540</Color>
