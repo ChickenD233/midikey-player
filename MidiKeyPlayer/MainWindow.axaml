@@ -82,10 +82,10 @@
     <Grid x:Name="LeftColumn" Width="440" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*" DockPanel.Dock="Left" Margin="0,0,12,0">
 
       <Border Grid.Row="0" Classes="card">
-        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+        <Grid ColumnDefinitions="Auto,*">
           <SplitButton x:Name="BtnOpen" Content="打开 MIDI 文件" Click="BtnOpen_Click"
                        Padding="14,7" FontSize="{DynamicResource FontBody}" VerticalAlignment="Center"
-                       ToolTip.Tip="左边选文件，右边 ▾ 选文件夹">
+                       ToolTip.Tip="左边选文件，右边 ▾ 选文件夹。支持 .mid / .midi / .kar / .rmi">
             <SplitButton.Flyout>
               <MenuFlyout Placement="BottomEdgeAlignedLeft"/>
             </SplitButton.Flyout>
@@ -93,9 +93,6 @@
           <TextBlock Grid.Column="1" x:Name="LblFile" VerticalAlignment="Center"
                      Margin="12,0,0,0" Text="未选择文件" Classes="caption"
                      TextTrimming="CharacterEllipsis"/>
-          <TextBlock Grid.Row="1" Grid.Column="1" Classes="sectionLabel" VerticalAlignment="Center"
-                     Margin="12,8,0,0"
-                     Text="支持 .mid / .midi / .kar / .rmi"/>
         </Grid>
       </Border>
 
@@ -280,25 +277,20 @@
                      LineHeight="20" Text=""/>
         </Border>
         <Border Classes="card">
-          <StackPanel Spacing="3">
-            <TextBlock x:Name="LblStatus" FontSize="{DynamicResource FontTitle}" FontWeight="Bold"
-                       Foreground="{DynamicResource BrushSuccess}"
-                       TextAlignment="Center" Text="" TextWrapping="Wrap"/>
-            <TextBlock x:Name="LblMelody" TextWrapping="Wrap" LineHeight="20"
-                       FontSize="{DynamicResource FontBody}" TextAlignment="Center"
-                       Text="打开 MIDI 文件，再在左侧点一行作为主旋律"/>
-            <TextBlock x:Name="LblWarn" TextWrapping="Wrap" TextAlignment="Center"
-                       FontSize="{DynamicResource FontSmall}" Text=""
-                       PointerPressed="LblWarn_PointerPressed"
-                       ToolTip.Tip="点开看被跳过的音"/>
-            <TextBlock x:Name="TxtEditMark" IsVisible="False" TextWrapping="Wrap" TextAlignment="Center"
-                       FontSize="{DynamicResource FontSmall}" FontWeight="SemiBold"
-                       Foreground="{DynamicResource BrushWarn}"
-                       Text="⚠ 有未导出的改动，请先导出 MIDI"/>
+          <StackPanel Spacing="4">
+            <Grid ColumnDefinitions="*,Auto">
+              <StackPanel Spacing="1" VerticalAlignment="Center">
+                <TextBlock x:Name="LblStatus" FontSize="{DynamicResource FontTitle}" FontWeight="Bold"
+                           Foreground="{DynamicResource BrushSuccess}"
+                           TextAlignment="Left" Text="" TextWrapping="Wrap"/>
+                <TextBlock x:Name="LblMelody" TextWrapping="Wrap" LineHeight="18"
+                           FontSize="{DynamicResource FontSmall}" Foreground="{DynamicResource BrushTextSecondary}"
+                           TextAlignment="Left"
+                           Text="打开 MIDI 文件，再在左侧点一行作为主旋律"/>
+              </StackPanel>
 
-            <StackPanel x:Name="PreflightRow" Spacing="2" Margin="0,6,0,0">
-              <Border BorderThickness="0,1,0,0" BorderBrush="{DynamicResource BrushBorder}" Margin="0,0,0,5"/>
-              <WrapPanel HorizontalAlignment="Center" ItemSpacing="14" LineSpacing="4">
+              <StackPanel x:Name="PreflightRow" Grid.Column="1" Orientation="Horizontal" Spacing="12"
+                          VerticalAlignment="Center" Margin="12,0,0,0">
                 <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center"
                             ToolTip.Tip="目标程序提权时本程序也要提权">
                   <TextBlock x:Name="TxtCheckAdminMark" Text="–" FontSize="{DynamicResource FontBody}" FontWeight="Bold"
@@ -317,10 +309,19 @@
                 <Button x:Name="BtnRecheck" Content="刷新" FontSize="{DynamicResource FontCaption}" Padding="10,3"
                         Classes="secondary" VerticalAlignment="Center" Click="BtnRecheck_Click"
                         ToolTip.Tip="重新检测权限与输入法"/>
-              </WrapPanel>
-              <TextBlock x:Name="TxtCheckHint" IsVisible="False" Classes="caption"
-                         Foreground="{DynamicResource BrushWarn}" TextAlignment="Center" TextWrapping="Wrap"/>
-            </StackPanel>
+              </StackPanel>
+            </Grid>
+
+            <TextBlock x:Name="LblWarn" TextWrapping="Wrap" TextAlignment="Left"
+                       FontSize="{DynamicResource FontSmall}" Text=""
+                       PointerPressed="LblWarn_PointerPressed"
+                       ToolTip.Tip="点开看被跳过的音"/>
+            <TextBlock x:Name="TxtEditMark" IsVisible="False" TextWrapping="Wrap" TextAlignment="Left"
+                       FontSize="{DynamicResource FontSmall}" FontWeight="SemiBold"
+                       Foreground="{DynamicResource BrushWarn}"
+                       Text="⚠ 有未导出的改动，请先导出 MIDI"/>
+            <TextBlock x:Name="TxtCheckHint" IsVisible="False" Classes="caption"
+                       Foreground="{DynamicResource BrushWarn}" TextAlignment="Left" TextWrapping="Wrap"/>
           </StackPanel>
         </Border>
       </StackPanel>
@@ -341,6 +342,7 @@
                         Classes="secondary" Click="DeleteNote_Click" ToolTip.Tip="也可以按 Delete 键，或右键点音符"/>
               </StackPanel>
               <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <Border Width="1" Height="18" Background="{DynamicResource BrushBorder}" Margin="0,0,10,0"/>
                 <TextBlock x:Name="TxtZoom" Classes="value" VerticalAlignment="Center" MinWidth="40"
                            TextAlignment="Right" Text="100%"
                            ToolTip.Tip="整首歌刚好铺满 = 100%"/>
@@ -360,9 +362,9 @@
                 <CheckBox x:Name="ChkFollow" Content="跟随播放" IsChecked="True" VerticalAlignment="Center"
                           FontSize="{DynamicResource FontCaption}"
                           ToolTip.Tip="卷帘跟随播放头滚动"/>
-                <Button x:Name="BtnExportMidi" Content="导出 MIDI…" FontSize="{DynamicResource FontCaption}" Padding="10,3"
-                        Classes="secondary" Click="ExportMidi_Click"
-                        ToolTip.Tip="写出当前谱面"/>
+              <Button x:Name="BtnExportMidi" Content="导出 MIDI…" FontSize="{DynamicResource FontCaption}" Padding="10,3"
+                      Classes="secondary" Click="ExportMidi_Click"
+                      ToolTip.Tip="写出当前谱面" Margin="8,0,0,0"/>
               </StackPanel>
               <Button Grid.Column="1" x:Name="BtnHelp" Content="帮助"
                       FontSize="{DynamicResource FontCaption}" Padding="10,3" Margin="8,0,0,0"
@@ -502,7 +504,7 @@
                 <TextBlock x:Name="TxtSpeed" Text="100%" Classes="value" Width="42" VerticalAlignment="Center"/>
               </StackPanel>
 
-              <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="16,0,0,0">
+              <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="12,0,0,0">
                 <TextBlock Text="移调" Classes="label" MinWidth="34" VerticalAlignment="Center"/>
                 <Slider x:Name="SliderTranspose" Width="96" Minimum="-24" Maximum="24" Value="0"
                         TickFrequency="1" IsSnapToTickEnabled="True" ValueChanged="SpeedChanged"
@@ -519,7 +521,7 @@
               </StackPanel>
 
               <CheckBox Grid.Row="1" Grid.Column="1" x:Name="ChkAutoMinimize" Content="播放后自动最小化窗口"
-                        FontSize="{DynamicResource FontSmall}" Margin="16,0,0,0"
+                        FontSize="{DynamicResource FontSmall}" Margin="12,0,0,0"
                         IsChecked="True" VerticalAlignment="Center"
                         ToolTip.Tip="开始播放后最小化窗口"
                         IsCheckedChanged="AutoMinimize_Changed"/>
