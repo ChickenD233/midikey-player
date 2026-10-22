@@ -127,12 +127,68 @@ public partial class MainWindow : Window
         if (Height > maxH) Height = maxH;
     }
 
+    private void ApplySavedWindowGeometry()
+    {
+        if (_cfg == null) return;
+        if (_cfg.WindowW >= 900 && _cfg.WindowH >= 640)
+        {
+            Width = _cfg.WindowW;
+            Height = _cfg.WindowH;
+            ClampToScreen();
+        }
+        if (_cfg.WindowMax)
+            Opened += (_, _) => WindowState = WindowState.Maximized;
+    }
+
+    private void FileDragOver(object? sender, DragEventArgs e)
+    {
+        e.DragEffects = e.Data.Contains(DataFormats.Files) ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void FileDrop(object? sender, DragEventArgs e)
+    {
+        e.Handled = true;
+        string? midi = null;
+        var files = e.Data.GetFiles();
+        if (files != null)
+        {
+            foreach (var item in files)
+            {
+                string? path = item.TryGetLocalPath();
+                if (path != null && IsMidiFile(System.IO.Path.GetExtension(path)))
+                {
+                    midi = path;
+                    break;
+                }
+            }
+        }
+
+        if (midi == null)
+        {
+            InsertLog("拖入的文件不是 MIDI（.mid / .midi / .kar / .rmi）。");
+            return;
+        }
+        _ = OpenDroppedFileAsync(midi);
+    }
+
+    private async Task OpenDroppedFileAsync(string path)
+    {
+        if (!await ConfirmDiscardEditsAsync("打开拖入的文件")) return;
+        _sourceIsPlaylist = false;
+        LoadMidiFile(path);
+    }
+
     public MainWindow()
     {
         InitializeComponent();
         ClampToScreen();
         SizeChanged += (_, _) => ClampRightRows();
         LayoutUpdated += (_, _) => ClampRightRows();
+
+        DragDrop.SetAllowDrop(this, true);
+        AddHandler(DragDrop.DragOverEvent, FileDragOver);
+        AddHandler(DragDrop.DropEvent, FileDrop);
 
         TrackList.ItemsSource = _tracks;
 
@@ -158,6 +214,7 @@ public partial class MainWindow : Window
         BackendCombo.ItemsSource = new[] { "SendInput（Windows 自带）", "罗技 G HUB 驱动" };
 
         _cfg = AppConfig.Load();
+        ApplySavedWindowGeometry();
         CountdownCombo.SelectedIndex = Math.Clamp(_cfg.CountdownIndex, 0, 3);
         HotkeyControlCombo.SelectedIndex = Math.Clamp(_cfg.ControlHotkeyIndex, 0, 12);
         HotkeyRewindCombo.SelectedIndex = Math.Clamp(_cfg.RewindHotkeyIndex, 0, 12);
@@ -1635,6 +1692,25 @@ public partial class MainWindow : Window
             RefreshFolderUi();
         }
         InsertLog("已刷新文件夹列表。");
+    }
+
+    private void FolderUp_Click(object? sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_folderPath)) return;
+        try
+        {
+            var parent = System.IO.Directory.GetParent(_folderPath);
+            if (parent == null)
+            {
+                InsertLog("已经在磁盘根目录，没有上一级。");
+                return;
+            }
+            ScanMidiFolder(parent.FullName);
+        }
+        catch (Exception ex)
+        {
+            InsertLog($"返回上一级失败：{ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     private object? _splitDrag;
@@ -4503,6 +4579,13 @@ public partial class MainWindow : Window
             _ = ConfirmExitWithEditsAsync();
             return;
         }
+
+        if (WindowState == WindowState.Normal)
+        {
+            _cfg.WindowW = (int)Math.Round(ClientSize.Width);
+            _cfg.WindowH = (int)Math.Round(ClientSize.Height);
+        }
+        _cfg.WindowMax = WindowState == WindowState.Maximized;
 
         SaveSettings();
 

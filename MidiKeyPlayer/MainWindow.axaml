@@ -4,7 +4,7 @@
         x:Class="MidiKeyPlayer.MainWindow"
         Title="MIDI 按键播放器（免费开源）"
         Width="1120" Height="820"
-        MinWidth="980" MinHeight="720"
+        MinWidth="980" MinHeight="760"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource BrushCanvas}"
         FontFamily="{DynamicResource FontUi}"
@@ -118,6 +118,10 @@
                        FontWeight="SemiBold" VerticalAlignment="Center"
                        TextTrimming="CharacterEllipsis" ToolTip.Tip="当前列出曲目的文件夹"/>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" Margin="8,0,0,0">
+              <Button x:Name="BtnFolderUp" Content="上一级"
+                      FontSize="{DynamicResource FontCaption}" Padding="10,3" Classes="secondary"
+                      Click="FolderUp_Click"
+                      ToolTip.Tip="回到上一层文件夹"/>
               <Button x:Name="BtnFolderRefresh" Content="刷新"
                       FontSize="{DynamicResource FontCaption}" Padding="10,3" Classes="secondary"
                       Click="FolderRefresh_Click"

@@ -58,6 +58,10 @@ public sealed class AppConfig
     public int OverlayX { get; set; } = -1;             
     public int OverlayY { get; set; } = -1;
 
+    public int WindowW { get; set; } = 0;
+    public int WindowH { get; set; } = 0;
+    public bool WindowMax { get; set; } = false;
+
     public string KeymapName { get; set; } = KeymapProfile.DefaultName;
 
     public int PlayModeIndex { get; set; } = 0;
