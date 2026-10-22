@@ -63,8 +63,8 @@ public partial class SettingsWindow : Window
                 Width = 820; Height = 820;
                 break;
             default:  
-                MinWidth = 560; MinHeight = 500;
-                Width = 640; Height = 620;   
+                MinWidth = 560; MinHeight = 760;
+                Width = 640; Height = 760;   
                 break;
         }
     }
