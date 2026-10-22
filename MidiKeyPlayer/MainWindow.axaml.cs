@@ -32,6 +32,7 @@ public partial class MainWindow : Window
     private DispatcherTimer? _saveDeb;
     private DispatcherTimer? _preflightTimer;
     private string _preflightSig = "";
+    private bool _speedFromInput;
     private readonly DispatcherTimer _previewDeb;
     private int _countdownLeft;
     private bool _busy;
@@ -136,8 +137,29 @@ public partial class MainWindow : Window
             Height = _cfg.WindowH;
             ClampToScreen();
         }
-        if (_cfg.WindowMax)
-            Opened += (_, _) => WindowState = WindowState.Maximized;
+    }
+
+    private void ApplySavedLayout()
+    {
+        if (_cfg == null || LeftColumn == null || RightColumn == null || MainBody == null) return;
+
+        if (_cfg.LeftWidth >= 420)
+            LeftColumn.Width = Math.Clamp(_cfg.LeftWidth, 420, Math.Max(420, MainBody.Bounds.Width - 440));
+
+        double openH = LeftColumn.RowDefinitions[0].ActualHeight;
+        double splitH = LeftColumn.RowDefinitions[2].ActualHeight + LeftColumn.RowDefinitions[4].ActualHeight;
+        double avail = LeftColumn.Bounds.Height - openH - splitH - TrackMinH;
+
+        double folderH = FolderCard is { IsVisible: true } ? _cfg.FolderH : 0;
+        double playlistH = PlaylistCard is { IsVisible: true } ? _cfg.PlaylistH : 0;
+        if (folderH + playlistH > 0 && folderH + playlistH <= avail)
+        {
+            if (folderH >= FolderMinH) LeftColumn.RowDefinitions[1].Height = new GridLength(folderH);
+            if (playlistH >= PlaylistMinH) LeftColumn.RowDefinitions[3].Height = new GridLength(playlistH);
+        }
+
+        if (_cfg.OptionsH >= OptionsMinH && RightColumn.RowDefinitions.Count > 3)
+            RightColumn.RowDefinitions[3].Height = new GridLength(_cfg.OptionsH);
     }
 
     private void FileDragOver(object? sender, DragEventArgs e)
@@ -215,13 +237,20 @@ public partial class MainWindow : Window
 
         _cfg = AppConfig.Load();
         ApplySavedWindowGeometry();
+        Opened += (_, _) =>
+        {
+            if (_cfg.WindowMax) WindowState = WindowState.Maximized;
+            Dispatcher.UIThread.Post(ApplySavedLayout);
+        };
         CountdownCombo.SelectedIndex = Math.Clamp(_cfg.CountdownIndex, 0, 3);
         HotkeyControlCombo.SelectedIndex = Math.Clamp(_cfg.ControlHotkeyIndex, 0, 12);
         HotkeyRewindCombo.SelectedIndex = Math.Clamp(_cfg.RewindHotkeyIndex, 0, 12);
         HotkeyForwardCombo.SelectedIndex = Math.Clamp(_cfg.ForwardHotkeyIndex, 0, 12);
         HotkeyPrevCombo.SelectedIndex = Math.Clamp(_cfg.PrevSongHotkeyIndex, 0, 12);
         HotkeyNextCombo.SelectedIndex = Math.Clamp(_cfg.NextSongHotkeyIndex, 0, 12);
+        _speedFromInput = true;
         SliderSpeed.Value = Math.Clamp(_cfg.Speed, 10, 400);
+        _speedFromInput = false;
         SliderTranspose.Value = Math.Clamp(_cfg.Transpose, -24, 24);
         ChkTrimLead.IsChecked = _cfg.TrimLead;
         ChkFoldOctave.IsChecked = _cfg.FoldOctave;
@@ -743,7 +772,9 @@ public partial class MainWindow : Window
         if (_cfg == null) return;
         var s = _cfg.SettingsFor(profileName);
 
-        SliderSpeed.Value = Math.Clamp(s.Speed, 10, 400);        
+        _speedFromInput = true;
+        SliderSpeed.Value = Math.Clamp(s.Speed, 10, 400);
+        _speedFromInput = false;        
         SliderTranspose.Value = Math.Clamp(s.Transpose, -24, 24);
         TimingCombo.SelectedIndex = Math.Clamp(s.TimingIndex, 0, 2);
 
@@ -759,6 +790,18 @@ public partial class MainWindow : Window
 
     private void SpeedChanged(object? sender, Avalonia.Controls.Primitives.RangeBaseValueChangedEventArgs e)
     {
+        if (ReferenceEquals(sender, SliderSpeed) && !_speedFromInput)
+        {
+            double snapped = Math.Round(SliderSpeed.Value / 5.0) * 5;
+            if (Math.Abs(snapped - SliderSpeed.Value) > 0.001)
+            {
+                _speedFromInput = true;
+                SliderSpeed.Value = snapped;
+                _speedFromInput = false;
+                return;
+            }
+        }
+
         UpdateSettingLabels();
 
         if (_engine is { IsRunning: true } eng)
@@ -821,7 +864,12 @@ public partial class MainWindow : Window
         if (ReferenceEquals(tb, TxtSpeed))
         {
             v = Math.Clamp(v, 10, 400);
-            if (Math.Abs(SliderSpeed.Value - v) > 0.001) SliderSpeed.Value = v;
+            if (Math.Abs(SliderSpeed.Value - v) > 0.001)
+            {
+                _speedFromInput = true;
+                SliderSpeed.Value = v;
+                _speedFromInput = false;
+            }
         }
         else if (ReferenceEquals(tb, TxtTranspose))
         {
@@ -4586,6 +4634,18 @@ public partial class MainWindow : Window
             _cfg.WindowH = (int)Math.Round(ClientSize.Height);
         }
         _cfg.WindowMax = WindowState == WindowState.Maximized;
+
+        if (LeftColumn != null && LeftColumn.RowDefinitions.Count > 5)
+        {
+            _cfg.LeftWidth = (int)Math.Round(LeftColumn.Width);
+            _cfg.FolderH = LeftColumn.RowDefinitions[1].Height.IsAbsolute && FolderCard is { IsVisible: true }
+                ? (int)Math.Round(FolderCard.Bounds.Height) : 0;
+            _cfg.PlaylistH = LeftColumn.RowDefinitions[3].Height.IsAbsolute && PlaylistCard is { IsVisible: true }
+                ? (int)Math.Round(PlaylistCard.Bounds.Height) : 0;
+        }
+        if (RightColumn != null && RightColumn.RowDefinitions.Count > 3
+            && RightColumn.RowDefinitions[3].Height.IsAbsolute)
+            _cfg.OptionsH = (int)Math.Round(RightColumn.RowDefinitions[3].ActualHeight);
 
         SaveSettings();
 

@@ -61,6 +61,10 @@ public sealed class AppConfig
     public int WindowW { get; set; } = 0;
     public int WindowH { get; set; } = 0;
     public bool WindowMax { get; set; } = false;
+    public int LeftWidth { get; set; } = 0;
+    public int FolderH { get; set; } = 0;
+    public int PlaylistH { get; set; } = 0;
+    public int OptionsH { get; set; } = 0;
 
     public string KeymapName { get; set; } = KeymapProfile.DefaultName;
 
