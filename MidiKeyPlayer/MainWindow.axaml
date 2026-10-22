@@ -117,10 +117,16 @@
             <TextBlock Grid.Column="0" x:Name="TxtFolderName" Text="" FontSize="{DynamicResource FontSmall}"
                        FontWeight="SemiBold" VerticalAlignment="Center"
                        TextTrimming="CharacterEllipsis" ToolTip.Tip="当前列出曲目的文件夹"/>
-            <Button x:Name="BtnFolderClose" Grid.Column="1" Content="关闭" Margin="8,0,0,0"
-                    FontSize="{DynamicResource FontCaption}" Padding="10,3" Classes="secondary"
-                    Click="FolderClose_Click"
-                    ToolTip.Tip="收起曲库并清掉记住的目录"/>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" Margin="8,0,0,0">
+              <Button x:Name="BtnFolderRefresh" Content="刷新"
+                      FontSize="{DynamicResource FontCaption}" Padding="10,3" Classes="secondary"
+                      Click="FolderRefresh_Click"
+                      ToolTip.Tip="重新读取这个文件夹"/>
+              <Button x:Name="BtnFolderClose" Content="关闭"
+                      FontSize="{DynamicResource FontCaption}" Padding="10,3" Classes="secondary"
+                      Click="FolderClose_Click"
+                      ToolTip.Tip="收起曲库并清掉记住的目录"/>
+            </StackPanel>
           </Grid>
 
           <TextBox x:Name="TxtFolderSearch" Grid.Row="1" Margin="0,6,0,6"
@@ -305,14 +311,14 @@
           <StackPanel Spacing="4">
             <TextBlock x:Name="LblStatus" FontSize="{DynamicResource FontTitle}" FontWeight="Bold"
                        Foreground="{DynamicResource BrushSuccess}"
-                       TextAlignment="Left" Text="" TextWrapping="Wrap"/>
+                       TextAlignment="Center" Text="" TextWrapping="Wrap"/>
             <TextBlock x:Name="LblMelody" TextWrapping="Wrap" LineHeight="18"
                        FontSize="{DynamicResource FontSmall}" Foreground="{DynamicResource BrushTextSecondary}"
-                       TextAlignment="Left"
+                       TextAlignment="Center"
                        Text="打开 MIDI 文件，再在左侧点一行作为主旋律"/>
 
             <StackPanel x:Name="PreflightRow" Orientation="Horizontal" Spacing="12"
-                        VerticalAlignment="Center" Margin="0,2,0,0">
+                        HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,2,0,0">
               <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center"
                           ToolTip.Tip="目标程序提权时本程序也要提权">
                 <TextBlock x:Name="TxtCheckAdminMark" Text="–" FontSize="{DynamicResource FontBody}" FontWeight="Bold"
@@ -334,12 +340,12 @@
             </StackPanel>
 
             <TextBlock x:Name="TxtCheckHint" IsVisible="False" Classes="caption"
-                       Foreground="{DynamicResource BrushWarn}" TextAlignment="Left" TextWrapping="Wrap"/>
-            <TextBlock x:Name="LblWarn" TextWrapping="Wrap" TextAlignment="Left"
+                       Foreground="{DynamicResource BrushWarn}" TextAlignment="Center" TextWrapping="Wrap"/>
+            <TextBlock x:Name="LblWarn" TextWrapping="Wrap" TextAlignment="Center"
                        FontSize="{DynamicResource FontSmall}" Text=""
                        PointerPressed="LblWarn_PointerPressed"
                        ToolTip.Tip="点开看被跳过的音"/>
-            <TextBlock x:Name="TxtEditMark" IsVisible="False" TextWrapping="Wrap" TextAlignment="Left"
+            <TextBlock x:Name="TxtEditMark" IsVisible="False" TextWrapping="Wrap" TextAlignment="Center"
                        FontSize="{DynamicResource FontSmall}" FontWeight="SemiBold"
                        Foreground="{DynamicResource BrushWarn}"
                        Text="⚠ 有未导出的改动，请先导出 MIDI"/>

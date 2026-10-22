@@ -1618,6 +1618,25 @@ public partial class MainWindow : Window
         InsertLog("已收起左侧的文件夹曲目（下次启动不再显示）。");
     }
 
+    private void FolderRefresh_Click(object? sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_folderPath)) return;
+
+        string path = _folderPath;
+        string query = TxtFolderSearch?.Text ?? "";
+        bool showAll = _folderShowAll;
+
+        ScanMidiFolder(path);
+
+        if (TxtFolderSearch != null && query.Length > 0) TxtFolderSearch.Text = query;
+        if (showAll)
+        {
+            _folderShowAll = true;
+            RefreshFolderUi();
+        }
+        InsertLog("已刷新文件夹列表。");
+    }
+
     private object? _splitDrag;
     private double _splitStartX;
     private double _splitStartY;
