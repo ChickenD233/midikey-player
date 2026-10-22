@@ -45,7 +45,8 @@
               负向对照能正常打出 Warning，证明这个监听器真的在收日志。
          复现步骤与完整记录见 midikey-audit\fixes\58-trim-verify.md。 -->
     <PublishTrimmed>true</PublishTrimmed>
-    <TrimMode>partial</TrimMode>
+    <!-- 2026-10-22 实测：full 比 partial 少 287 KB；自检 234 通过，主窗与键位窗快照逐字节相同。 -->
+    <TrimMode>full</TrimMode>
   </PropertyGroup>
 
   <!-- 裁剪时钉住的程序集：这些程序集的类型与成员必须全部保留。
