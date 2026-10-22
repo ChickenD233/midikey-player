@@ -333,6 +333,8 @@
                       ToolTip.Tip="重新检测权限与输入法"/>
             </StackPanel>
 
+            <TextBlock x:Name="TxtCheckHint" IsVisible="False" Classes="caption"
+                       Foreground="{DynamicResource BrushWarn}" TextAlignment="Left" TextWrapping="Wrap"/>
             <TextBlock x:Name="LblWarn" TextWrapping="Wrap" TextAlignment="Left"
                        FontSize="{DynamicResource FontSmall}" Text=""
                        PointerPressed="LblWarn_PointerPressed"
@@ -341,8 +343,6 @@
                        FontSize="{DynamicResource FontSmall}" FontWeight="SemiBold"
                        Foreground="{DynamicResource BrushWarn}"
                        Text="⚠ 有未导出的改动，请先导出 MIDI"/>
-            <TextBlock x:Name="TxtCheckHint" IsVisible="False" Classes="caption"
-                       Foreground="{DynamicResource BrushWarn}" TextAlignment="Left" TextWrapping="Wrap"/>
           </StackPanel>
         </Border>
       </StackPanel>
@@ -529,10 +529,12 @@
               <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="8">
                 <TextBlock Text="速度" Classes="label" MinWidth="34" VerticalAlignment="Center"/>
                 <Slider x:Name="SliderSpeed" Width="96" Minimum="10" Maximum="400" Value="100"
-                        TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="SpeedChanged"
+                        TickFrequency="5" ValueChanged="SpeedChanged"
                         VerticalAlignment="Center"
                         ToolTip.Tip="10% 到 400%"/>
-                <TextBlock x:Name="TxtSpeed" Text="100%" Classes="value" Width="42" VerticalAlignment="Center"/>
+                <TextBox x:Name="TxtSpeed" Text="100%" Classes="valueBox" Width="54" VerticalAlignment="Center"
+                         GotFocus="NumberInput_GotFocus" KeyDown="NumberInput_KeyDown" LostFocus="NumberInput_LostFocus"
+                         ToolTip.Tip="点数字直接输入，10 到 400"/>
               </StackPanel>
 
               <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="12,0,0,0">
@@ -541,7 +543,9 @@
                         TickFrequency="1" IsSnapToTickEnabled="True" ValueChanged="SpeedChanged"
                         VerticalAlignment="Center"
                         ToolTip.Tip="±24 半音"/>
-                <TextBlock x:Name="TxtTranspose" Text="0" Classes="value" Width="30" VerticalAlignment="Center"/>
+                <TextBox x:Name="TxtTranspose" Text="0" Classes="valueBox" Width="40" VerticalAlignment="Center"
+                         GotFocus="NumberInput_GotFocus" KeyDown="NumberInput_KeyDown" LostFocus="NumberInput_LostFocus"
+                         ToolTip.Tip="点数字直接输入，-24 到 24"/>
               </StackPanel>
 
               <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" Spacing="8">

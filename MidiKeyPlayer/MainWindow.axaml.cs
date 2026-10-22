@@ -30,6 +30,8 @@ public partial class MainWindow : Window
     private DispatcherTimer? _countdownTimer;
     private DispatcherTimer? _liveTimer;
     private DispatcherTimer? _saveDeb;
+    private DispatcherTimer? _preflightTimer;
+    private string _preflightSig = "";
     private readonly DispatcherTimer _previewDeb;
     private int _countdownLeft;
     private bool _busy;
@@ -267,6 +269,11 @@ public partial class MainWindow : Window
         _uiReady = true;
 
         RunPreflight();
+
+        _preflightTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+        _preflightTimer.Tick += (_, _) => RunPreflight(auto: true);
+        _preflightTimer.Start();
+        Activated += (_, _) => RunPreflight(auto: true);
 
         _ = CheckUpdateAsync();
 
@@ -716,6 +723,55 @@ public partial class MainWindow : Window
             _previewDeb.Start();
         }
         ScheduleSave();
+    }
+
+    private void NumberInput_GotFocus(object? sender, GotFocusEventArgs e)
+    {
+        if (sender is TextBox tb) tb.SelectAll();
+    }
+
+    private void NumberInput_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox tb) return;
+        if (e.Key == Key.Enter)
+        {
+            CommitNumberInput(tb);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            UpdateSettingLabels();
+            tb.SelectAll();
+            e.Handled = true;
+        }
+    }
+
+    private void NumberInput_LostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox tb) CommitNumberInput(tb);
+    }
+
+    private void CommitNumberInput(TextBox tb)
+    {
+        string raw = (tb.Text ?? "").Trim().TrimEnd('%').Trim();
+        if (raw.StartsWith('+')) raw = raw[1..];
+        if (!int.TryParse(raw, out int v))
+        {
+            UpdateSettingLabels();
+            return;
+        }
+
+        if (ReferenceEquals(tb, TxtSpeed))
+        {
+            v = Math.Clamp(v, 10, 400);
+            if (Math.Abs(SliderSpeed.Value - v) > 0.001) SliderSpeed.Value = v;
+        }
+        else if (ReferenceEquals(tb, TxtTranspose))
+        {
+            v = Math.Clamp(v, -24, 24);
+            if (Math.Abs(SliderTranspose.Value - v) > 0.001) SliderTranspose.Value = v;
+        }
+        UpdateSettingLabels();
     }
 
     private void QueueLiveTranspose()
@@ -2405,7 +2461,7 @@ public partial class MainWindow : Window
         _previewDeb.Start();
     }
 
-    private void RunPreflight()
+    private void RunPreflight(bool auto = false)
     {
         PreflightCheck.Report report;
         try
@@ -2423,10 +2479,6 @@ public partial class MainWindow : Window
             return;
         }
 
-        PaintCheck(report.Admin, TxtCheckAdminMark, TxtCheckAdmin);
-        PaintCheck(report.Ime, TxtCheckImeMark, TxtCheckIme);
-        BtnElevate.IsVisible = !report.Admin.Passed;   
-
         string hint = report.HasBlocked
             ? string.Join("；", new[] { report.Admin, report.Ime }
                 .Where(c => c.Blocked)
@@ -2434,9 +2486,19 @@ public partial class MainWindow : Window
             : string.Join("；", new[] { report.Admin, report.Ime }
                 .Where(c => !c.Passed)
                 .Select(c => c.Detail));
+
+        string sig = $"{report.Admin.Status}|{report.Ime.Status}|{report.Admin.Detail}|{report.Ime.Detail}|{hint}";
+        bool changed = sig != _preflightSig;
+        _preflightSig = sig;
+        if (auto && !changed) return;
+
+        PaintCheck(report.Admin, TxtCheckAdminMark, TxtCheckAdmin);
+        PaintCheck(report.Ime, TxtCheckImeMark, TxtCheckIme);
+        BtnElevate.IsVisible = !report.Admin.Passed;
         TxtCheckHint.Text = hint;
         TxtCheckHint.IsVisible = hint.Length > 0;
 
+        if (auto) return;
         try
         {
             var (_, probe) = PreflightCheck.DetectImeModeDetailed();

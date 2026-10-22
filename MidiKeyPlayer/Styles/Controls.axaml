@@ -78,6 +78,25 @@
     <Setter Property="Foreground" Value="{DynamicResource BrushTextSecondary}" />
     <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
+  <Style Selector="TextBox.valueBox">
+    <Setter Property="FontSize" Value="{DynamicResource FontSmall}" />
+    <Setter Property="Foreground" Value="{DynamicResource BrushTextSecondary}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="3,1" />
+    <Setter Property="MinHeight" Value="22" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="CaretBrush" Value="{DynamicResource BrushText}" />
+  </Style>
+  <Style Selector="TextBox.valueBox:pointerover">
+    <Setter Property="BorderBrush" Value="{DynamicResource BrushBorderStrong}" />
+  </Style>
+  <Style Selector="TextBox.valueBox:focus">
+    <Setter Property="Background" Value="{DynamicResource BrushSurfaceAlt}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BrushAccent}" />
+    <Setter Property="Foreground" Value="{DynamicResource BrushText}" />
+  </Style>
 
   <Style Selector="Border.tableHead">
     <Setter Property="Background" Value="{DynamicResource BrushSurfaceSunken}" />
