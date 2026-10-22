@@ -27,6 +27,7 @@ public static class AutoUpdate
     public static string GitHubUrlShort => GitHubUrl.Replace("https://", "", StringComparison.Ordinal);
 
     public const string QqGroupNumber = "1042477909";
+    public const string QqGroupNumber2 = "671434610";
 
     public const string AuthorName = "Chicken丁";
 

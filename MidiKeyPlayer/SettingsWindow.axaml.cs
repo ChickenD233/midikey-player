@@ -22,7 +22,8 @@ public partial class SettingsWindow : Window
         if (BtnSponsorAfdian != null) ToolTip.SetTip(BtnSponsorAfdian, AutoUpdate.AfdianUrl);
         if (BtnSponsorBili != null) ToolTip.SetTip(BtnSponsorBili, AutoUpdate.AuthorSpaceUrlShort);
         if (BtnSponsorGitHub != null) ToolTip.SetTip(BtnSponsorGitHub, AutoUpdate.GitHubUrlShort);
-        if (BtnSponsorCopyQq != null) ToolTip.SetTip(BtnSponsorCopyQq, $"复制群号 {AutoUpdate.QqGroupNumber}");
+        if (BtnSponsorCopyQq != null) ToolTip.SetTip(BtnSponsorCopyQq,
+            $"复制 2 群号 {AutoUpdate.QqGroupNumber2}；1 群 {AutoUpdate.QqGroupNumber} 已满");
     }
 
     private void OpenAfdian_Click(object? sender, RoutedEventArgs e)
@@ -36,7 +37,7 @@ public partial class SettingsWindow : Window
 
     private async void CopyQq_Click(object? sender, RoutedEventArgs e)
     {
-        string qq = AutoUpdate.QqGroupNumber;
+        string qq = AutoUpdate.QqGroupNumber2;
         bool ok = _mainWindow != null && await _mainWindow.CopyQqForSettingsAsync(this);
         if (TxtSponsorQqCopied != null)
             TxtSponsorQqCopied.Text = ok ? $"已复制：{qq}" : $"复制失败，群号是 {qq}";

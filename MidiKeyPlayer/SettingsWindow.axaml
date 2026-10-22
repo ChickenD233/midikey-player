@@ -316,8 +316,8 @@
                 <StackPanel Spacing="8" VerticalAlignment="Center">
                   <TextBlock Text="作者的其它地方" Classes="sectionLabel" FontWeight="SemiBold"
                              FontSize="{DynamicResource FontSmall}"/>
-                  <TextBlock Text="源码、更新与反馈都在这里。"
-                             FontSize="{DynamicResource FontSmall}"
+                  <TextBlock Text="源码、更新与反馈都在这里。1 群已满（1042477909），请加 2 群 671434610。"
+                             TextWrapping="Wrap" FontSize="{DynamicResource FontSmall}"
                              Foreground="{DynamicResource BrushTextSecondary}"/>
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <Button x:Name="BtnSponsorBili" Content="B 站主页"
@@ -326,7 +326,7 @@
                     <Button x:Name="BtnSponsorGitHub" Content="GitHub 主页"
                             FontSize="{DynamicResource FontSmall}" Padding="12,5"
                             Classes="secondary" Click="OpenGitHub_Click"/>
-                    <Button x:Name="BtnSponsorCopyQq" Content="复制群号"
+                    <Button x:Name="BtnSponsorCopyQq" Content="复制 2 群号"
                             FontSize="{DynamicResource FontSmall}" Padding="12,5"
                             Classes="secondary" Click="CopyQq_Click"/>
                     <TextBlock x:Name="TxtSponsorQqCopied" Classes="caption" VerticalAlignment="Center"/>

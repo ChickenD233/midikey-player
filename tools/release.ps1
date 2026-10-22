@@ -422,7 +422,7 @@ function New-ReleaseBody([string]$version, [string]$section, [bool]$mandatory = 
     [void]$sb.AppendLine('**如果你是「购买」的此软件，立刻退款，你被骗了。**')
     [void]$sb.AppendLine()
     [void]$sb.AppendLine('- 作者 B 站：https://space.bilibili.com/28440883')
-    [void]$sb.AppendLine('- 反馈 QQ 群：1042477909')
+    [void]$sb.AppendLine('- 反馈 QQ 群：1 群 1042477909（已满）；2 群 671434610')
     [void]$sb.AppendLine('- 源码与全部版本：https://github.com/ChickenD233/midikey-player')
     [void]$sb.AppendLine()
     [void]$sb.AppendLine('每个版本改了什么，见发布包里的 `更新日志.txt`，或仓库的 `MidiKeyPlayer/docs/更新日志.txt`。')

@@ -17,7 +17,7 @@
 > **如果你是「购买」的此软件，立刻退款，你被骗了。**
 >
 > - 作者 B 站：<https://space.bilibili.com/28440883>
-> - 反馈 QQ 群：**1042477909**
+> - 反馈 QQ 群：1 群 **1042477909**（已满）；2 群 **671434610**
 > - 源码与全部版本：<https://github.com/ChickenD233/midikey-player>
 >
 > 第一次使用会问一次「作者的 B 站 ID」（答案就是作者在 B 站的名字，看看上面的主页就知道）。答对一次就不再问。
@@ -152,7 +152,7 @@ v1.1.8 已移除。
 - **设置…**。点这个按钮打开设置窗口，三页。
   **常规**页：设备接入、输入兼容、三个热键、导出按键表、界面（皮肤、自检开关）。
   **键位**页：方案、按键绑定、功能键。
-  **赞助**页：爱发电排在最上面，下面列作者的 B 站、GitHub 与 QQ 群（右边一个「复制群号」按钮）。赞助完全自愿，不影响功能。
+  **赞助**页：爱发电排在最上面，下面列作者的 B 站、GitHub 与 QQ 群（1 群已满，2 群可加；右边一个「复制 2 群号」按钮）。赞助完全自愿，不影响功能。
   改动即时生效，关掉窗口不影响设置。主界面因此不再堆这些项，卷帘拿到的高度也更多。
 
 ## 歌单与连播
@@ -452,7 +452,7 @@ tag 已存在，脚本直接停手。日志里没有当前版本号那一节，`
 - 更新重启后，新版首次启动会在 play.log 写一行「已从 vX 更新到 vY」，确认替换成功。
 
 设置 → 常规 → 关于 里有当前版本号、「检查更新」按钮，以及更新说明 / 第三方声明 / 许可证的查看入口。
-这一页还有免费声明与作者入口（B 站主页、爱发电赞助、复制 QQ 群号）。赞助页在 设置 → 赞助。
+这一页还有免费声明与作者入口（B 站主页、爱发电赞助、复制 QQ 群号；1 群已满，2 群可加）。赞助页在 设置 → 赞助。
 
 更新包只从本仓库的 Releases 下载（地址白名单），并校验包内 exe 完整后才替换。
 要关掉检查，把 `MidiKeyPlayer/Engine/AutoUpdate.cs` 里的 `Enabled` 改成 `false`。
@@ -508,7 +508,7 @@ A built-in score editor lets you edit the score before playing.
 > **If you "bought" this software, ask for a refund immediately — you were scammed.**
 >
 > - Author on Bilibili: <https://space.bilibili.com/28440883>
-> - Feedback QQ group: **1042477909**
+> - Feedback QQ group: group 1 **1042477909** (full); group 2 **671434610**
 > - Source and all releases: <https://github.com/ChickenD233/midikey-player>
 >
 > On first use, the program asks once for the author's Bilibili ID (the answer is the author's Bilibili name — the page above shows it). Answer once and it never asks again.
@@ -613,7 +613,7 @@ The bottom right of the main window is one "Performance and Score" (演奏与谱
 - **Settings…** (设置…). Click this button to open the Settings window, with three pages.
   The **General** (常规) page: device connection, input compatibility, three hotkeys, key table export, interface (skin, self-check switch).
   The **Keys** (键位) page: scheme, key bindings, function keys.
-  The **Sponsor** (赞助) page: Afdian (爱发电) first, with the author's Bilibili, GitHub, and QQ group below (plus a button that copies the group number). Sponsoring is optional and changes nothing about the program.
+  The **Sponsor** (赞助) page: Afdian (爱发电) first, with the author's Bilibili, GitHub, and QQ groups below (group 1 is full, group 2 is open; a button copies group 2). Sponsoring is optional and changes nothing about the program.
   Changes take effect immediately; closing the window does not affect the settings. The main window therefore no longer piles up these items, and the piano roll gets more height.
 
 ## Skins
@@ -877,7 +877,7 @@ On startup it checks for a new version in the background (on by default; auto-do
 - After the update restart, the new version's first launch writes a line "updated from vX to vY" (已从 vX 更新到 vY) to play.log, confirming the replacement succeeded.
 
 Settings → General → About (设置 → 常规 → 关于) shows the current version number, a "Check for Updates" (检查更新) button, and entries to view the release notes / third-party notices / license.
-That page also carries the free-software notice and the author entries (Bilibili page, Afdian sponsorship, copy the QQ group number). The sponsor page is Settings → Sponsor (设置 → 赞助).
+That page also carries the free-software notice and the author entries (Bilibili page, Afdian sponsorship, copy a QQ group number; group 1 is full, group 2 is open). The sponsor page is Settings → Sponsor (设置 → 赞助).
 
 Update packages are downloaded only from this repository's Releases (address whitelist), and the exe inside the package is verified intact before replacement.
 To turn off the check, change `Enabled` in `MidiKeyPlayer/Engine/AutoUpdate.cs` to `false`.

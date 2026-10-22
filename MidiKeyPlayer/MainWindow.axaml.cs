@@ -399,7 +399,7 @@ public partial class MainWindow : Window
         if (_cfg.LastRunVersion != curVer) { _cfg.LastRunVersion = curVer; _cfg.Save(); }
 
         InsertLog($"本程序免费开源。{AutoUpdate.FreeNotice}");
-        InsertLog($"作者 B 站：{AutoUpdate.AuthorSpaceUrlShort}　反馈 QQ 群：{AutoUpdate.QqGroupNumber}");
+        InsertLog($"作者 B 站：{AutoUpdate.AuthorSpaceUrlShort}　反馈 QQ 群：1 群 {AutoUpdate.QqGroupNumber}（已满）、2 群 {AutoUpdate.QqGroupNumber2}");
 
         if (OperatingSystem.IsWindows() && !PreviewProbeMode.On)
         {
@@ -2967,7 +2967,10 @@ public partial class MainWindow : Window
     {
         if (TxtFreeNotice != null) TxtFreeNotice.Text = AutoUpdate.FreeNoticeShort;
         if (BtnAuthorSpace != null) ToolTip.SetTip(BtnAuthorSpace, AutoUpdate.AuthorSpaceUrl);
-        if (BtnCopyQq != null) BtnCopyQq.Content = $"复制 QQ 群号 {AutoUpdate.QqGroupNumber}";
+        if (TxtQqGroups != null)
+            TxtQqGroups.Text = $"QQ 群：1 群 {AutoUpdate.QqGroupNumber}（已满）；2 群 {AutoUpdate.QqGroupNumber2}";
+        if (BtnCopyQq != null) BtnCopyQq.Content = "复制 1 群号";
+        if (BtnCopyQq2 != null) BtnCopyQq2.Content = "复制 2 群号";
         if (TxtFreeNoticeBody != null) TxtFreeNoticeBody.Text = AutoUpdate.FreeNotice;
         if (TxtForcedNotice != null) TxtForcedNotice.Text = AutoUpdate.FreeNotice;
     }
@@ -3002,7 +3005,7 @@ public partial class MainWindow : Window
         if (PanelStartupQuiz != null) PanelStartupQuiz.IsVisible = false;
         if (StartupOverlay != null) StartupOverlay.IsVisible = false;   
         InsertLog($"验证通过：本程序免费开源，作者是 B 站 {AutoUpdate.AuthorName}。");
-        InsertLog($"作者 B 站：{AutoUpdate.AuthorSpaceUrlShort}　反馈 QQ 群：{AutoUpdate.QqGroupNumber}");
+        InsertLog($"作者 B 站：{AutoUpdate.AuthorSpaceUrlShort}　反馈 QQ 群：1 群 {AutoUpdate.QqGroupNumber}（已满）、2 群 {AutoUpdate.QqGroupNumber2}");
     }
 
     private void OpenAuthorSpace_Click(object? sender, RoutedEventArgs e)
@@ -3035,13 +3038,14 @@ public partial class MainWindow : Window
         InsertLog($"已打开下载页：{AutoUpdate.ReleasesUrl}");
     }
 
-    private async void CopyQq_Click(object? sender, RoutedEventArgs e) => await CopyQqToClipboard(this);
+    private async void CopyQq_Click(object? sender, RoutedEventArgs e) => await CopyQqToClipboard(this, AutoUpdate.QqGroupNumber2);
 
-    internal Task<bool> CopyQqForSettingsAsync(TopLevel owner) => CopyQqToClipboard(owner);
+    private async void CopyQq1_Click(object? sender, RoutedEventArgs e) => await CopyQqToClipboard(this, AutoUpdate.QqGroupNumber);
 
-    private async Task<bool> CopyQqToClipboard(Visual from)
+    internal Task<bool> CopyQqForSettingsAsync(TopLevel owner) => CopyQqToClipboard(owner, AutoUpdate.QqGroupNumber2);
+
+    private async Task<bool> CopyQqToClipboard(Visual from, string qq)
     {
-        string qq = AutoUpdate.QqGroupNumber;
         try
         {
             var clipboard = TopLevel.GetTopLevel(from)?.Clipboard;

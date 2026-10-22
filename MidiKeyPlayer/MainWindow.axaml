@@ -801,6 +801,9 @@
             <StackPanel Spacing="7">
               <TextBlock x:Name="TxtFreeNotice" TextWrapping="Wrap" FontSize="{DynamicResource FontSmall}"
                          LineHeight="19" Foreground="{DynamicResource BrushDangerText}"/>
+              <TextBlock x:Name="TxtQqGroups" TextWrapping="Wrap" FontSize="{DynamicResource FontSmall}"
+                         Foreground="{DynamicResource BrushTextSecondary}"
+                         Text="QQ 群：1 群 1042477909（已满）；2 群 671434610"/>
               <WrapPanel ItemSpacing="10" LineSpacing="6">
                 <Button x:Name="BtnAuthorSpace" Content="B 站主页" FontSize="{DynamicResource FontSmall}"
                         Padding="12,5" Classes="secondary" VerticalAlignment="Center"
@@ -809,9 +812,14 @@
                         Padding="12,5" Classes="secondary" VerticalAlignment="Center"
                         Click="OpenAfdian_Click"
                         ToolTip.Tip="自愿赞助，不影响功能"/>
-                <Button x:Name="BtnCopyQq" Content="复制 QQ 群号" FontSize="{DynamicResource FontSmall}"
+                <Button x:Name="BtnCopyQq" Content="复制 1 群号" FontSize="{DynamicResource FontSmall}"
                         Padding="12,5" Classes="secondary" VerticalAlignment="Center"
-                        Click="CopyQq_Click"/>
+                        Click="CopyQq1_Click"
+                        ToolTip.Tip="1 群已满"/>
+                <Button x:Name="BtnCopyQq2" Content="复制 2 群号" FontSize="{DynamicResource FontSmall}"
+                        Padding="12,5" Classes="secondary" VerticalAlignment="Center"
+                        Click="CopyQq_Click"
+                        ToolTip.Tip="推荐加 2 群"/>
                 <TextBlock x:Name="TxtQqCopied" Classes="caption" VerticalAlignment="Center" Text=""/>
               </WrapPanel>
             </StackPanel>
@@ -864,7 +872,7 @@
           <WrapPanel ItemSpacing="10" LineSpacing="8">
             <Button Content="B 站主页" FontSize="{DynamicResource FontSmall}" Padding="12,5"
                     Classes="secondary" Click="OpenAuthorSpace_Click"/>
-            <Button Content="复制 QQ 群号" FontSize="{DynamicResource FontSmall}" Padding="12,5"
+            <Button Content="复制 2 群号" FontSize="{DynamicResource FontSmall}" Padding="12,5"
                     Classes="secondary" Click="CopyQq_Click"/>
             <Button Content="打开下载页" FontSize="{DynamicResource FontSmall}" Padding="12,5"
                     Classes="secondary" Click="OpenReleases_Click"/>
@@ -902,7 +910,7 @@
                     Classes="secondary" Click="ForcedManual_Click"/>
             <Button Content="B 站主页" FontSize="{DynamicResource FontSmall}" Padding="12,5"
                     Classes="secondary" Click="OpenAuthorSpace_Click"/>
-            <Button Content="复制 QQ 群号" FontSize="{DynamicResource FontSmall}" Padding="12,5"
+            <Button Content="复制 2 群号" FontSize="{DynamicResource FontSmall}" Padding="12,5"
                     Classes="secondary" Click="CopyQq_Click"/>
             <Button Content="退出程序" FontSize="{DynamicResource FontSmall}" Padding="12,5"
                     Classes="secondary" Click="ForcedExit_Click"/>
