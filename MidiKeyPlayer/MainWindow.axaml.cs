@@ -674,7 +674,7 @@ public partial class MainWindow : Window
         string reason = hasTrack
             ? (hasPlayable ? "" : "这首歌没有可弹的音，换个键位方案或调移调")
             : "先打开 MIDI，再点一行";
-        TxtHotHint.Text = BtnPlay.IsEnabled ? "" : reason;
+        TxtHotHint.Text = "";
         Avalonia.Controls.ToolTip.SetTip(BtnPlay, BtnPlay.IsEnabled ? null : reason);
     }
 
