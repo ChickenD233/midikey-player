@@ -13,6 +13,7 @@ public sealed class TrackRowVM : INotifyPropertyChanged
     private Avalonia.Media.IBrush? _voiceBrush;
     private bool _voiceActive;
     private Avalonia.Media.IBrush? _roleBrush;
+    private Avalonia.Media.IBrush? _roleTextBrush;
     private bool _roleActive;
 
     public TrackRowVM(MidiCandidate candidate)
@@ -100,8 +101,35 @@ public sealed class TrackRowVM : INotifyPropertyChanged
         {
             if (ReferenceEquals(_roleBrush, value)) return;
             _roleBrush = value;
+            _roleTextBrush = TextOn(value);
             OnPropertyChanged();
+            OnPropertyChanged(nameof(RoleTextBrush));
         }
+    }
+
+    public Avalonia.Media.IBrush? RoleTextBrush => _roleTextBrush;
+
+    private static readonly Avalonia.Media.IBrush RoleInk =
+        new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromRgb(0x12, 0x16, 0x1B));
+
+    private static Avalonia.Media.IBrush? TextOn(Avalonia.Media.IBrush? background)
+    {
+        if (background is not Avalonia.Media.ISolidColorBrush s) return null;
+        double bg = Luminance(s.Color);
+        double lWhite = 1.05 / (bg + 0.05);
+        double ink = Luminance(Avalonia.Media.Color.FromRgb(0x12, 0x16, 0x1B));
+        double lInk = (bg + 0.05) / (ink + 0.05);
+        return lWhite >= lInk ? Avalonia.Media.Brushes.White : RoleInk;
+    }
+
+    private static double Luminance(Avalonia.Media.Color c)
+    {
+        static double Channel(byte v)
+        {
+            double x = v / 255.0;
+            return x <= 0.03928 ? x / 12.92 : System.Math.Pow((x + 0.055) / 1.055, 2.4);
+        }
+        return 0.2126 * Channel(c.R) + 0.7152 * Channel(c.G) + 0.0722 * Channel(c.B);
     }
 
     public bool RoleActive

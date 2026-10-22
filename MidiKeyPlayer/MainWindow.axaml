@@ -37,7 +37,7 @@
       <Setter Property="Foreground" Value="{DynamicResource BrushTextSecondary}"/>
     </Style>
     <Style Selector="Window Button.accent">
-      <Setter Property="Foreground" Value="{DynamicResource BrushOnAccent}"/>
+      <Setter Property="Foreground" Value="{DynamicResource BrushAccentText}"/>
     </Style>
     <Style Selector="Border.splitter > Border">
       <Setter Property="Height" Value="2"/>
@@ -263,7 +263,7 @@
                             ToolTip.Tip="{Binding RoleTip}"
                             ToolTip.ShowDelay="200">
                       <TextBlock Text="{Binding RoleTag}" FontSize="{DynamicResource FontMicro}"
-                                 Foreground="{DynamicResource BrushOnAccent}" FontWeight="SemiBold"/>
+                                 Foreground="{Binding RoleTextBrush}" FontWeight="SemiBold"/>
                     </Border>
                     <TextBlock Grid.Column="5" Text="{Binding Name}" VerticalAlignment="Center"
                                Padding="4,3" FontSize="{DynamicResource FontSmall}" TextTrimming="CharacterEllipsis"

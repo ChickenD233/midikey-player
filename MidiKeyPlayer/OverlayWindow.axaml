@@ -29,6 +29,8 @@
       </StackPanel>
 
       <StackPanel x:Name="PanelProgress" Spacing="5" Width="250" IsVisible="False">
+        <TextBlock x:Name="TxtSong" Text="" FontSize="11" Foreground="#E6FFFFFF"
+                   TextTrimming="CharacterEllipsis" IsVisible="False"/>
         <Border CornerRadius="4" Background="#22FFFFFF" Height="90"
                 ToolTip.Tip="迷你卷帘，黄线是当前位置">
           <Canvas x:Name="RollCanvas" Width="250" Height="90" ClipToBounds="True">

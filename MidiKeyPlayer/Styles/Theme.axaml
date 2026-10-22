@@ -16,12 +16,13 @@
       <SolidColorBrush x:Key="BrushTextSecondary" Color="#5B6673"/>
       <SolidColorBrush x:Key="BrushTextMuted"     Color="#6B7480"/>
 
-      <SolidColorBrush x:Key="BrushAccent"         Color="#2E8B57"/>
-      <SolidColorBrush x:Key="BrushAccentHover"    Color="#26784A"/>
+      <SolidColorBrush x:Key="BrushAccent"         Color="#2A7D4F"/>
+      <SolidColorBrush x:Key="BrushAccentHover"    Color="#236F43"/>
       <SolidColorBrush x:Key="BrushAccentPressed"  Color="#1F6540"/>
       <SolidColorBrush x:Key="BrushAccentDisabled" Color="#AECBBC"/>
       <SolidColorBrush x:Key="BrushAccentSoft"     Color="#E8F3EC"/>
       <SolidColorBrush x:Key="BrushOnAccent"       Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="BrushAccentText"     Color="#FFFFFF"/>
 
       <SolidColorBrush x:Key="BrushSuccess" Color="#1E7A3C"/>
       <SolidColorBrush x:Key="BrushWarn"    Color="#B25A00"/>
@@ -72,10 +73,10 @@
       <StaticResource x:Key="SplitButtonBackgroundPointerOver" ResourceKey="BrushAccentHover"/>
       <StaticResource x:Key="SplitButtonBackgroundPressed" ResourceKey="BrushAccentPressed"/>
       <StaticResource x:Key="SplitButtonBackgroundDisabled" ResourceKey="BrushAccentDisabled"/>
-      <StaticResource x:Key="SplitButtonForeground" ResourceKey="BrushOnAccent"/>
-      <StaticResource x:Key="SplitButtonForegroundPointerOver" ResourceKey="BrushOnAccent"/>
-      <StaticResource x:Key="SplitButtonForegroundPressed" ResourceKey="BrushOnAccent"/>
-      <StaticResource x:Key="SplitButtonForegroundDisabled" ResourceKey="BrushOnAccent"/>
+      <StaticResource x:Key="SplitButtonForeground" ResourceKey="BrushAccentText"/>
+      <StaticResource x:Key="SplitButtonForegroundPointerOver" ResourceKey="BrushAccentText"/>
+      <StaticResource x:Key="SplitButtonForegroundPressed" ResourceKey="BrushAccentText"/>
+      <StaticResource x:Key="SplitButtonForegroundDisabled" ResourceKey="BrushAccentText"/>
 
     </ResourceDictionary>
 
@@ -98,6 +99,7 @@
       <SolidColorBrush x:Key="BrushAccentDisabled" Color="#2C4A3B"/>
       <SolidColorBrush x:Key="BrushAccentSoft"     Color="#1D3227"/>
       <SolidColorBrush x:Key="BrushOnAccent"       Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="BrushAccentText"     Color="#08120C"/>
 
       <SolidColorBrush x:Key="BrushSuccess" Color="#4ED8A0"/>
       <SolidColorBrush x:Key="BrushWarn"    Color="#FFB020"/>
@@ -148,10 +150,10 @@
       <StaticResource x:Key="SplitButtonBackgroundPointerOver" ResourceKey="BrushAccentHover"/>
       <StaticResource x:Key="SplitButtonBackgroundPressed" ResourceKey="BrushAccentPressed"/>
       <StaticResource x:Key="SplitButtonBackgroundDisabled" ResourceKey="BrushAccentDisabled"/>
-      <StaticResource x:Key="SplitButtonForeground" ResourceKey="BrushOnAccent"/>
-      <StaticResource x:Key="SplitButtonForegroundPointerOver" ResourceKey="BrushOnAccent"/>
-      <StaticResource x:Key="SplitButtonForegroundPressed" ResourceKey="BrushOnAccent"/>
-      <StaticResource x:Key="SplitButtonForegroundDisabled" ResourceKey="BrushOnAccent"/>
+      <StaticResource x:Key="SplitButtonForeground" ResourceKey="BrushAccentText"/>
+      <StaticResource x:Key="SplitButtonForegroundPointerOver" ResourceKey="BrushAccentText"/>
+      <StaticResource x:Key="SplitButtonForegroundPressed" ResourceKey="BrushAccentText"/>
+      <StaticResource x:Key="SplitButtonForegroundDisabled" ResourceKey="BrushAccentText"/>
 
     </ResourceDictionary>
 

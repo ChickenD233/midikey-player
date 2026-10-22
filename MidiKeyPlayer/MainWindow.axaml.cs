@@ -33,6 +33,8 @@ public partial class MainWindow : Window
     private DispatcherTimer? _preflightTimer;
     private string _preflightSig = "";
     private bool _speedFromInput;
+    private int _titleSecond = -1;
+    private IntPtr _hwnd;
     private readonly DispatcherTimer _previewDeb;
     private int _countdownLeft;
     private bool _busy;
@@ -137,6 +139,25 @@ public partial class MainWindow : Window
             Height = _cfg.WindowH;
             ClampToScreen();
         }
+        if (_cfg.WindowX >= 0 && _cfg.WindowY >= 0)
+        {
+            bool onScreen = false;
+            foreach (var screen in Screens.All)
+            {
+                var wa = screen.WorkingArea;
+                if (_cfg.WindowX >= wa.X && _cfg.WindowX < wa.X + wa.Width
+                    && _cfg.WindowY >= wa.Y && _cfg.WindowY < wa.Y + wa.Height)
+                {
+                    onScreen = true;
+                    break;
+                }
+            }
+            if (onScreen)
+            {
+                WindowStartupLocation = WindowStartupLocation.Manual;
+                Position = new PixelPoint(_cfg.WindowX, _cfg.WindowY);
+            }
+        }
     }
 
     private void ApplySavedLayout()
@@ -164,7 +185,9 @@ public partial class MainWindow : Window
 
     private void FileDragOver(object? sender, DragEventArgs e)
     {
-        e.DragEffects = e.Data.Contains(DataFormats.Files) ? DragDropEffects.Copy : DragDropEffects.None;
+        e.DragEffects = e.DataTransfer?.Contains(DataFormat.File) == true
+            ? DragDropEffects.Copy
+            : DragDropEffects.None;
         e.Handled = true;
     }
 
@@ -172,7 +195,7 @@ public partial class MainWindow : Window
     {
         e.Handled = true;
         string? midi = null;
-        var files = e.Data.GetFiles();
+        var files = e.DataTransfer?.TryGetFiles();
         if (files != null)
         {
             foreach (var item in files)
@@ -987,6 +1010,46 @@ public partial class MainWindow : Window
         TxtTime.Text = $"{t:F1} / {total:F1} s";
         UpdateSeekNote(t);
         if (!_previewOn && _engine is not { IsRunning: true }) _previewSeconds = t;
+        if (_engine is { IsRunning: true } eng) UpdatePlaybackChrome(eng.ElapsedSeconds, eng.TotalSeconds);
+    }
+
+    private string SongDisplayName =>
+        _parsed == null ? "" : System.IO.Path.GetFileNameWithoutExtension(_parsed.FilePath);
+
+    private IntPtr Hwnd
+    {
+        get
+        {
+            if (_hwnd == IntPtr.Zero && TryGetPlatformHandle() is { } handle) _hwnd = handle.Handle;
+            return _hwnd;
+        }
+    }
+
+    private void UpdateWindowTitle()
+    {
+        string name = SongDisplayName;
+        Title = name.Length == 0 ? "MIDI 按键播放器（免费开源）" : $"{name} — MIDI 按键播放器";
+        _titleSecond = -1;
+    }
+
+    private void UpdatePlaybackChrome(double elapsed, double total)
+    {
+        int sec = (int)Math.Floor(elapsed);
+        if (sec != _titleSecond)
+        {
+            _titleSecond = sec;
+            string name = SongDisplayName;
+            int totalSec = (int)Math.Round(total);
+            string clock = $"{sec / 60}:{sec % 60:00} / {totalSec / 60}:{totalSec % 60:00}";
+            Title = name.Length == 0 ? $"MIDI 按键播放器 — {clock}" : $"{name} — {clock}";
+            TaskbarProgress.Set(Hwnd, elapsed, total);
+        }
+    }
+
+    private void ClearPlaybackChrome()
+    {
+        TaskbarProgress.Clear(Hwnd);
+        UpdateWindowTitle();
     }
 
     private void UpdateSeekNote(double? atSeconds = null)
@@ -2080,6 +2143,7 @@ public partial class MainWindow : Window
             foreach (var c in parsed.Candidates) _tracks.Add(new TrackRowVM(c));
 
             LblFile.Text = System.IO.Path.GetFileName(path);
+            UpdateWindowTitle();
             InsertLog($"已载入 {System.IO.Path.GetFileName(path)}：{parsed.Candidates.Count} 个候选，时长 ≈ {parsed.DurationSec:F1}s");
             string parts = DescribeRoles(parsed.Candidates);
             if (parts.Length > 0) InsertLog($"声部识别：{parts}");
@@ -3158,6 +3222,7 @@ public partial class MainWindow : Window
     {
         if (!ShouldShowOverlay(eng.IsPaused)) return;
         var w = EnsureOverlay();
+        w.SetSong(SongDisplayName);
         w.ShowProgress(eng.ElapsedSeconds, eng.TotalSeconds, eng.LoopCount, eng.IsPaused);
         w.SetQueueHint(QueueHintText());
         w.RestorePosition(_cfg?.OverlayX ?? -1, _cfg?.OverlayY ?? -1);
@@ -3750,6 +3815,7 @@ public partial class MainWindow : Window
             InsertLog(eng.Probe.Summary());
         }
         ResetUi();
+        ClearPlaybackChrome();
 
         if (eng != null) AdvanceAfterFinish();
     }
@@ -4436,6 +4502,7 @@ public partial class MainWindow : Window
                     : $"{eng.ElapsedSeconds:F1} / {eng.TotalSeconds:F1} s";
                 Roll?.SetPosition(eng.ElapsedSeconds);   
                 UpdateSeekNote();
+                UpdatePlaybackChrome(eng.ElapsedSeconds, eng.TotalSeconds);
             }
             if (!string.IsNullOrEmpty(eng.CurrentNote))
             {
@@ -4463,6 +4530,7 @@ public partial class MainWindow : Window
         _engine = null;
         eng?.Stop();
         StopPreviewAudio();
+        ClearPlaybackChrome();
 
         _uiTimer?.Stop();
         _uiTimer = null;
@@ -4632,6 +4700,8 @@ public partial class MainWindow : Window
         {
             _cfg.WindowW = (int)Math.Round(ClientSize.Width);
             _cfg.WindowH = (int)Math.Round(ClientSize.Height);
+            _cfg.WindowX = Position.X;
+            _cfg.WindowY = Position.Y;
         }
         _cfg.WindowMax = WindowState == WindowState.Maximized;
 

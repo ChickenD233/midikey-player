@@ -11,13 +11,14 @@
   </Style>
 
   <Style Selector="Button.accent">
-    <Setter Property="Foreground" Value="{DynamicResource BrushOnAccent}" />
+    <Setter Property="Foreground" Value="{DynamicResource BrushAccentText}" />
     <Setter Property="FontWeight" Value="SemiBold" />
     <Setter Property="CornerRadius" Value="{DynamicResource RadiusControl}" />
   </Style>
   <Style Selector="Button.accent /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource BrushAccent}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BrushAccent}" />
+    <Setter Property="Foreground" Value="{DynamicResource BrushAccentText}" />
   </Style>
   <Style Selector="Button.accent:pointerover /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource BrushAccentHover}" />

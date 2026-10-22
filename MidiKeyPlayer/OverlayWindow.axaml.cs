@@ -58,6 +58,12 @@ public partial class OverlayWindow : Window
         TxtQueue.IsVisible = text.Length > 0;
     }
 
+    public void SetSong(string name)
+    {
+        TxtSong.Text = name;
+        TxtSong.IsVisible = name.Length > 0;
+    }
+
     public void SetNotes(IReadOnlyList<MappedNote> notes, double totalSec)
     {
         RollContent.Children.Clear();
