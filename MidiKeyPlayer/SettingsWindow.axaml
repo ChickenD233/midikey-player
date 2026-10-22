@@ -293,7 +293,6 @@
       </TabItem>
 
       <TabItem Header="赞助">
-        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
           <Grid Margin="14,12,14,10" ColumnDefinitions="*,Auto">
 
             <Grid Grid.Column="0" RowDefinitions="Auto,*" RowSpacing="10">
@@ -352,7 +351,6 @@
             </Border>
 
           </Grid>
-        </ScrollViewer>
       </TabItem>
 
       <TabItem Header="实验功能">
