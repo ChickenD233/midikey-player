@@ -77,6 +77,7 @@
   <!-- 原 App 图标资源。 -->
   <ItemGroup>
     <AvaloniaResource Include="Assets\app.ico" />
+    <AvaloniaResource Include="Assets\sponsor.png" />
   </ItemGroup>
 
   <!-- 合规文本：不再作为松散文件进包，一律嵌进 exe，随程序一起分发。

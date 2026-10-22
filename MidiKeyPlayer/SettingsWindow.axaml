@@ -294,46 +294,61 @@
 
       <TabItem Header="赞助">
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-          <StackPanel Margin="14,12,14,10" Spacing="10">
+          <Grid Margin="14,12,14,10" ColumnDefinitions="*,Auto">
 
-            <Border Background="{DynamicResource BrushWarnSoft}"
-                    BorderBrush="{DynamicResource BrushWarnBorder}" BorderThickness="1"
-                    CornerRadius="10" Padding="16,14">
-              <StackPanel Spacing="10">
-                <TextBlock Text="爱发电" Classes="label" FontSize="{DynamicResource FontTitle}"
-                           FontWeight="SemiBold"/>
-                <TextBlock TextWrapping="Wrap" LineHeight="20"
-                           FontSize="{DynamicResource FontSmall}"
-                           Text="赞助完全自愿，不影响任何功能。"/>
-                <TextBlock x:Name="TxtSponsorAfdianUrl" Classes="value" TextWrapping="Wrap"
-                           FontSize="{DynamicResource FontSmall}"/>
-                <Button x:Name="BtnSponsorAfdian" Content="打开爱发电赞助页"
-                        FontSize="{DynamicResource FontTitle}" Padding="20,8"
-                        Classes="accent" HorizontalAlignment="Left"
-                        Click="OpenAfdian_Click"/>
-              </StackPanel>
-            </Border>
-
-            <Border Classes="card">
-              <StackPanel Spacing="8">
-                <TextBlock Text="作者的其它地方" Classes="sectionLabel" FontWeight="SemiBold"
-                           FontSize="{DynamicResource FontSmall}"/>
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                  <Button x:Name="BtnSponsorBili" Content="B 站主页"
-                          FontSize="{DynamicResource FontSmall}" Padding="12,5"
-                          Classes="secondary" Click="OpenBili_Click"/>
-                  <Button x:Name="BtnSponsorGitHub" Content="GitHub 主页"
-                          FontSize="{DynamicResource FontSmall}" Padding="12,5"
-                          Classes="secondary" Click="OpenGitHub_Click"/>
-                  <Button x:Name="BtnSponsorCopyQq" Content="复制群号"
-                          FontSize="{DynamicResource FontSmall}" Padding="12,5"
-                          Classes="secondary" Click="CopyQq_Click"/>
-                  <TextBlock x:Name="TxtSponsorQqCopied" Classes="caption" VerticalAlignment="Center"/>
+            <StackPanel Grid.Column="0" Spacing="10">
+              <Border Background="{DynamicResource BrushWarnSoft}"
+                      BorderBrush="{DynamicResource BrushWarnBorder}" BorderThickness="1"
+                      CornerRadius="10" Padding="16,14">
+                <StackPanel Spacing="10">
+                  <TextBlock Text="爱发电" Classes="label" FontSize="{DynamicResource FontTitle}"
+                             FontWeight="SemiBold"/>
+                  <TextBlock TextWrapping="Wrap" LineHeight="20"
+                             FontSize="{DynamicResource FontSmall}"
+                             Text="赞助完全自愿，不影响任何功能。"/>
+                  <TextBlock x:Name="TxtSponsorAfdianUrl" Classes="value" TextWrapping="Wrap"
+                             FontSize="{DynamicResource FontSmall}"/>
+                  <Button x:Name="BtnSponsorAfdian" Content="打开爱发电赞助页"
+                          FontSize="{DynamicResource FontTitle}" Padding="20,8"
+                          Classes="accent" HorizontalAlignment="Left"
+                          Click="OpenAfdian_Click"/>
                 </StackPanel>
+              </Border>
+
+              <Border Classes="card">
+                <StackPanel Spacing="8">
+                  <TextBlock Text="作者的其它地方" Classes="sectionLabel" FontWeight="SemiBold"
+                             FontSize="{DynamicResource FontSmall}"/>
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="BtnSponsorBili" Content="B 站主页"
+                            FontSize="{DynamicResource FontSmall}" Padding="12,5"
+                            Classes="secondary" Click="OpenBili_Click"/>
+                    <Button x:Name="BtnSponsorGitHub" Content="GitHub 主页"
+                            FontSize="{DynamicResource FontSmall}" Padding="12,5"
+                            Classes="secondary" Click="OpenGitHub_Click"/>
+                    <Button x:Name="BtnSponsorCopyQq" Content="复制群号"
+                            FontSize="{DynamicResource FontSmall}" Padding="12,5"
+                            Classes="secondary" Click="CopyQq_Click"/>
+                    <TextBlock x:Name="TxtSponsorQqCopied" Classes="caption" VerticalAlignment="Center"/>
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+
+            <Border Grid.Column="1" Classes="card" Width="280" Margin="10,0,0,0" VerticalAlignment="Top">
+              <StackPanel Spacing="8">
+                <TextBlock Text="微信赞赏码" Classes="sectionLabel" FontWeight="SemiBold"
+                           FontSize="{DynamicResource FontSmall}"/>
+                <Image Source="avares://MidiKeyPlayer/Assets/sponsor.png" Width="240"
+                       HorizontalAlignment="Center" Stretch="Uniform"/>
+                <TextBlock Text="扫码自愿赞助，不影响任何功能。谢谢喵。"
+                           FontSize="{DynamicResource FontSmall}" HorizontalAlignment="Center"
+                           TextWrapping="Wrap" TextAlignment="Center"
+                           Foreground="{DynamicResource BrushTextSecondary}"/>
               </StackPanel>
             </Border>
 
-          </StackPanel>
+          </Grid>
         </ScrollViewer>
       </TabItem>
 
@@ -520,7 +535,7 @@
                       <TextBlock Text="我的移调" Classes="label" FontSize="{DynamicResource FontSmall}"
                                  VerticalAlignment="Center" Width="64"/>
                       <Slider x:Name="SliderSyncTranspose" Minimum="-24" Maximum="24"
-                              TickFrequency="1" IsSnapToTickEnabled="True" Width="240"
+                              TickFrequency="1" IsSnapToTickEnabled="True" Width="260"
                               ValueChanged="SyncTranspose_Changed"
                               ToolTip.Tip="半音。每个人各管各的"/>
                       <TextBlock x:Name="TxtSyncTranspose" Classes="value" FontSize="{DynamicResource FontSmall}"
