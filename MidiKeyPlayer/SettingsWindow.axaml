@@ -296,8 +296,8 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
           <Grid Margin="14,12,14,10" ColumnDefinitions="*,Auto">
 
-            <StackPanel Grid.Column="0" Spacing="10">
-              <Border Background="{DynamicResource BrushWarnSoft}"
+            <Grid Grid.Column="0" RowDefinitions="Auto,*" RowSpacing="10">
+              <Border Grid.Row="0" Background="{DynamicResource BrushWarnSoft}"
                       BorderBrush="{DynamicResource BrushWarnBorder}" BorderThickness="1"
                       CornerRadius="10" Padding="16,14">
                 <StackPanel Spacing="10">
@@ -315,10 +315,13 @@
                 </StackPanel>
               </Border>
 
-              <Border Classes="card">
-                <StackPanel Spacing="8">
+              <Border Grid.Row="1" Classes="card">
+                <StackPanel Spacing="8" VerticalAlignment="Center">
                   <TextBlock Text="作者的其它地方" Classes="sectionLabel" FontWeight="SemiBold"
                              FontSize="{DynamicResource FontSmall}"/>
+                  <TextBlock Text="源码、更新与反馈都在这里。"
+                             FontSize="{DynamicResource FontSmall}"
+                             Foreground="{DynamicResource BrushTextSecondary}"/>
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <Button x:Name="BtnSponsorBili" Content="B 站主页"
                             FontSize="{DynamicResource FontSmall}" Padding="12,5"
@@ -333,9 +336,9 @@
                   </StackPanel>
                 </StackPanel>
               </Border>
-            </StackPanel>
+            </Grid>
 
-            <Border Grid.Column="1" Classes="card" Width="280" Margin="10,0,0,0" VerticalAlignment="Top">
+            <Border Grid.Column="1" Classes="card" Width="280" Margin="10,0,0,0">
               <StackPanel Spacing="8">
                 <TextBlock Text="微信赞赏码" Classes="sectionLabel" FontWeight="SemiBold"
                            FontSize="{DynamicResource FontSmall}"/>
